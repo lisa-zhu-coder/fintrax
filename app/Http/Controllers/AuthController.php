@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -33,16 +32,8 @@ class AuthController extends Controller
         ]);
 
         $isFirstUser = User::count() === 0;
-
-        if ($isFirstUser) {
-            $role = Role::where('key', 'super_admin')->first();
-            if (!$role) {
-                Artisan::call('db:seed', ['--class' => \Database\Seeders\RoleSeeder::class]);
-                $role = Role::where('key', 'super_admin')->first();
-            }
-        } else {
-            $role = Role::where('key', 'viewer')->first();
-        }
+        $roleKey = $isFirstUser ? 'super_admin' : 'viewer';
+        $role = $this->ensureRoleExists($roleKey);
 
         if (!$role) {
             return redirect()->back()
@@ -50,21 +41,78 @@ class AuthController extends Controller
                 ->withErrors(['error' => 'No se pudo completar el registro. Contacta con el administrador.']);
         }
 
-        User::create([
-            'username' => $validated['username'],
-            'name' => $validated['name'],
-            'email' => $validated['email'] ?? null,
-            'password' => Hash::make($validated['password']),
-            'role_id' => $role->id,
-            'company_id' => null,
-            'store_id' => null,
-        ]);
+        try {
+            User::create([
+                'username' => $validated['username'],
+                'name' => $validated['name'],
+                'email' => $validated['email'] ?? null,
+                'password' => $validated['password'], // el modelo User tiene cast 'hashed'
+                'role_id' => $role->id,
+                'company_id' => null,
+                'store_id' => null,
+            ]);
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'No se pudo crear la cuenta. ' . ($e->getMessage())]);
+        }
 
         $message = $isFirstUser
             ? 'Cuenta de superadministrador creada. Ya puedes iniciar sesión.'
             : 'Cuenta creada correctamente. Un administrador asignará tu empresa y tienda para activar el acceso.';
 
         return redirect()->route('login')->with('success', $message);
+    }
+
+    /**
+     * Asegura que el rol exista en la BD; si no, lo crea (sin depender de Artisan en web).
+     */
+    private function ensureRoleExists(string $key): ?Role
+    {
+        $role = Role::where('key', $key)->first();
+        if ($role) {
+            return $role;
+        }
+
+        $rolesDefinition = [
+            'super_admin' => [
+                'name' => 'Super Administrador',
+                'description' => 'Acceso total a todas las empresas.',
+                'level' => 0,
+                'permissions' => [
+                    'view' => true, 'create' => true, 'edit' => true, 'delete' => true,
+                    'export' => true, 'settings' => true, 'manageUsers' => true, 'manageCompanies' => true,
+                    'createTypes' => ['daily_close' => true, 'expense' => true, 'income' => true, 'expense_refund' => true],
+                ],
+            ],
+            'viewer' => [
+                'name' => 'Visualizador',
+                'description' => 'Solo visualizar datos.',
+                'level' => 4,
+                'permissions' => [
+                    'view' => true, 'create' => false, 'edit' => false, 'delete' => false,
+                    'export' => false, 'settings' => false, 'manageUsers' => false,
+                    'createTypes' => ['daily_close' => false, 'expense' => false, 'income' => false, 'expense_refund' => false],
+                ],
+            ],
+        ];
+
+        $data = $rolesDefinition[$key] ?? null;
+        if (!$data) {
+            return null;
+        }
+
+        try {
+            return Role::create([
+                'key' => $key,
+                'name' => $data['name'],
+                'description' => $data['description'],
+                'level' => $data['level'],
+                'permissions' => $data['permissions'],
+            ]);
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     public function showLoginForm()

@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class EmployeeController extends Controller
@@ -113,15 +114,43 @@ class EmployeeController extends Controller
                 }
             }
 
+            // Asegurar company_id: sesión o, si no hay, de la primera tienda seleccionada (evita empleados huérfanos en producción)
+            $companyId = session('company_id');
+            if ($companyId === null && !empty($validated['store_ids'])) {
+                $firstStore = Store::withoutGlobalScope(\App\Models\Scopes\BelongsToCompanyScope::class)
+                    ->find($validated['store_ids'][0]);
+                if ($firstStore && $firstStore->company_id !== null) {
+                    $companyId = $firstStore->company_id;
+                }
+            }
+            $validated['company_id'] = $companyId;
+
+            $storeIds = $validated['store_ids'];
+            unset($validated['store_ids']);
+
             $employee = Employee::create($validated);
-            $employee->stores()->sync($validated['store_ids']);
+            $employee->stores()->sync($storeIds);
+
+            Log::info('Employee created', [
+                'employee_id' => $employee->id,
+                'company_id' => $employee->company_id,
+                'full_name' => $employee->full_name,
+            ]);
 
             return redirect()->route('employees.index')->with('success', 'Empleado creado correctamente.');
         } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning('Employee create validation failed', [
+                'errors' => $e->errors(),
+                'input_store_ids' => $request->input('store_ids'),
+            ]);
             return redirect()->back()
                 ->withErrors($e->errors())
                 ->withInput();
         } catch (\Exception $e) {
+            Log::error('Employee create failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return redirect()->back()
                 ->withErrors(['error' => 'Error al crear el empleado: ' . $e->getMessage()])
                 ->withInput();

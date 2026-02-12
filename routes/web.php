@@ -176,6 +176,8 @@ Route::middleware(['auth', 'company'])->group(function () {
     
     // Roles
     Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+    Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
+    Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
     Route::get('/roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
     Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
     Route::post('/roles/{role}/reset-permissions', [RoleController::class, 'resetPermissions'])->name('roles.reset-permissions');

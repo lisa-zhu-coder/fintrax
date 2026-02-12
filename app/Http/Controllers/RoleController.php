@@ -12,7 +12,7 @@ class RoleController extends Controller
     public function __construct()
     {
         $this->middleware('permission:admin.roles.view')->only(['index']);
-        $this->middleware('permission:admin.roles.edit')->only(['edit', 'update', 'resetPermissions']);
+        $this->middleware('permission:admin.roles.edit')->only(['create', 'store', 'edit', 'update', 'resetPermissions']);
     }
 
     public function index()
@@ -26,6 +26,44 @@ class RoleController extends Controller
         
         $roles = $query->get();
         return view('roles.index', compact('roles'));
+    }
+
+    public function create()
+    {
+        $permissionModules = PermissionDefinitions::forUi();
+        return view('roles.create', compact('permissionModules'));
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'key' => 'required|string|max:64|unique:roles,key|regex:/^[a-z0-9_]+$/',
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:500',
+            'level' => 'required|integer|min:0|max:99',
+            'permissions' => 'nullable|array',
+            'permissions.*' => 'nullable',
+        ], [
+            'key.unique' => 'Esa clave de rol ya existe.',
+            'key.regex' => 'La clave solo puede contener letras minúsculas, números y guiones bajos.',
+        ]);
+
+        $allKeys = PermissionDefinitions::allKeys();
+        $permissions = $request->input('permissions', []);
+        $newPermissions = [];
+        foreach ($allKeys as $key) {
+            $newPermissions[$key] = !empty($permissions[$key]);
+        }
+
+        Role::create([
+            'key' => $validated['key'],
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'level' => (int) $validated['level'],
+            'permissions' => $newPermissions,
+        ]);
+
+        return redirect()->route('roles.index')->with('success', 'Rol creado correctamente.');
     }
 
     public function edit(Role $role)

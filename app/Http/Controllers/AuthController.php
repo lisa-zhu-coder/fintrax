@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -31,8 +32,19 @@ class AuthController extends Controller
             'password.confirmed' => 'Las contraseñas no coinciden.',
         ]);
 
-        $viewerRole = Role::where('key', 'viewer')->first();
-        if (!$viewerRole) {
+        $isFirstUser = User::count() === 0;
+
+        if ($isFirstUser) {
+            $role = Role::where('key', 'super_admin')->first();
+            if (!$role) {
+                Artisan::call('db:seed', ['--class' => \Database\Seeders\RoleSeeder::class]);
+                $role = Role::where('key', 'super_admin')->first();
+            }
+        } else {
+            $role = Role::where('key', 'viewer')->first();
+        }
+
+        if (!$role) {
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['error' => 'No se pudo completar el registro. Contacta con el administrador.']);
@@ -43,13 +55,16 @@ class AuthController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'] ?? null,
             'password' => Hash::make($validated['password']),
-            'role_id' => $viewerRole->id,
+            'role_id' => $role->id,
             'company_id' => null,
             'store_id' => null,
         ]);
 
-        return redirect()->route('login')
-            ->with('success', 'Cuenta creada correctamente. Un administrador asignará tu empresa y tienda para activar el acceso.');
+        $message = $isFirstUser
+            ? 'Cuenta de superadministrador creada. Ya puedes iniciar sesión.'
+            : 'Cuenta creada correctamente. Un administrador asignará tu empresa y tienda para activar el acceso.';
+
+        return redirect()->route('login')->with('success', $message);
     }
 
     public function showLoginForm()

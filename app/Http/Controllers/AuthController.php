@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -10,6 +11,47 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function showRegisterForm()
+    {
+        if (Auth::check()) {
+            return redirect()->route('dashboard');
+        }
+        return view('auth.register');
+    }
+
+    public function register(Request $request)
+    {
+        $validated = $request->validate([
+            'username' => 'required|string|max:255|unique:users',
+            'name' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'password' => 'required|string|min:6|confirmed',
+        ], [
+            'username.unique' => 'Ese nombre de usuario ya está en uso.',
+            'password.confirmed' => 'Las contraseñas no coinciden.',
+        ]);
+
+        $viewerRole = Role::where('key', 'viewer')->first();
+        if (!$viewerRole) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'No se pudo completar el registro. Contacta con el administrador.']);
+        }
+
+        User::create([
+            'username' => $validated['username'],
+            'name' => $validated['name'],
+            'email' => $validated['email'] ?? null,
+            'password' => Hash::make($validated['password']),
+            'role_id' => $viewerRole->id,
+            'company_id' => null,
+            'store_id' => null,
+        ]);
+
+        return redirect()->route('login')
+            ->with('success', 'Cuenta creada correctamente. Un administrador asignará tu empresa y tienda para activar el acceso.');
+    }
+
     public function showLoginForm()
     {
         if (Auth::check()) {

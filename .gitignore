@@ -11,7 +11,6 @@
 Homestead.json
 Homestead.yaml
 auth.json
-composer.lock
 
 # Storage (mantener .gitkeep)
 /storage/*.key

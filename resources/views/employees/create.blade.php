@@ -3,6 +3,7 @@
 @section('title', 'Añadir Empleado')
 
 @section('content')
+@php $oldInput = $oldInput ?? []; @endphp
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <div class="flex items-center justify-between">
@@ -51,31 +52,31 @@
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Nombre completo *</span>
-                        <input type="text" name="full_name" value="{{ old('full_name') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="full_name" value="{{ $oldInput['full_name'] ?? old('full_name') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">DNI *</span>
-                        <input type="text" name="dni" value="{{ old('dni') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="dni" value="{{ $oldInput['dni'] ?? old('dni') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Número de teléfono</span>
-                        <input type="tel" name="phone" value="{{ old('phone') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="tel" name="phone" value="{{ $oldInput['phone'] ?? old('phone') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Correo electrónico</span>
-                        <input type="email" name="email" value="{{ old('email') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="email" name="email" value="{{ $oldInput['email'] ?? old('email') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block md:col-span-2">
                         <span class="text-xs font-semibold text-slate-700">Calle</span>
-                        <input type="text" name="street" value="{{ old('street') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="street" value="{{ $oldInput['street'] ?? old('street') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Código postal</span>
-                        <input type="text" name="postal_code" value="{{ old('postal_code') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="postal_code" value="{{ $oldInput['postal_code'] ?? old('postal_code') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Ciudad</span>
-                        <input type="text" name="city" value="{{ old('city') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="city" value="{{ $oldInput['city'] ?? old('city') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                 </div>
             </div>
@@ -96,7 +97,7 @@
                         <select name="user_id" id="employeeUserId" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                             <option value="">Sin usuario asignado</option>
                             @foreach($users as $user)
-                                <option value="{{ $user->id }}" {{ old('user_id') == $user->id ? 'selected' : '' }}>{{ $user->name }} ({{ $user->role->name }})</option>
+                                <option value="{{ $user->id }}" {{ ($oldInput['user_id'] ?? old('user_id')) == $user->id ? 'selected' : '' }}>{{ $user->name }} ({{ $user->role->name }})</option>
                             @endforeach
                         </select>
                     </label>
@@ -119,19 +120,19 @@
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Puesto *</span>
-                        <input type="text" name="position" value="{{ old('position') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="position" value="{{ $oldInput['position'] ?? old('position') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Horas contratadas *</span>
-                        <input type="number" name="hours" step="0.5" min="0" value="{{ old('hours') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="number" name="hours" step="0.5" min="0" value="{{ $oldInput['hours'] ?? old('hours') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Fecha de inicio *</span>
-                        <input type="date" name="start_date" value="{{ old('start_date') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="date" name="start_date" value="{{ $oldInput['start_date'] ?? old('start_date') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Fecha de finalización</span>
-                        <input type="date" name="end_date" value="{{ old('end_date') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="date" name="end_date" value="{{ $oldInput['end_date'] ?? old('end_date') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block md:col-span-2">
                         <span class="text-xs font-semibold text-slate-700">Tiendas a las que pertenece *</span>
@@ -148,11 +149,15 @@
                             <div class="mt-2 space-y-2 rounded-xl border border-slate-200 bg-white p-3">
                                 @foreach($stores as $store)
                                     <label class="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" name="store_ids[]" value="{{ $store->id }}" class="employeeStoreCheckbox h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500"/>
+                                        @php $checked = in_array($store->id, (array)($oldInput['store_ids'] ?? old('store_ids', []))); @endphp
+                                        <input type="checkbox" name="store_ids[]" value="{{ $store->id }}" class="employeeStoreCheckbox h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500" {{ $checked ? 'checked' : '' }}/>
                                         <span class="text-sm text-slate-700">{{ $store->name }}</span>
                                     </label>
                                 @endforeach
                             </div>
+                            @if($errors->has('store_ids') || $errors->has('store_ids.*'))
+                                <p class="mt-1 text-sm text-rose-600">{{ $errors->first('store_ids') ?: $errors->first('store_ids.*') }}</p>
+                            @endif
                             <div id="employeeStoresError" class="mt-1 hidden text-xs text-rose-600">Debe seleccionar al menos una tienda</div>
                         @endif
                     </label>
@@ -170,19 +175,19 @@
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Nº Seguridad Social</span>
-                        <input type="text" name="social_security" value="{{ old('social_security') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="social_security" value="{{ $oldInput['social_security'] ?? old('social_security') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Número IBAN</span>
-                        <input type="text" name="iban" value="{{ old('iban') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="iban" value="{{ $oldInput['iban'] ?? old('iban') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Salario bruto mensual (€)</span>
-                        <input type="number" name="gross_salary" step="0.01" min="0" value="{{ old('gross_salary') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="number" name="gross_salary" step="0.01" min="0" value="{{ $oldInput['gross_salary'] ?? old('gross_salary') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Salario neto aproximado mensual (€)</span>
-                        <input type="number" name="net_salary" step="0.01" min="0" value="{{ old('net_salary') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="number" name="net_salary" step="0.01" min="0" value="{{ $oldInput['net_salary'] ?? old('net_salary') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                 </div>
             </div>
@@ -198,15 +203,15 @@
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Talla de camiseta</span>
-                        <input type="text" name="shirt_size" value="{{ old('shirt_size') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="shirt_size" value="{{ $oldInput['shirt_size'] ?? old('shirt_size') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Talla de blazer</span>
-                        <input type="text" name="blazer_size" value="{{ old('blazer_size') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="blazer_size" value="{{ $oldInput['blazer_size'] ?? old('blazer_size') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Talla de pantalones</span>
-                        <input type="text" name="pants_size" value="{{ old('pants_size') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="text" name="pants_size" value="{{ $oldInput['pants_size'] ?? old('pants_size') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                 </div>
             </div>

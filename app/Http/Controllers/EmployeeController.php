@@ -143,17 +143,27 @@ class EmployeeController extends Controller
                 'errors' => $e->errors(),
                 'input_store_ids' => $request->input('store_ids'),
             ]);
-            return redirect()->back()
-                ->withErrors($e->errors())
-                ->withInput();
+            // Devolver la vista en la misma respuesta (sin redirect) para que los datos y errores se muestren
+            // aunque la sesión no persista en producción
+            $this->syncStoresFromBusinesses();
+            $stores = $this->storesForCurrentUser();
+            $users = User::with('role')->get();
+            $roles = Role::all();
+            $oldInput = $request->except('password', '_token');
+            return view('employees.create', compact('stores', 'users', 'roles', 'oldInput'))
+                ->withErrors($e->errors());
         } catch (\Exception $e) {
             Log::error('Employee create failed', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return redirect()->back()
-                ->withErrors(['error' => 'Error al crear el empleado: ' . $e->getMessage()])
-                ->withInput();
+            $this->syncStoresFromBusinesses();
+            $stores = $this->storesForCurrentUser();
+            $users = User::with('role')->get();
+            $roles = Role::all();
+            $oldInput = $request->except('password', '_token');
+            return view('employees.create', compact('stores', 'users', 'roles', 'oldInput'))
+                ->withErrors(['error' => 'Error al crear el empleado: ' . $e->getMessage()]);
         }
     }
 

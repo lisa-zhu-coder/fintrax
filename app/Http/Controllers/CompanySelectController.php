@@ -1,0 +1,107 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Company;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class CompanySelectController extends Controller
+{
+    /**
+     * Mostrar la pantalla de selección de empresa (solo para super_admin).
+     */
+    public function index()
+    {
+        $user = Auth::user();
+
+        // Solo super_admin puede acceder a esta pantalla
+        if (!$user->isSuperAdmin()) {
+            return redirect()->route('dashboard');
+        }
+
+        // Obtener todas las empresas (sin scopes, ordenadas por nombre, sin duplicados)
+        $companies = Company::withoutGlobalScopes()
+            ->orderBy('name')
+            ->get()
+            ->unique('id')
+            ->values();
+
+        return view('company.select', compact('companies'));
+    }
+
+    /**
+     * Cambiar a una empresa específica (guardar en sesión).
+     */
+    public function switch(Request $request)
+    {
+        $user = Auth::user();
+
+        // Solo super_admin puede cambiar de empresa
+        if (!$user->isSuperAdmin()) {
+            return redirect()->route('dashboard')
+                ->with('error', 'No tienes permiso para cambiar de empresa.');
+        }
+
+        $request->validate([
+            'company_id' => 'required|exists:companies,id',
+        ]);
+
+        // Guardar company_id en sesión
+        session(['company_id' => (int) $request->company_id]);
+
+        $company = Company::find($request->company_id);
+
+        return redirect()->route('dashboard')
+            ->with('success', 'Has entrado a la empresa: ' . $company->name);
+    }
+
+    /**
+     * Crear una nueva empresa (solo super_admin).
+     */
+    public function store(Request $request)
+    {
+        $user = Auth::user();
+
+        // Solo super_admin puede crear empresas
+        if (!$user->isSuperAdmin()) {
+            return redirect()->route('dashboard')
+                ->with('error', 'No tienes permiso para crear empresas.');
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'cif' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:50',
+        ]);
+
+        $company = Company::create($validated);
+
+        // Entrar automáticamente a la nueva empresa
+        session(['company_id' => $company->id]);
+
+        return redirect()->route('dashboard')
+            ->with('success', 'Empresa "' . $company->name . '" creada correctamente.');
+    }
+
+    /**
+     * Salir de la empresa actual y volver a la pantalla de selección.
+     */
+    public function exit()
+    {
+        $user = Auth::user();
+
+        // Solo super_admin puede cambiar de empresa
+        if (!$user->isSuperAdmin()) {
+            return redirect()->route('dashboard')
+                ->with('error', 'No tienes permiso para cambiar de empresa.');
+        }
+
+        // Eliminar company_id de sesión
+        session()->forget('company_id');
+
+        return redirect()->route('company.select');
+    }
+}

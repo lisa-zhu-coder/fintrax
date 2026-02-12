@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/var/www
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - APP_URL=http://127.0.0.1:8000
+      - DB_CONNECTION=sqlite
+      - DB_DATABASE=/var/www/database/database.sqlite
+      - SESSION_DRIVER=file
+      - CACHE_STORE=file
+    entrypoint: ["sh", "/var/www/docker-entrypoint.sh"]

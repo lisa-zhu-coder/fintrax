@@ -1,0 +1,1959 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Miramira · Dashboard financiero</title>
+    <meta
+      name="description"
+      content="Dashboard interno para finanzas: ventas, gastos y reportes por tienda."
+    />
+
+    <!-- Tailwind (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: "#f5f3ff",
+                100: "#ede9fe",
+                200: "#ddd6fe",
+                300: "#c4b5fd",
+                400: "#a78bfa",
+                500: "#8b5cf6",
+                600: "#7c3aed",
+                700: "#6d28d9",
+                800: "#5b21b6",
+                900: "#4c1d95",
+              },
+            },
+            boxShadow: {
+              soft:
+                "0 1px 2px rgba(16,24,40,.06), 0 6px 16px rgba(16,24,40,.08)",
+            },
+          },
+        },
+      };
+    </script>
+
+    <!-- Chart.js (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    <!-- PDF.js para procesar nóminas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  </head>
+
+  <body class="bg-slate-50 text-slate-900">
+    <!-- Pantalla de login -->
+    <div id="loginScreen" class="fixed inset-0 flex items-center justify-center bg-slate-50 p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white p-8 shadow-soft ring-1 ring-slate-100">
+        <div class="mb-6 text-center">
+          <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-xl bg-brand-600 text-white">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L3 7v10l9 5 9-5V7l-9-5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 22V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M21 7l-9 5-9-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h1 class="text-xl font-semibold">Miramira Dashboard</h1>
+          <p class="mt-1 text-sm text-slate-500">Inicia sesión para continuar</p>
+        </div>
+
+        <form id="loginForm" class="space-y-4">
+          <div id="loginError" class="hidden rounded-xl bg-rose-50 p-3 text-sm text-rose-800 ring-1 ring-rose-100"></div>
+          
+          <label class="block">
+            <span class="text-xs font-semibold text-slate-700">Usuario</span>
+            <input
+              id="loginUsername"
+              type="text"
+              required
+              autocomplete="username"
+              class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+              placeholder="Nombre de usuario"
+            />
+          </label>
+
+          <label class="block">
+            <span class="text-xs font-semibold text-slate-700">Contraseña</span>
+            <input
+              id="loginPassword"
+              type="password"
+              required
+              autocomplete="current-password"
+              class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+              placeholder="Contraseña"
+            />
+          </label>
+
+          <button
+            type="submit"
+            class="w-full rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
+          >
+            Iniciar sesión
+          </button>
+        </form>
+
+        <div class="mt-6 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+          <p class="font-semibold mb-1">Credenciales por defecto:</p>
+          <p>Usuario: <strong>admin</strong></p>
+          <p>Contraseña: <strong>admin123</strong></p>
+        </div>
+        <div class="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+          <div class="font-semibold text-slate-700">Usuario por defecto:</div>
+          <div class="mt-1">Usuario: <code class="rounded bg-white px-1 py-0.5">admin</code></div>
+          <div>Contraseña: <code class="rounded bg-white px-1 py-0.5">admin123</code></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contenido principal (oculto hasta login) -->
+    <div id="mainContent" class="min-h-screen hidden">
+      <div class="mx-auto max-w-[1200px] px-4 py-6 lg:px-6">
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
+          <!-- Sidebar -->
+          <aside
+            class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100"
+          >
+            <div class="flex items-center gap-3 px-2 py-2">
+              <div
+                class="grid h-10 w-10 place-items-center rounded-xl bg-brand-600 text-white"
+                aria-hidden="true"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 2L3 7v10l9 5 9-5V7l-9-5Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M12 22V12"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M21 7l-9 5-9-5"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold leading-5">Miramira</div>
+                <div class="text-xs text-slate-500">Finanzas · Interno</div>
+              </div>
+            </div>
+
+            <nav class="mt-4 space-y-1">
+              <a
+                href="#"
+                class="flex items-center gap-3 rounded-xl bg-brand-50 px-3 py-2 text-sm font-medium text-brand-800 ring-1 ring-brand-100"
+              >
+                <span class="text-brand-700" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M3 12l9-9 9 9"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M9 21V9h6v12"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                Dashboard
+              </a>
+              <a
+                href="#"
+                id="navIngresos"
+                class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <span class="text-slate-500" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 3v18M7 8l5-5 5 5"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                Ingresos
+              </a>
+              <a
+                href="#"
+                id="navGastos"
+                class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <span class="text-slate-500" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 21V3M7 16l5 5 5-5"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                Gastos
+              </a>
+              <a
+                href="#"
+                id="navCierresDiarios"
+                class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <span class="text-slate-500" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1Z"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M7 8h10M7 12h10M7 16h6"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </span>
+                Cierre Diario
+              </a>
+              <a
+                href="#"
+                class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <span class="text-slate-500" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M4 7h16M4 12h16M4 17h16"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </span>
+                Registros
+              </a>
+              <a
+                href="#"
+                id="navPapelera"
+                class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <span class="text-slate-500" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                Papelera
+              </a>
+              <a
+                href="#"
+                id="navMiramiraPedidos"
+                class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <span class="text-slate-500" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 2v4M15 2v4M9 18h6"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                Pedidos
+              </a>
+              <a
+                href="#"
+                class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <span class="text-slate-500" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M4 19V5M4 19h16M8 16v-6m4 6V8m4 8v-4"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                Analítica
+              </a>
+              <a
+                href="#"
+                class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <span class="text-slate-500" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    />
+                    <path
+                      d="M19.4 15a7.97 7.97 0 0 0 .1-2 7.97 7.97 0 0 0-.1-2l2-1.5-2-3.5-2.4.6a8 8 0 0 0-3.4-2l-.4-2.5h-4l-.4 2.5a8 8 0 0 0-3.4 2L3.1 6l-2 3.5L3.1 11a7.97 7.97 0 0 0-.1 2c0 .68.03 1.34.1 2L1.1 16.5l2 3.5 2.4-.6a8 8 0 0 0 3.4 2l.4 2.5h4l.4-2.5a8 8 0 0 0 3.4-2l2.4.6 2-3.5-2-1.5Z"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                Ajustes
+              </a>
+            </nav>
+
+            <div class="mt-6 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+              <div class="text-xs font-semibold text-slate-700">Usuario actual</div>
+              <div id="currentUserInfo" class="mt-2 text-xs text-slate-600">
+                <!-- Se llena dinámicamente -->
+              </div>
+              <button
+                id="logoutBtn"
+                class="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </aside>
+
+          <!-- Main -->
+          <main class="space-y-6">
+            <!-- Vista: Dashboard -->
+            <div id="viewDashboard">
+              <!-- Topbar -->
+              <header
+                class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100"
+              >
+              <div
+                class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+              >
+                <div>
+                  <h1 class="text-lg font-semibold">Bienvenida de nuevo</h1>
+                  <p class="text-sm text-slate-500">
+                    Panel financiero por tienda y total de la empresa.
+                  </p>
+                </div>
+
+                <div
+                  class="flex flex-col gap-3 sm:flex-row sm:items-center"
+                >
+                  <label class="relative w-full sm:w-64">
+                    <span class="sr-only">Buscar</span>
+                    <span
+                      class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      aria-hidden="true"
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M21 21l-4.3-4.3"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                        />
+                        <path
+                          d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        />
+                      </svg>
+                    </span>
+                    <input
+                      id="searchInput"
+                      type="search"
+                      placeholder="Buscar notas…"
+                      class="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm outline-none ring-brand-200 focus:ring-4"
+                    />
+                  </label>
+
+                  <select
+                    id="periodSelect"
+                    class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4 sm:w-auto"
+                  >
+                    <option value="this_month">Este mes</option>
+                    <option value="last_30">Últimos 30 días</option>
+                    <option value="this_year">Este año</option>
+                  </select>
+
+                  <select
+                    id="storeSelect"
+                    class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4 sm:w-auto"
+                  ></select>
+
+                  <button
+                    id="addEntryBtn"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
+                  >
+                    <span aria-hidden="true">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M12 5v14M5 12h14"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                        />
+                      </svg>
+                    </span>
+                    Añadir registro
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <!-- KPIs -->
+            <section class="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div
+                class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100"
+              >
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-sm font-semibold text-slate-700">
+                      Ventas
+                    </div>
+                    <div
+                      id="kpiSales"
+                      class="mt-2 text-2xl font-semibold tracking-tight"
+                    >
+                      —
+                    </div>
+                  </div>
+                  <div
+                    class="rounded-xl bg-brand-50 p-2 text-brand-700 ring-1 ring-brand-100"
+                    aria-hidden="true"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M12 3v18M7 8l5-5 5 5"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div id="kpiSalesDelta" class="mt-2 text-xs text-slate-500">
+                  —
+                </div>
+              </div>
+
+              <div
+                class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100"
+              >
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-sm font-semibold text-slate-700">
+                      Gastos
+                    </div>
+                    <div
+                      id="kpiExpenses"
+                      class="mt-2 text-2xl font-semibold tracking-tight"
+                    >
+                      —
+                    </div>
+                  </div>
+                  <div
+                    class="rounded-xl bg-rose-50 p-2 text-rose-700 ring-1 ring-rose-100"
+                    aria-hidden="true"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M12 21V3M7 16l5 5 5-5"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div id="kpiExpensesDelta" class="mt-2 text-xs text-slate-500">
+                  —
+                </div>
+              </div>
+
+              <div
+                class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100"
+              >
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-sm font-semibold text-slate-700">
+                      Margen
+                    </div>
+                    <div
+                      id="kpiMargin"
+                      class="mt-2 text-2xl font-semibold tracking-tight"
+                    >
+                      —
+                    </div>
+                  </div>
+                  <div
+                    class="rounded-xl bg-emerald-50 p-2 text-emerald-700 ring-1 ring-emerald-100"
+                    aria-hidden="true"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M7 17l4-4 3 3 5-6"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M3 3v18h18"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div id="kpiMarginDelta" class="mt-2 text-xs text-slate-500">
+                  —
+                </div>
+              </div>
+
+              <div
+                class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100"
+              >
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-sm font-semibold text-slate-700">
+                      Registros
+                    </div>
+                    <div
+                      id="kpiCount"
+                      class="mt-2 text-2xl font-semibold tracking-tight"
+                    >
+                      —
+                    </div>
+                  </div>
+                  <div
+                    class="rounded-xl bg-slate-50 p-2 text-slate-700 ring-1 ring-slate-100"
+                    aria-hidden="true"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M8 6h13M8 12h13M8 18h13"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      />
+                      <path
+                        d="M3 6h.01M3 12h.01M3 18h.01"
+                        stroke="currentColor"
+                        stroke-width="3"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div id="kpiCountMeta" class="mt-2 text-xs text-slate-500">
+                  —
+                </div>
+              </div>
+            </section>
+
+            <!-- Charts row -->
+            <section class="grid grid-cols-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
+              <div
+                class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100"
+              >
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="text-sm font-semibold">Flujo (ventas vs gastos)</div>
+                    <div id="chartSubtitle" class="text-xs text-slate-500">
+                      —
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-4">
+                  <canvas id="flowChart" height="120"></canvas>
+                </div>
+              </div>
+
+              <div
+                class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100"
+              >
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div id="donutTitle" class="text-sm font-semibold">
+                      Distribución
+                    </div>
+                    <div id="donutSubtitle" class="text-xs text-slate-500">
+                      —
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-4 grid place-items-center">
+                  <div class="w-full max-w-[320px]">
+                    <canvas id="donutChart" height="220"></canvas>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Table -->
+            <section
+              class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100"
+            >
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm font-semibold">Registros recientes</div>
+                  <div class="text-xs text-slate-500">
+                    Últimas cargas dentro del periodo seleccionado.
+                  </div>
+                </div>
+                <button
+                  id="exportBtn"
+                  class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-200"
+                >
+                  Exportar CSV
+                </button>
+              </div>
+
+              <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                  <thead class="text-xs uppercase text-slate-500">
+                    <tr>
+                      <th class="whitespace-nowrap px-3 py-2">Fecha</th>
+                      <th class="whitespace-nowrap px-3 py-2">Tipo</th>
+                      <th class="whitespace-nowrap px-3 py-2">Tienda</th>
+                      <th class="whitespace-nowrap px-3 py-2">Ventas</th>
+                      <th class="whitespace-nowrap px-3 py-2">Gastos</th>
+                      <th class="whitespace-nowrap px-3 py-2">Margen</th>
+                      <th class="whitespace-nowrap px-3 py-2">Notas</th>
+                      <th class="whitespace-nowrap px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="entriesTbody" class="divide-y divide-slate-100">
+                    <!-- rows injected -->
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            </div>
+
+            <!-- Vista: Ingresos -->
+            <section id="viewIngresos" class="hidden space-y-6">
+              <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h1 class="text-lg font-semibold">Ingresos</h1>
+                    <p class="text-sm text-slate-500">Todos los registros de ingresos (cierres diarios, ingresos y devoluciones de gasto)</p>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <button
+                      id="addEntryIngresosBtn"
+                      class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
+                    >
+                      <span aria-hidden="true">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M12 5v14M5 12h14"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                          />
+                        </svg>
+                      </span>
+                      Añadir ingreso
+                    </button>
+                    <button
+                      id="exportIngresosBtn"
+                      class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-200"
+                    >
+                      Exportar CSV
+                    </button>
+                  </div>
+                </div>
+              </header>
+
+              <!-- Filtros -->
+              <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Tienda</span>
+                    <select
+                      id="filterIngresosTienda"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="ALL">Todas las tiendas</option>
+                      <!-- Se llena dinámicamente -->
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Período</span>
+                    <select
+                      id="filterIngresosPeriodo"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="last_30">Últimos 30 días</option>
+                      <option value="this_month">Este mes</option>
+                      <option value="custom">Fecha personalizada</option>
+                    </select>
+                  </label>
+                  <div id="filterIngresosCustomDates" class="hidden grid-cols-2 gap-2 md:col-span-2 lg:col-span-3">
+                    <label class="block">
+                      <span class="text-xs font-semibold text-slate-700">Fecha desde</span>
+                      <input
+                        type="date"
+                        id="filterIngresosFechaDesde"
+                        class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                      />
+                    </label>
+                    <label class="block">
+                      <span class="text-xs font-semibold text-slate-700">Fecha hasta</span>
+                      <input
+                        type="date"
+                        id="filterIngresosFechaHasta"
+                        class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                      />
+                    </label>
+                  </div>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Tipo de ingreso</span>
+                    <select
+                      id="filterIngresosTipo"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="">Todos</option>
+                      <option value="daily_close">Cierre diario</option>
+                      <option value="income">Ingreso</option>
+                      <option value="expense_refund">Devolución de gasto</option>
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Categoría</span>
+                    <select
+                      id="filterIngresosCategoria"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="">Todas</option>
+                      <option value="servicios_financieros">Servicios financieros</option>
+                      <option value="ventas">Ventas</option>
+                      <option value="otros">Otros</option>
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Usuario</span>
+                    <select
+                      id="filterIngresosUsuario"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="">Todos</option>
+                      <!-- Se llena dinámicamente -->
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-500">
+                      <tr>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="fecha" data-sort-dir="desc">
+                          Fecha
+                          <span class="ml-1 text-slate-400" data-sort-indicator="fecha">↓</span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="tipo" data-sort-dir="">
+                          Tipo
+                          <span class="ml-1 text-slate-400" data-sort-indicator="tipo"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="tienda" data-sort-dir="">
+                          Tienda
+                          <span class="ml-1 text-slate-400" data-sort-indicator="tienda"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="importe" data-sort-dir="">
+                          Importe (€)
+                          <span class="ml-1 text-slate-400" data-sort-indicator="importe"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="categoria" data-sort-dir="">
+                          Categoría
+                          <span class="ml-1 text-slate-400" data-sort-indicator="categoria"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="concepto" data-sort-dir="">
+                          Concepto
+                          <span class="ml-1 text-slate-400" data-sort-indicator="concepto"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="usuario" data-sort-dir="">
+                          Usuario
+                          <span class="ml-1 text-slate-400" data-sort-indicator="usuario"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2">
+                          Forma de pago
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="ingresosTbody" class="divide-y divide-slate-100">
+                      <!-- rows injected -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <!-- Vista: Gastos -->
+            <section id="viewGastos" class="hidden space-y-6">
+              <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h1 class="text-lg font-semibold">Gastos</h1>
+                    <p class="text-sm text-slate-500">Todos los registros de gastos (cierres diarios y gastos)</p>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <button
+                      id="addEntryGastosBtn"
+                      class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
+                    >
+                      <span aria-hidden="true">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M12 5v14M5 12h14"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                          />
+                        </svg>
+                      </span>
+                      Añadir gasto
+                    </button>
+                    <button
+                      id="exportGastosBtn"
+                      class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-200"
+                    >
+                      Exportar CSV
+                    </button>
+                  </div>
+                </div>
+              </header>
+
+              <!-- Filtros -->
+              <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Tienda</span>
+                    <select
+                      id="filterGastosTienda"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="ALL">Todas las tiendas</option>
+                      <!-- Se llena dinámicamente -->
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Período</span>
+                    <select
+                      id="filterGastosPeriodo"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="last_30">Últimos 30 días</option>
+                      <option value="this_month">Este mes</option>
+                      <option value="custom">Fecha personalizada</option>
+                    </select>
+                  </label>
+                  <div id="filterGastosCustomDates" class="hidden grid-cols-2 gap-2 md:col-span-2 lg:col-span-3">
+                    <label class="block">
+                      <span class="text-xs font-semibold text-slate-700">Fecha desde</span>
+                      <input
+                        type="date"
+                        id="filterGastosFechaDesde"
+                        class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                      />
+                    </label>
+                    <label class="block">
+                      <span class="text-xs font-semibold text-slate-700">Fecha hasta</span>
+                      <input
+                        type="date"
+                        id="filterGastosFechaHasta"
+                        class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                      />
+                    </label>
+                  </div>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Tipo de gasto</span>
+                    <select
+                      id="filterGastosTipo"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="">Todos</option>
+                      <option value="daily_close">Cierre diario</option>
+                      <option value="expense">Gasto</option>
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Categoría</span>
+                    <select
+                      id="filterGastosCategoria"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="">Todas</option>
+                      <option value="alquiler">Alquiler</option>
+                      <option value="impuestos">Impuestos</option>
+                      <option value="seguridad_social">Seguridad social</option>
+                      <option value="suministros">Suministros</option>
+                      <option value="servicios_profesionales">Servicios profesionales</option>
+                      <option value="sueldos">Sueldos</option>
+                      <option value="miramira">Miramira</option>
+                      <option value="mercaderia">Mercadería</option>
+                      <option value="equipamiento">Equipamiento</option>
+                      <option value="otros">Otros</option>
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Usuario</span>
+                    <select
+                      id="filterGastosUsuario"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="">Todos</option>
+                      <!-- Se llena dinámicamente -->
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-500">
+                      <tr>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="fecha" data-sort-dir="desc">
+                          Fecha
+                          <span class="ml-1 text-slate-400" data-sort-indicator="fecha">↓</span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="tipo" data-sort-dir="">
+                          Tipo
+                          <span class="ml-1 text-slate-400" data-sort-indicator="tipo"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="tienda" data-sort-dir="">
+                          Tienda
+                          <span class="ml-1 text-slate-400" data-sort-indicator="tienda"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="importe" data-sort-dir="">
+                          Importe (€)
+                          <span class="ml-1 text-slate-400" data-sort-indicator="importe"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="categoria" data-sort-dir="">
+                          Categoría
+                          <span class="ml-1 text-slate-400" data-sort-indicator="categoria"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="concepto" data-sort-dir="">
+                          Concepto
+                          <span class="ml-1 text-slate-400" data-sort-indicator="concepto"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="usuario" data-sort-dir="">
+                          Usuario
+                          <span class="ml-1 text-slate-400" data-sort-indicator="usuario"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2">
+                          Forma de pago
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2">Procedencia</th>
+                        <th class="whitespace-nowrap px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="gastosTbody" class="divide-y divide-slate-100">
+                      <!-- rows injected -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <!-- Vista: Cierre Diario -->
+            <section id="viewCierresDiarios" class="hidden space-y-6">
+              <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h1 class="text-lg font-semibold">Cierre Diario</h1>
+                    <p class="text-sm text-slate-500">Todos los cierres de caja registrados</p>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <button
+                      id="addCierreDiarioBtn"
+                      class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
+                    >
+                      <span aria-hidden="true">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M12 5v14M5 12h14"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                          />
+                        </svg>
+                      </span>
+                      Añadir cierre diario
+                    </button>
+                    <button
+                      id="exportCierresDiariosBtn"
+                      class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-200"
+                    >
+                      Exportar CSV
+                    </button>
+                  </div>
+                </div>
+              </header>
+
+              <!-- Filtros -->
+              <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Tienda</span>
+                    <select
+                      id="filterCierresDiariosTienda"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="ALL">Todas las tiendas</option>
+                      <!-- Se llena dinámicamente -->
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Período</span>
+                    <select
+                      id="filterCierresDiariosPeriodo"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="last_30">Últimos 30 días</option>
+                      <option value="this_month">Este mes</option>
+                      <option value="this_year">Este año</option>
+                      <option value="custom">Fecha personalizada</option>
+                    </select>
+                  </label>
+                  <div id="filterCierresDiariosCustomDates" class="hidden grid-cols-2 gap-2 md:col-span-2 lg:col-span-3">
+                    <label class="block">
+                      <span class="text-xs font-semibold text-slate-700">Fecha desde</span>
+                      <input
+                        type="date"
+                        id="filterCierresDiariosFechaDesde"
+                        class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                      />
+                    </label>
+                    <label class="block">
+                      <span class="text-xs font-semibold text-slate-700">Fecha hasta</span>
+                      <input
+                        type="date"
+                        id="filterCierresDiariosFechaHasta"
+                        class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                      />
+                    </label>
+                  </div>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Usuario</span>
+                    <select
+                      id="filterCierresDiariosUsuario"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="">Todos</option>
+                      <!-- Se llena dinámicamente -->
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-500">
+                      <tr>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="fecha" data-sort-dir="desc">
+                          Fecha
+                          <span class="ml-1 text-slate-400" data-sort-indicator="fecha">↓</span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="tienda" data-sort-dir="">
+                          Tienda
+                          <span class="ml-1 text-slate-400" data-sort-indicator="tienda"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="ventas" data-sort-dir="">
+                          Ventas (€)
+                          <span class="ml-1 text-slate-400" data-sort-indicator="ventas"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="gastos" data-sort-dir="">
+                          Gastos (€)
+                          <span class="ml-1 text-slate-400" data-sort-indicator="gastos"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="efectivoRetirado" data-sort-dir="">
+                          Efectivo Retirado (€)
+                          <span class="ml-1 text-slate-400" data-sort-indicator="efectivoRetirado"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2">Efectivo</th>
+                        <th class="whitespace-nowrap px-3 py-2">Tarjeta</th>
+                        <th class="whitespace-nowrap px-3 py-2 cursor-pointer select-none hover:bg-slate-50" data-sort="usuario" data-sort-dir="">
+                          Usuario
+                          <span class="ml-1 text-slate-400" data-sort-indicator="usuario"></span>
+                        </th>
+                        <th class="whitespace-nowrap px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="cierresDiariosTbody" class="divide-y divide-slate-100">
+                      <!-- rows injected -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+
+            <!-- Vista: Papelera -->
+            <section id="viewPapelera" class="hidden space-y-6">
+              <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h1 class="text-lg font-semibold">Papelera</h1>
+                    <p class="text-sm text-slate-500">Registros eliminados (se eliminarán automáticamente después de 30 días)</p>
+                  </div>
+                  <button
+                    id="emptyTrashBtn"
+                    class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                  >
+                    Vaciar papelera
+                  </button>
+                </div>
+              </header>
+
+              <!-- Filtros -->
+              <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Tipo</span>
+                    <select
+                      id="filterTrashType"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="">Todos</option>
+                      <option value="daily_close">Cierre diario</option>
+                      <option value="expense">Gasto</option>
+                      <option value="income">Ingreso</option>
+                      <option value="expense_refund">Devolución</option>
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Tienda</span>
+                    <select
+                      id="filterTrashStore"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="ALL">Todas</option>
+                      <!-- Se llena dinámicamente -->
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Días restantes</span>
+                    <select
+                      id="filterTrashDays"
+                      class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                    >
+                      <option value="">Todos</option>
+                      <option value="0-7">0-7 días</option>
+                      <option value="8-15">8-15 días</option>
+                      <option value="16-30">16-30 días</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-500">
+                      <tr class="whitespace-nowrap">
+                        <th class="whitespace-nowrap px-3 py-2">Fecha</th>
+                        <th class="whitespace-nowrap px-3 py-2">Tipo</th>
+                        <th class="whitespace-nowrap px-3 py-2">Tienda</th>
+                        <th class="whitespace-nowrap px-3 py-2 text-right">Importe (€)</th>
+                        <th class="whitespace-nowrap px-3 py-2">Eliminado por</th>
+                        <th class="whitespace-nowrap px-3 py-2">Fecha eliminación</th>
+                        <th class="whitespace-nowrap px-3 py-2">Días restantes</th>
+                        <th class="whitespace-nowrap px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="papeleraTbody" class="divide-y divide-slate-100">
+                      <!-- rows injected -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Detalles del mes -->
+    <div
+      id="detalleMesModal"
+      class="fixed inset-0 hidden items-center justify-center bg-slate-900/40 p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="w-full max-w-4xl rounded-2xl bg-white p-5 shadow-soft max-h-[90vh] overflow-y-auto">
+        <div class="flex items-start justify-between gap-4">
+          <h2 id="detalleMesModalTitle" class="text-lg font-semibold text-slate-900">Detalle del mes</h2>
+          <button
+            id="closeDetalleMesModalBtn"
+            class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            aria-label="Cerrar"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div id="detalleMesContent" class="mt-4">
+          <!-- Se llena dinámicamente -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Add/Edit entry -->
+    <div
+      id="entryModal"
+      class="fixed inset-0 hidden items-center justify-center bg-slate-900/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modalTitle"
+    >
+      <div class="w-full max-w-4xl rounded-2xl bg-white p-5 shadow-soft max-h-[90vh] overflow-y-auto">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div id="modalTitle" class="text-base font-semibold">
+              Añadir registro diario
+            </div>
+            <div class="text-sm text-slate-500">
+              Ventas y gastos del día por tienda.
+            </div>
+          </div>
+          <button
+            id="closeModalBtn"
+            class="rounded-xl p-2 text-slate-500 hover:bg-slate-50"
+            aria-label="Cerrar"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M18 6 6 18M6 6l12 12"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <form id="entryForm" class="mt-4 space-y-3">
+          <input type="hidden" id="entryId" />
+
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">Tipo de registro</span>
+              <select
+                id="formEntryType"
+                required
+                class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none ring-brand-200 focus:ring-4"
+              >
+                <option value="daily_close">Cierre diario</option>
+                <option value="expense">Gasto</option>
+                <option value="income">Ingreso</option>
+                <option value="expense_refund">Devolución de gasto</option>
+              </select>
+            </label>
+
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">Tienda</span>
+              <select
+                id="formStore"
+                required
+                class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+              ></select>
+            </label>
+
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700">Fecha</span>
+              <input
+                id="formDate"
+                required
+                type="date"
+                class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+              />
+            </label>
+          </div>
+
+          <!-- Sección: Cierre diario -->
+          <div id="sectionDailyClose" class="space-y-3">
+            <!-- 1. Conteo de caja -->
+            <div class="rounded-xl border-2 border-brand-100 bg-brand-50/30 p-4 ring-1 ring-brand-100">
+              <div class="mb-3 flex items-center gap-2">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="text-brand-700"
+                >
+                  <path
+                    d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M7 8h10M7 12h10M7 16h6"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <span class="text-sm font-semibold text-brand-900">Conteo de caja</span>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Efectivo inicial (€)</span>
+                  <input
+                    id="formCashInitial"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder="0"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  />
+                </label>
+
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Tarjeta (€)</span>
+                  <input
+                    id="formTpv"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder="0"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  />
+                </label>
+
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Gastos pagados con efectivo (€)</span>
+                  <input
+                    id="formCashExpenses"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder="0"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  />
+                </label>
+              </div>
+
+              <!-- Conteo de monedas y billetes -->
+              <div class="mt-4">
+                <div class="mb-2 flex items-center justify-between">
+                  <span class="text-xs font-semibold text-slate-700">Conteo de efectivo</span>
+                  <div class="text-xs text-slate-600">
+                    Total contado: <span id="cashCountTotal" class="font-semibold text-brand-700">0,00 €</span>
+                  </div>
+                </div>
+                <div id="cashCountContainer" class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+                  <!-- Injected by JS -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Vales -->
+            <div class="rounded-xl border-2 border-emerald-100 bg-emerald-50/30 p-4 ring-1 ring-emerald-100">
+              <div class="mb-3 flex items-center gap-2">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="text-emerald-700"
+                >
+                  <path
+                    d="M4 7h16M4 12h16M4 17h16"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <span class="text-sm font-semibold text-emerald-900">Vales</span>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Vales entrada (€)</span>
+                  <input
+                    id="formVouchersIn"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder="0"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  />
+                </label>
+
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Vales salida (€)</span>
+                  <input
+                    id="formVouchersOut"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder="0"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  />
+                </label>
+
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Resultado vales (€)</span>
+                  <input
+                    id="formVouchersResult"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.01"
+                    placeholder="0"
+                    readonly
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <!-- 4. Shopify POS -->
+            <div class="rounded-xl border-2 border-blue-100 bg-blue-50/30 p-4 ring-1 ring-blue-100">
+              <div class="mb-3 flex items-center gap-2">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="text-blue-700"
+                >
+                  <path
+                    d="M12 2L2 7l10 5 10-5-10-5Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M2 17l10 5 10-5M2 12l10 5 10-5"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span class="text-sm font-semibold text-blue-900">Shopify POS</span>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Shopify POS · Efectivo (€)</span>
+                  <input
+                    id="formShopifyCash"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder="0"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  />
+                </label>
+
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Shopify POS · Tarjeta (€)</span>
+                  <input
+                    id="formShopifyTpv"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder="0"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <!-- 5. Resultado -->
+            <div class="rounded-xl border-2 border-slate-200 bg-slate-50 p-4 ring-1 ring-slate-200">
+              <div class="mb-3 flex items-center gap-2">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="text-slate-700"
+                >
+                  <path
+                    d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span class="text-sm font-semibold text-slate-900">Resultado</span>
+              </div>
+
+              <!-- Ventas totales -->
+              <div class="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                <div class="text-xs font-semibold text-slate-700">Ventas totales (€)</div>
+                <div id="formSales" class="mt-1 text-lg font-semibold text-slate-900">—</div>
+                <div class="mt-2 space-y-1 text-xs text-slate-600">
+                  <div>Efectivo: <span id="computedCashSales" class="font-semibold text-slate-900">—</span></div>
+                  <div>Datáfono: <span id="computedTpvSales" class="font-semibold text-slate-900">—</span></div>
+                  <div>Vales: <span id="computedVouchersSales" class="font-semibold text-slate-900">—</span></div>
+                </div>
+              </div>
+
+              <!-- Gastos totales -->
+              <div class="mt-3 rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                <div class="text-xs font-semibold text-slate-700">Gastos totales (€)</div>
+                <div id="formExpenses" class="mt-1 text-lg font-semibold text-slate-900">—</div>
+              </div>
+
+              <!-- Discrepancias y retirar efectivo -->
+              <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div class="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                  <div class="text-xs font-semibold text-slate-700">Discrepancia (efectivo vs Shopify)</div>
+                  <div id="cashDiscrepancy" class="mt-1 text-sm font-semibold">—</div>
+                </div>
+                <div class="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                  <div class="text-xs font-semibold text-slate-700">Discrepancia (tarjeta vs Shopify)</div>
+                  <div id="tpvDiscrepancy" class="mt-1 text-sm font-semibold">—</div>
+                </div>
+                <div class="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                  <div class="text-xs font-semibold text-slate-700">Retirar efectivo</div>
+                  <div id="withdrawAmount" class="mt-1 text-sm font-semibold text-slate-900">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Gasto -->
+          <div id="sectionExpense" class="hidden space-y-3">
+            <div class="rounded-xl border-2 border-rose-100 bg-rose-50/30 p-4 ring-1 ring-rose-100">
+              <div class="mb-3 flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-rose-700">
+                  <path d="M12 21V3M7 16l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="text-sm font-semibold text-rose-900">Registro de gasto</span>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Categoría del gasto</span>
+                  <select
+                    id="formExpenseCategory"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  >
+                    <option value="">Selecciona…</option>
+                    <option value="alquiler">Alquiler</option>
+                    <option value="impuestos">Impuestos</option>
+                    <option value="seguridad_social">Seguridad Social</option>
+                    <option value="suministros">Suministros</option>
+                    <option value="servicios_profesionales">Servicios profesionales</option>
+                    <option value="sueldos">Sueldos</option>
+                    <option value="miramira">Miramira</option>
+                    <option value="mercaderia">Mercadería</option>
+                    <option value="equipamiento">Equipamiento</option>
+                    <option value="otros">Otros</option>
+                  </select>
+                </label>
+
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Método de pago</span>
+                  <select
+                    id="formExpensePaymentMethod"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  >
+                    <option value="">Selecciona…</option>
+                    <option value="cash">Efectivo</option>
+                    <option value="bank">Banco</option>
+                  </select>
+                </label>
+              </div>
+
+              <label class="mt-3 block">
+                <span class="text-xs font-semibold text-slate-700">Concepto del gasto</span>
+                <input
+                  id="formExpenseConcept"
+                  type="text"
+                  placeholder="Ej: Reparación vitrina, asesoría, luz…"
+                  class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                />
+              </label>
+
+              <label class="mt-3 block">
+                <span class="text-xs font-semibold text-slate-700">Importe del gasto (€)</span>
+                <input
+                  id="formExpenseAmount"
+                  type="number"
+                  inputmode="decimal"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                />
+              </label>
+
+              <!-- División entre tiendas -->
+              <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 ring-1 ring-slate-100">
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="formExpenseSplitStores"
+                    class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500"
+                  />
+                  <span class="text-sm font-semibold text-slate-700">Dividir este gasto entre tiendas</span>
+                </label>
+                <div id="expenseSplitContainer" class="mt-4 hidden space-y-3">
+                  <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div class="text-xs font-semibold text-slate-700 mb-2">Selecciona las tiendas que participan:</div>
+                    <div id="expenseSplitStoreCheckboxes" class="space-y-2">
+                      <!-- Se llena dinámicamente -->
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="font-semibold text-slate-700">Distribución por tienda:</span>
+                    <span class="text-slate-600">
+                      Total: <span id="expenseSplitTotal" class="font-semibold text-brand-700">0,00 €</span>
+                    </span>
+                  </div>
+                  <div id="expenseSplitStoresList" class="space-y-2">
+                    <!-- Se llena dinámicamente -->
+                  </div>
+                  <div id="expenseSplitError" class="hidden rounded-lg bg-rose-50 p-2 text-xs text-rose-700 ring-1 ring-rose-200">
+                    La suma de las cantidades debe ser igual al importe total del gasto.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Ingreso -->
+          <div id="sectionIncome" class="hidden space-y-3">
+            <div class="rounded-xl border-2 border-emerald-100 bg-emerald-50/30 p-4 ring-1 ring-emerald-100">
+              <div class="mb-3 flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-emerald-700">
+                  <path d="M12 3v18M7 8l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="text-sm font-semibold text-emerald-900">Registro de ingreso</span>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Categoría del ingreso</span>
+                  <select
+                    id="formIncomeCategory"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  >
+                    <option value="">Selecciona…</option>
+                    <option value="servicios_financieros">Servicios financieros</option>
+                    <option value="ventas">Ventas</option>
+                    <option value="otros">Otros</option>
+                  </select>
+                </label>
+
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">Importe del ingreso (€)</span>
+                  <input
+                    id="formIncomeAmount"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder="0"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  />
+                </label>
+              </div>
+
+              <label class="mt-3 block">
+                <span class="text-xs font-semibold text-slate-700">Concepto del ingreso</span>
+                <input
+                  id="formIncomeConcept"
+                  type="text"
+                  placeholder="Ej: Reembolso, comisión, servicio…"
+                  class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                />
+              </label>
+            </div>
+          </div>
+
+          <!-- Sección: Devolución de gasto -->
+          <div id="sectionExpenseRefund" class="hidden space-y-3">
+            <div class="rounded-xl border-2 border-amber-100 bg-amber-50/30 p-4 ring-1 ring-amber-100">
+              <div class="mb-3 flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-amber-700">
+                  <path d="M3 12l9-9 9 9M3 12l9 9 9-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="text-sm font-semibold text-amber-900">Devolución de gasto</span>
+              </div>
+
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-700">Tipo de devolución</span>
+                <select
+                  id="formRefundType"
+                  class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                >
+                  <option value="existing">Devolución de un gasto previo</option>
+                  <option value="new">Nueva devolución (no relacionada con gasto previo)</option>
+                </select>
+              </label>
+
+              <div id="refundExistingSection" class="mt-3">
+                <label class="block">
+                  <span class="text-xs font-semibold text-slate-700">ID o referencia del gasto original</span>
+                  <input
+                    id="formRefundOriginalId"
+                    type="text"
+                    placeholder="ID del registro de gasto original"
+                    class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                  />
+                </label>
+              </div>
+
+              <label class="mt-3 block">
+                <span class="text-xs font-semibold text-slate-700">Importe de la devolución (€)</span>
+                <input
+                  id="formRefundAmount"
+                  type="number"
+                  inputmode="decimal"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                />
+              </label>
+
+              <label class="mt-3 block">
+                <span class="text-xs font-semibold text-slate-700">Concepto / Motivo de la devolución</span>
+                <input
+                  id="formRefundConcept"
+                  type="text"
+                  placeholder="Ej: Devolución de compra, Reembolso de servicio..."
+                  class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+                />
+              </label>
+            </div>
+          </div>
+
+          <label class="block">
+            <span class="text-xs font-semibold text-slate-700">Notas</span>
+            <textarea
+              id="formNotes"
+              rows="3"
+              placeholder="Opcional (p. ej. incidencias, eventos, promociones…)"
+              class="mt-1 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
+            ></textarea>
+          </label>
+
+          <!-- Historial de cambios -->
+          <div id="entryHistorySection" class="hidden rounded-xl border-2 border-slate-200 bg-slate-50/50 p-4 ring-1 ring-slate-200">
+            <div class="mb-3 flex items-center gap-2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-slate-700">
+                <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+              </svg>
+              <span class="text-sm font-semibold text-slate-900">Historial de cambios</span>
+            </div>
+            <div id="entryHistoryContent" class="space-y-2 text-xs">
+              <!-- Se llena dinámicamente -->
+            </div>
+          </div>
+
+          <div
+            id="formError"
+            class="hidden rounded-xl bg-rose-50 p-3 text-sm text-rose-800 ring-1 ring-rose-100"
+          ></div>
+
+          <div class="mt-2 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              id="cancelBtn"
+              class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-200"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              id="saveBtn"
+              class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
+            >
+              Guardar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="./auth.js"></script>
+    <script src="./roles.js"></script>
+    <script src="./users.js"></script>
+    <script src="./company.js"></script>
+    <script src="./employees.js"></script>
+    <script src="./orders.js"></script>
+    <script src="./app.js"></script>
+
+  </body>
+</html>

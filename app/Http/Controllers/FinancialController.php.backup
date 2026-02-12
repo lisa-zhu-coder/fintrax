@@ -1,0 +1,143 @@
+    public function cashControlStore($storeId, Request $request)
+    {
+        // Sincronizar stores antes de mostrar la vista
+        $this->syncStoresFromBusinesses();
+        
+        $store = \App\Models\Store::findOrFail($storeId);
+        
+        $query = FinancialEntry::with(['store'])
+            ->where('type', 'daily_close')
+            ->where('store_id', $storeId);
+
+        // Solo aplicar filtro si el usuario lo especifica explícitamente o hay fechas personalizadas
+        $period = $request->get('period', null);
+        
+        // Si hay fechas personalizadas o un período específico, aplicar el filtro
+        if (($request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) || 
+            ($period && $period !== 'all')) {
+            if (!$period) {
+                $period = 'last_30'; // Valor por defecto solo si hay fechas personalizadas
+            }
+            $this->applyPeriodFilter($query, $period, $request);
+        }
+
+        // Obtener todas las entradas sin paginación para agrupar
+        $allEntries = $query->orderBy('date', 'desc')->orderBy('created_at', 'desc')->get();
+        
+        // Calcular efectivo retirado y agrupar por mes
+        $monthsData = [];
+        $storeTotal = 0;
+        
+        foreach ($allEntries as $entry) {
+            $cashCounted = $entry->calculateCashTotal();
+            $cashInitial = (float) ($entry->cash_initial ?? 0);
+            $cashWithdrawn = round($cashCounted - $cashInitial, 2);
+            
+            $monthKey = $entry->date->format('Y-m'); // Formato: 2026-01
+            $monthLabel = ucfirst(\Carbon\Carbon::parse($entry->date)->locale('es')->isoFormat('MMMM YYYY')); // Formato: Enero 2026
+            
+            // Inicializar mes si no existe
+            if (!isset($monthsData[$monthKey])) {
+                $monthsData[$monthKey] = [
+                    'key' => $monthKey,
+                    'label' => $monthLabel,
+                    'total' => 0,
+                    'entries' => []
+                ];
+            }
+            
+            // Agregar entrada al mes
+            $monthsData[$monthKey]['entries'][] = [
+                'id' => $entry->id,
+                'date' => $entry->date->format('d/m/Y'),
+                'amount' => $cashWithdrawn
+            ];
+            
+            // Actualizar totales
+            $monthsData[$monthKey]['total'] += $cashWithdrawn;
+            $storeTotal += $cashWithdrawn;
+        }
+        
+        // Calcular totales por mes
+        foreach ($monthsData as $monthKey => &$month) {
+            $month['cash_real'] = 0;
+            $month['month_expenses'] = 0;
+            $month['days_withdrawn'] = 0;
+            $month['days_real'] = 0;
+            
+            // Contar días únicos con efectivo retirado y efectivo real
+            $daysWithdrawn = [];
+            $daysReal = [];
+            
+            // Calcular efectivo real de todas las entradas de este mes
+            foreach ($allEntries as $entry) {
+                $entryMonthKey = $entry->date->format('Y-m');
+                if ($entryMonthKey === $monthKey) {
+                    $cashCounted = $entry->calculateCashTotal();
+                    $cashInitial = (float) ($entry->cash_initial ?? 0);
+                    $cashWithdrawn = round($cashCounted - $cashInitial, 2);
+                    
+                    // Contar días con efectivo retirado
+                    if ($cashWithdrawn != 0) {
+                        $dayKey = $entry->date->format('Y-m-d');
+                        if (!in_array($dayKey, $daysWithdrawn)) {
+                            $daysWithdrawn[] = $dayKey;
+                        }
+                    }
+                    
+                    // Contar días con efectivo real
+                    if ($entry->cash_real !== null) {
+                        $month['cash_real'] += (float)$entry->cash_real;
+                        $dayKey = $entry->date->format('Y-m-d');
+                        if (!in_array($dayKey, $daysReal)) {
+                            $daysReal[] = $dayKey;
+                        }
+                    }
+                }
+            }
+            
+            $month['days_withdrawn'] = count($daysWithdrawn);
+            $month['days_real'] = count($daysReal);
+            
+            // Obtener gastos del mes completo para este mes específico
+            $year = substr($monthKey, 0, 4);
+            $monthNum = substr($monthKey, 5, 2);
+            
+            $expensesQuery = FinancialEntry::where('type', 'expense')
+                ->where('store_id', $storeId)
+                ->whereYear('date', $year)
+                ->whereMonth('date', $monthNum)
+                ->where('notes', 'like', '%"source":"cash_control"%');
+            
+            // Solo aplicar filtro de período a los gastos si se especificó
+            if (($request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) || 
+                ($period && $period !== 'all')) {
+                if (!$period) {
+                    $period = 'last_30';
+                }
+                $this->applyPeriodFilter($expensesQuery, $period, $request);
+            }
+            
+            $monthExpenses = $expensesQuery->get();
+            
+            foreach ($monthExpenses as $expense) {
+                $procedenceDate = $expense->notes ? json_decode($expense->notes, true) : null;
+                if (is_array($procedenceDate) && isset($procedenceDate['procedence_date'])) {
+                    $procDate = $procedenceDate['procedence_date'];
+                    // Si la procedencia es el mes completo (formato: 2026-01)
+                    if ($procDate === $monthKey) {
+                        $amount = (float) ($expense->expense_amount ?? $expense->amount ?? 0);
+                        $month['month_expenses'] += $amount;
+                    }
+                }
+            }
+            
+            $month['balance'] = round($month['cash_real'] - $month['month_expenses'], 2);
+        }
+        
+        // Ordenar meses (más reciente primero)
+        krsort($monthsData);
+        $monthsData = array_reverse($monthsData, true);
+
+        return view('financial.cash-control-store', compact('store', 'monthsData', 'storeTotal', 'period'));
+    }

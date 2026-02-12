@@ -69,7 +69,7 @@ class EmployeeController extends Controller
         try {
             $validated = $request->validate([
                 'full_name' => 'required|string|max:255',
-                'dni' => 'nullable|string|max:255',
+                'dni' => 'required|string|max:255',
                 'phone' => 'nullable|string|max:255',
                 'email' => 'nullable|email|max:255',
                 'street' => 'nullable|string|max:255',
@@ -90,6 +90,11 @@ class EmployeeController extends Controller
                 'store_ids' => 'required|array|min:1',
                 'store_ids.*' => 'exists:stores,id',
             ], [
+                'full_name.required' => 'El nombre completo es obligatorio.',
+                'dni.required' => 'El DNI es obligatorio.',
+                'position.required' => 'El puesto es obligatorio.',
+                'hours.required' => 'Las horas contratadas son obligatorias.',
+                'start_date.required' => 'La fecha de inicio es obligatoria.',
                 'store_ids.required' => 'Debe seleccionar al menos una tienda.',
                 'store_ids.min' => 'Debe seleccionar al menos una tienda.',
                 'store_ids.*.exists' => 'Una o más tiendas seleccionadas no existen. Por favor, recarga la página e intenta de nuevo.',
@@ -103,6 +108,16 @@ class EmployeeController extends Controller
             // Convertir end_date vacío a null para que quede vacío si no se rellena
             if (empty($validated['end_date'])) {
                 $validated['end_date'] = null;
+            }
+
+            // MySQL no acepta '' en columnas decimal: convertir vacíos a null
+            foreach (['gross_salary', 'net_salary'] as $key) {
+                if (isset($validated[$key]) && $validated[$key] === '') {
+                    $validated[$key] = null;
+                }
+            }
+            if (isset($validated['hours']) && $validated['hours'] === '') {
+                $validated['hours'] = 0;
             }
 
             $user = Auth::user();
@@ -226,7 +241,7 @@ class EmployeeController extends Controller
         try {
             $validated = $request->validate([
                 'full_name' => 'required|string|max:255',
-                'dni' => 'nullable|string|max:255',
+                'dni' => 'required|string|max:255',
                 'phone' => 'nullable|string|max:255',
                 'email' => 'nullable|email|max:255',
                 'street' => 'nullable|string|max:255',
@@ -247,6 +262,11 @@ class EmployeeController extends Controller
                 'store_ids' => 'required|array|min:1',
                 'store_ids.*' => 'exists:stores,id',
             ], [
+                'full_name.required' => 'El nombre completo es obligatorio.',
+                'dni.required' => 'El DNI es obligatorio.',
+                'position.required' => 'El puesto es obligatorio.',
+                'hours.required' => 'Las horas contratadas son obligatorias.',
+                'start_date.required' => 'La fecha de inicio es obligatoria.',
                 'store_ids.required' => 'Debe seleccionar al menos una tienda.',
                 'store_ids.min' => 'Debe seleccionar al menos una tienda.',
                 'store_ids.*.exists' => 'Una o más tiendas seleccionadas no existen. Por favor, recarga la página e intenta de nuevo.',
@@ -260,6 +280,16 @@ class EmployeeController extends Controller
             // Convertir end_date vacío a null para que quede vacío si no se rellena
             if (empty($validated['end_date'])) {
                 $validated['end_date'] = null;
+            }
+
+            // MySQL no acepta '' en columnas decimal: convertir vacíos a null
+            foreach (['gross_salary', 'net_salary'] as $key) {
+                if (isset($validated[$key]) && $validated[$key] === '') {
+                    $validated[$key] = null;
+                }
+            }
+            if (isset($validated['hours']) && $validated['hours'] === '') {
+                $validated['hours'] = 0;
             }
 
             $user = Auth::user();

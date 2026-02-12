@@ -151,6 +151,37 @@ miramira-dashboard/
 - Las nóminas se almacenan como base64 en la base de datos
 - El conteo de efectivo se almacena como JSON con denominaciones
 
+## Variables de entorno para producción
+
+Para el despliegue en producción, asegúrate de configurar estas variables en tu proveedor de hosting (Railway, Laravel Forge, etc.):
+
+### Base de datos (requeridas)
+
+| Variable        | Descripción                         | Ejemplo producción      |
+|----------------|-------------------------------------|-------------------------|
+| `DB_CONNECTION`| Conexión (usar `mysql` en prod)     | `mysql`                 |
+| `DB_HOST`      | Host del servidor MySQL             | `tu-servidor.mysql...`  |
+| `DB_PORT`      | Puerto MySQL                        | `3306`                  |
+| `DB_DATABASE`  | Nombre de la base de datos          | `miramira_prod`         |
+| `DB_USERNAME`  | Usuario MySQL                       | `miramira_user`         |
+| `DB_PASSWORD`  | Contraseña MySQL                    | *(segura)*              |
+
+### Alternativa: URL única
+
+Muchos proveedores permiten usar `DATABASE_URL` en lugar de las variables separadas:
+
+```
+DATABASE_URL=mysql://usuario:contraseña@host:3306/nombre_bd
+```
+
+### Otras variables importantes para producción
+
+| Variable    | Descripción                    |
+|------------|--------------------------------|
+| `APP_ENV`  | Debe ser `production`          |
+| `APP_DEBUG`| Debe ser `false`               |
+| `APP_KEY`  | Generada con `php artisan key:generate` |
+
 ## Próximos Pasos (Opcional)
 
 Para procesamiento avanzado de PDFs, puedes instalar:

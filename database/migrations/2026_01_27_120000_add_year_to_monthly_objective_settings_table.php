@@ -10,6 +10,15 @@ return new class extends Migration
     {
         $currentYear = (int) date('Y');
 
+        // MySQL requiere eliminar la FK antes de modificar el índice que la soporta
+        Schema::table('monthly_objective_settings', function (Blueprint $table) {
+            $table->dropForeign(['store_id']);
+        });
+
+        Schema::table('monthly_objective_settings', function (Blueprint $table) {
+            $table->dropUnique(['store_id', 'month']);
+        });
+
         Schema::table('monthly_objective_settings', function (Blueprint $table) use ($currentYear) {
             $table->unsignedSmallInteger('year')->default($currentYear)->after('store_id');
         });
@@ -17,24 +26,28 @@ return new class extends Migration
         \DB::table('monthly_objective_settings')->update(['year' => $currentYear]);
 
         Schema::table('monthly_objective_settings', function (Blueprint $table) {
-            $table->dropUnique(['store_id', 'month']);
+            $table->unique(['store_id', 'year', 'month']);
         });
 
         Schema::table('monthly_objective_settings', function (Blueprint $table) {
-            $table->unique(['store_id', 'year', 'month']);
+            $table->foreign('store_id')->references('id')->on('stores')->onDelete('cascade');
         });
     }
 
     public function down(): void
     {
         Schema::table('monthly_objective_settings', function (Blueprint $table) {
+            $table->dropForeign(['store_id']);
+        });
+        Schema::table('monthly_objective_settings', function (Blueprint $table) {
             $table->dropUnique(['store_id', 'year', 'month']);
         });
         Schema::table('monthly_objective_settings', function (Blueprint $table) {
-            $table->unique(['store_id', 'month']);
+            $table->dropColumn('year');
         });
         Schema::table('monthly_objective_settings', function (Blueprint $table) {
-            $table->dropColumn('year');
+            $table->unique(['store_id', 'month']);
+            $table->foreign('store_id')->references('id')->on('stores')->onDelete('cascade');
         });
     }
 };

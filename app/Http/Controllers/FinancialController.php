@@ -360,6 +360,12 @@ class FinancialController extends Controller
                 $this->syncDailyCloseExpenses($entry);
             }
 
+            // Si es cierre diario y el usuario no tiene permiso de "registros" pero sí de "cierres diarios",
+            // redirigir a la lista de cierres para evitar 403 en financial.show
+            if ($entry->type === 'daily_close' && !auth()->user()->hasPermission('financial.registros.view')) {
+                return redirect()->route('financial.daily-closes')->with('success', 'Cierre diario creado correctamente.');
+            }
+
             return redirect()->route('financial.show', $entry)->with('success', 'Registro creado correctamente');
         } catch (ValidationException $e) {
             Log::warning('Error de validación al crear registro', ['errors' => $e->errors()]);
@@ -583,6 +589,12 @@ class FinancialController extends Controller
                     // La tabla aún no existe, continuar sin actualizar pagos
                     Log::warning('No se pudieron actualizar los pagos del gasto: ' . $e->getMessage());
                 }
+            }
+
+            // Si es cierre diario y el usuario no tiene permiso de "registros" pero sí de "cierres diarios",
+            // redirigir a la lista de cierres para evitar 403 en financial.show
+            if ($entry->type === 'daily_close' && !auth()->user()->hasPermission('financial.registros.view')) {
+                return redirect()->route('financial.daily-closes')->with('success', 'Cierre diario actualizado correctamente.');
             }
 
             return redirect()->route('financial.show', $entry)->with('success', 'Registro actualizado correctamente');

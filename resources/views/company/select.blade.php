@@ -100,30 +100,77 @@
             @else
                 <div class="space-y-3">
                     @foreach($companies as $company)
-                        <form method="POST" action="{{ route('company.switch') }}" class="block">
-                            @csrf
-                            <input type="hidden" name="company_id" value="{{ $company->id }}">
-                            <button type="submit" class="w-full text-left rounded-xl border border-slate-200 p-4 hover:bg-slate-50 hover:border-brand-200 transition-colors">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <h3 class="font-semibold text-slate-800">{{ $company->name }}</h3>
-                                        @if($company->cif)
-                                            <p class="text-sm text-slate-500">CIF: {{ $company->cif }}</p>
-                                        @endif
-                                        @if($company->email)
-                                            <p class="text-sm text-slate-500">{{ $company->email }}</p>
-                                        @endif
+                        <div class="flex items-stretch gap-2 rounded-xl border border-slate-200 overflow-hidden">
+                            <form method="POST" action="{{ route('company.switch') }}" class="flex-1 min-w-0">
+                                @csrf
+                                <input type="hidden" name="company_id" value="{{ $company->id }}">
+                                <button type="submit" class="w-full text-left p-4 hover:bg-slate-50 hover:border-brand-200 transition-colors h-full">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h3 class="font-semibold text-slate-800">{{ $company->name }}</h3>
+                                            @if($company->cif)
+                                                <p class="text-sm text-slate-500">CIF: {{ $company->cif }}</p>
+                                            @endif
+                                            @if($company->email)
+                                                <p class="text-sm text-slate-500">{{ $company->email }}</p>
+                                            @endif
+                                        </div>
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-slate-400 shrink-0">
+                                            <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
                                     </div>
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-slate-400">
-                                        <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ route('company.archive', $company) }}" class="flex items-center pr-2" onsubmit="return confirm('¿Archivar la empresa {{ addslashes($company->name) }}? Los datos se conservarán y podrás recuperarla después.');">
+                                @csrf
+                                <button type="submit" class="rounded-lg p-2 text-amber-600 hover:bg-amber-50" title="Archivar empresa">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                     </svg>
-                                </div>
-                            </button>
-                        </form>
+                                </button>
+                            </form>
+                        </div>
                     @endforeach
                 </div>
             @endif
         </div>
+
+        @if(isset($archivedCompanies) && $archivedCompanies->isNotEmpty())
+        <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100 mt-6">
+            <details class="group">
+                <summary class="flex cursor-pointer items-center justify-between text-lg font-semibold text-slate-600 hover:text-slate-900">
+                    <span>Empresas archivadas ({{ $archivedCompanies->count() }})</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="transition-transform group-open:rotate-180">
+                        <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </summary>
+                <p class="mt-2 text-sm text-slate-500">Las empresas archivadas conservan todos sus datos. Puedes recuperarlas o eliminarlas definitivamente.</p>
+                <div class="mt-4 space-y-3">
+                    @foreach($archivedCompanies as $company)
+                        <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                            <div>
+                                <h3 class="font-semibold text-slate-700">{{ $company->name }}</h3>
+                                @if($company->cif)
+                                    <p class="text-sm text-slate-500">CIF: {{ $company->cif }}</p>
+                                @endif
+                            </div>
+                            <div class="flex gap-2">
+                                <form method="POST" action="{{ route('company.restore', $company->id) }}" class="inline">
+                                    @csrf
+                                    <button type="submit" class="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Recuperar</button>
+                                </form>
+                                <form method="POST" action="{{ route('company.force-delete', $company->id) }}" class="inline" onsubmit="return confirm('¿Eliminar DEFINITIVAMENTE la empresa {{ addslashes($company->name) }}? Se borrarán todos sus datos (usuarios, empleados, registros, etc.) y esta acción no se puede deshacer.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="rounded-xl border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50">Eliminar definitivamente</button>
+                                </form>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </details>
+        </div>
+        @endif
 
         <!-- Info usuario y logout -->
         <div class="mt-6 text-center">

@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
 use App\Models\BankAccount;
 use App\Models\BankMovement;
+use App\Models\Company;
 use App\Models\CashWallet;
 use App\Models\CashWalletExpense;
 use App\Models\CashWalletTransfer;
@@ -36,7 +37,7 @@ class FinancialController extends Controller
         $this->middleware('permission:financial.daily_closes.view')->only(['dailyCloses']);
         $this->middleware('permission:financial.registros.create')->only(['create', 'store']);
         $this->middleware('permission:financial.registros.edit')->only(['edit', 'update']);
-        $this->middleware('permission:financial.registros.delete')->only(['destroy', 'forceDelete', 'emptyTrash']);
+        $this->middleware('permission:financial.registros.delete')->only(['forceDelete', 'emptyTrash']);
         $this->middleware('permission:financial.registros.export')->only('export');
         $this->middleware('permission:treasury.cash_control.view')->only(['cashControl', 'cashControlStore', 'cashControlMonth']);
         $this->middleware('permission:treasury.cash_control.create')->only(['storeCashControlExpense']);
@@ -101,9 +102,10 @@ class FinancialController extends Controller
         
         $stores = $this->getAvailableStores();
         $suppliers = Supplier::orderBy('name')->get();
+        $dailyCloseSettings = $this->getDailyCloseSettings();
         
         try {
-            return view('financial.create', compact('stores', 'suppliers', 'type', 'allowedTypes'));
+            return view('financial.create', compact('stores', 'suppliers', 'type', 'allowedTypes', 'dailyCloseSettings'));
         } catch (\Exception $e) {
             Log::error('Error en FinancialController@create: ' . $e->getMessage());
             return redirect()->route('financial.index')->with('error', 'Error al cargar el formulario');
@@ -360,12 +362,16 @@ class FinancialController extends Controller
                 $this->syncDailyCloseExpenses($entry);
             }
 
-            // Si es cierre diario y el usuario no tiene permiso de "registros" pero sí de "cierres diarios",
-            // redirigir a la lista de cierres para evitar 403 en financial.show
-            if ($entry->type === 'daily_close' && !auth()->user()->hasPermission('financial.registros.view')) {
+            // Redirigir a la lista correspondiente al tipo de registro (mantenerse en la misma sección)
+            if ($entry->type === 'daily_close') {
                 return redirect()->route('financial.daily-closes')->with('success', 'Cierre diario creado correctamente.');
             }
-
+            if ($entry->type === 'income') {
+                return redirect()->route('financial.income')->with('success', 'Ingreso creado correctamente.');
+            }
+            if ($entry->type === 'expense') {
+                return redirect()->route('financial.expenses')->with('success', 'Gasto creado correctamente.');
+            }
             return redirect()->route('financial.show', $entry)->with('success', 'Registro creado correctamente');
         } catch (ValidationException $e) {
             Log::warning('Error de validación al crear registro', ['errors' => $e->errors()]);
@@ -383,7 +389,8 @@ class FinancialController extends Controller
     public function show($id)
     {
         $entry = FinancialEntry::findOrFail($id);
-        return view('financial.show', compact('entry'));
+        $dailyCloseSettings = $this->getDailyCloseSettings($entry->store?->company_id);
+        return view('financial.show', compact('entry', 'dailyCloseSettings'));
     }
 
     public function edit($id)
@@ -405,7 +412,8 @@ class FinancialController extends Controller
         }
         
         $stores = $this->getAvailableStores();
-        return view('financial.edit', compact('entry', 'stores'));
+        $dailyCloseSettings = $this->getDailyCloseSettings();
+        return view('financial.edit', compact('entry', 'stores', 'dailyCloseSettings'));
     }
 
     public function update(Request $request, $id)
@@ -591,12 +599,16 @@ class FinancialController extends Controller
                 }
             }
 
-            // Si es cierre diario y el usuario no tiene permiso de "registros" pero sí de "cierres diarios",
-            // redirigir a la lista de cierres para evitar 403 en financial.show
-            if ($entry->type === 'daily_close' && !auth()->user()->hasPermission('financial.registros.view')) {
+            // Redirigir a la lista correspondiente al tipo de registro (mantenerse en la misma sección)
+            if ($entry->type === 'daily_close') {
                 return redirect()->route('financial.daily-closes')->with('success', 'Cierre diario actualizado correctamente.');
             }
-
+            if ($entry->type === 'income') {
+                return redirect()->route('financial.income')->with('success', 'Ingreso actualizado correctamente.');
+            }
+            if ($entry->type === 'expense') {
+                return redirect()->route('financial.expenses')->with('success', 'Gasto actualizado correctamente.');
+            }
             return redirect()->route('financial.show', $entry)->with('success', 'Registro actualizado correctamente');
         } catch (ValidationException $e) {
             throw $e;
@@ -610,7 +622,19 @@ class FinancialController extends Controller
     {
         try {
             $entry = FinancialEntry::findOrFail($id);
-            
+            $this->authorizeStoreAccess($entry->store_id);
+
+            // Permiso según tipo: cierres diarios, ingresos o gastos pueden tener permiso específico
+            $canDelete = match ($entry->type) {
+                'daily_close' => auth()->user()->hasPermission('financial.daily_closes.delete') || auth()->user()->hasPermission('financial.registros.delete'),
+                'income' => auth()->user()->hasPermission('financial.income.delete') || auth()->user()->hasPermission('financial.registros.delete'),
+                'expense' => auth()->user()->hasPermission('financial.expenses.delete') || auth()->user()->hasPermission('financial.registros.delete'),
+                default => auth()->user()->hasPermission('financial.registros.delete'),
+            };
+            if (!$canDelete) {
+                abort(403, 'No tienes permiso para eliminar este registro.');
+            }
+
             // Eliminar ingresos y gastos automáticos si es un cierre diario
             if ($entry->type === 'daily_close') {
                 $this->deleteDailyCloseIncomes($entry);
@@ -644,6 +668,17 @@ class FinancialController extends Controller
             }
             
             $entry->delete();
+
+            // Redirigir a la lista correspondiente al tipo (mantenerse en la misma sección)
+            if ($entry->type === 'daily_close') {
+                return redirect()->route('financial.daily-closes')->with('success', 'Cierre diario eliminado correctamente.');
+            }
+            if ($entry->type === 'income') {
+                return redirect()->route('financial.income')->with('success', 'Ingreso eliminado correctamente.');
+            }
+            if ($entry->type === 'expense') {
+                return redirect()->route('financial.expenses')->with('success', 'Gasto eliminado correctamente.');
+            }
             return redirect()->route('financial.index')->with('success', 'Registro eliminado correctamente');
         } catch (\Exception $e) {
             Log::error('Error eliminando registro: ' . $e->getMessage());
@@ -815,13 +850,9 @@ class FinancialController extends Controller
         try {
             $this->syncStoresFromBusinesses();
             
-            // Obtener años disponibles para el filtro (compatible con SQLite)
+            // Obtener años disponibles para el filtro (compatible MySQL y SQLite)
             try {
-                $availableYears = FinancialEntry::where('type', 'daily_close')
-                    ->selectRaw("DISTINCT CAST(strftime('%Y', date) AS INTEGER) as year")
-                    ->orderBy('year', 'desc')
-                    ->pluck('year')
-                    ->toArray();
+                $availableYears = $this->getDistinctYearsFromEntries(FinancialEntry::where('type', 'daily_close'));
             } catch (\Exception $e) {
                 $availableYears = [];
             }
@@ -843,7 +874,7 @@ class FinancialController extends Controller
             $year = $request->get('year', $currentYear);
             
             if ($year) {
-                $query->whereRaw("strftime('%Y', date) = ?", [$year]);
+                $query->whereYear('date', $year);
             }
 
             $period = $request->get('period', 'all');
@@ -912,7 +943,7 @@ class FinancialController extends Controller
             $cashWithdrawalsQuery = CashWithdrawal::where('store_id', $storeId);
             
             if ($year) {
-                $cashWithdrawalsQuery->whereRaw("strftime('%Y', date) = ?", [$year]);
+                $cashWithdrawalsQuery->whereYear('date', $year);
             }
             
             if ($period !== 'all') {
@@ -967,7 +998,7 @@ class FinancialController extends Controller
             
             // Aplicar filtro por año también a los gastos
             if ($year) {
-                $expensesQuery->whereRaw("strftime('%Y', date) = ?", [$year]);
+                $expensesQuery->whereYear('date', $year);
             }
             
             if ($period !== 'all') {
@@ -999,7 +1030,7 @@ class FinancialController extends Controller
                     });
                 });
             if ($year) {
-                $cashTransfersQuery->whereRaw("strftime('%Y', date) = ?", [$year]);
+                $cashTransfersQuery->whereYear('date', $year);
             }
             if ($period !== 'all') {
                 $this->applyPeriodFilter($cashTransfersQuery, $period, $request);
@@ -1367,7 +1398,7 @@ class FinancialController extends Controller
         // Aplicar filtro por año si se especifica
         $year = $request->get('year', date('Y'));
         if ($year) {
-            $query->whereRaw("strftime('%Y', date) = ?", [$year]);
+            $query->whereYear('date', $year);
         }
 
         // Solo aplicar filtro si el usuario lo especifica explícitamente o hay fechas personalizadas
@@ -1427,7 +1458,7 @@ class FinancialController extends Controller
                 });
             });
         if ($year) {
-            $cashTransfersStoreQuery->whereRaw("strftime('%Y', date) = ?", [$year]);
+            $cashTransfersStoreQuery->whereYear('date', $year);
         }
         if ($period && $period !== 'all') {
             $this->applyPeriodFilter($cashTransfersStoreQuery, $period, $request);
@@ -1495,8 +1526,8 @@ class FinancialController extends Controller
             
             // Calcular efectivo recogido del mes (retiros de carteras) - basado en la fecha de la recogida
             $monthCashWithdrawals = CashWithdrawal::where('store_id', $storeId)
-                ->whereRaw("strftime('%Y', date) = ?", [$year])
-                ->whereRaw("strftime('%m', date) = ?", [str_pad($monthNum, 2, '0', STR_PAD_LEFT)]);
+                ->whereYear('date', $year)
+                ->whereMonth('date', $monthNum);
             
             if (($request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) || 
                 ($period && $period !== 'all')) {
@@ -1517,8 +1548,8 @@ class FinancialController extends Controller
                             ->where('notes', 'like', '%"procedence_date":"' . $monthKey . '%');
                     })->orWhere(function ($q2) use ($year, $monthNum) {
                         $q2->where('expense_payment_method', 'cash')
-                            ->whereRaw("strftime('%Y', date) = ?", [$year])
-                            ->whereRaw("strftime('%m', date) = ?", [str_pad($monthNum, 2, '0', STR_PAD_LEFT)])
+                            ->whereYear('date', $year)
+                            ->whereMonth('date', $monthNum)
                             ->whereNotIn('id', CashWalletExpense::select('financial_entry_id')->whereNotNull('financial_entry_id'));
                     });
                 });
@@ -1605,8 +1636,8 @@ class FinancialController extends Controller
                         ->where('notes', 'like', '%"procedence_date":"' . $monthKey . '%');
                 })->orWhere(function ($q2) use ($year, $month) {
                     $q2->where('expense_payment_method', 'cash')
-                        ->whereRaw("strftime('%Y', date) = ?", [$year])
-                        ->whereRaw("strftime('%m', date) = ?", [str_pad($month, 2, '0', STR_PAD_LEFT)])
+                        ->whereYear('date', $year)
+                        ->whereMonth('date', $month)
                         ->whereNotIn('id', CashWalletExpense::select('financial_entry_id')->whereNotNull('financial_entry_id'));
                 });
             });
@@ -1700,8 +1731,8 @@ class FinancialController extends Controller
         // Calcular efectivo recogido del mes (retiros de carteras)
         $cashWithdrawalsQuery = CashWithdrawal::with(['cashWallet', 'store'])
             ->where('store_id', $storeId)
-            ->whereRaw("strftime('%Y', date) = ?", [$year])
-            ->whereRaw("strftime('%m', date) = ?", [str_pad($month, 2, '0', STR_PAD_LEFT)]);
+            ->whereYear('date', $year)
+            ->whereMonth('date', $month);
         
         if ($request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) {
             try {
@@ -1718,8 +1749,8 @@ class FinancialController extends Controller
         // Traspasos de efectivo del mes: Transfer reconciliados donde la tienda es origen o destino con fund = cash
         $traspasosEfectivoQuery = Transfer::where('status', 'reconciled')
             ->whereNotNull('applied_at')
-            ->whereRaw("strftime('%Y', date) = ?", [$year])
-            ->whereRaw("strftime('%m', date) = ?", [str_pad($month, 2, '0', STR_PAD_LEFT)])
+            ->whereYear('date', $year)
+            ->whereMonth('date', $month)
             ->where(function($q) use ($storeId) {
                 $q->where(function($q2) use ($storeId) {
                     $q2->where('origin_type', 'store')->where('origin_id', $storeId)->where('origin_fund', 'cash');
@@ -3565,6 +3596,33 @@ class FinancialController extends Controller
         $query->whereBetween('date', [$start, $end]);
     }
 
+    /**
+     * Obtiene años distintos de una query de entradas (compatible MySQL y SQLite).
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return array<int>
+     */
+    private function getDistinctYearsFromEntries($query): array
+    {
+        $driver = DB::getDriverName();
+        if ($driver === 'mysql') {
+            return $query->clone()
+                ->selectRaw('DISTINCT YEAR(date) as year')
+                ->orderByDesc('year')
+                ->pluck('year')
+                ->filter()
+                ->values()
+                ->toArray();
+        }
+        return $query->clone()
+            ->selectRaw("DISTINCT CAST(strftime('%Y', date) AS INTEGER) as year")
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->filter()
+            ->values()
+            ->toArray();
+    }
+
     private function applyPeriodFilter($query, $period, $request = null)
     {
         if ($request && $request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) {
@@ -3868,5 +3926,39 @@ class FinancialController extends Controller
         } catch (\Exception $e) {
             return back()->withInput()->with('error', 'Error al confirmar el traspaso: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Devuelve la configuración de cierre de caja de la empresa (nombres POS y si vales están activos).
+     *
+     * @param int|null $companyId Si se pasa (p. ej. desde show), se usa esta empresa; si no, session('company_id')
+     * @return array{pos_label: string, pos_cash_label: string, pos_card_label: string, vouchers_enabled: bool}
+     */
+    protected function getDailyCloseSettings(?int $companyId = null): array
+    {
+        $companyId = $companyId ?? session('company_id');
+        if (!$companyId) {
+            return [
+                'pos_label' => 'Sistema POS',
+                'pos_cash_label' => 'Sistema POS · Efectivo (€)',
+                'pos_card_label' => 'Sistema POS · Tarjeta (€)',
+                'vouchers_enabled' => true,
+            ];
+        }
+        $company = Company::withoutGlobalScopes()->find($companyId);
+        if (!$company) {
+            return [
+                'pos_label' => 'Sistema POS',
+                'pos_cash_label' => 'Sistema POS · Efectivo (€)',
+                'pos_card_label' => 'Sistema POS · Tarjeta (€)',
+                'vouchers_enabled' => true,
+            ];
+        }
+        return [
+            'pos_label' => $company->daily_close_pos_label ?? 'Sistema POS',
+            'pos_cash_label' => $company->daily_close_pos_cash_label ?? 'Sistema POS · Efectivo (€)',
+            'pos_card_label' => $company->daily_close_pos_card_label ?? 'Sistema POS · Tarjeta (€)',
+            'vouchers_enabled' => (bool) ($company->daily_close_vouchers_enabled ?? true),
+        ];
     }
 }

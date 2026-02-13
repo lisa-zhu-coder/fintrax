@@ -20,14 +20,20 @@ class CompanySelectController extends Controller
             return redirect()->route('dashboard');
         }
 
-        // Obtener todas las empresas (sin scopes, ordenadas por nombre, sin duplicados)
+        // Empresas activas (no archivadas)
         $companies = Company::withoutGlobalScopes()
             ->orderBy('name')
             ->get()
             ->unique('id')
             ->values();
 
-        return view('company.select', compact('companies'));
+        // Empresas archivadas (soft deleted)
+        $archivedCompanies = Company::withoutGlobalScopes()
+            ->onlyTrashed()
+            ->orderBy('name')
+            ->get();
+
+        return view('company.select', compact('companies', 'archivedCompanies'));
     }
 
     /**
@@ -103,5 +109,64 @@ class CompanySelectController extends Controller
         session()->forget('company_id');
 
         return redirect()->route('company.select');
+    }
+
+    /**
+     * Archivar empresa (soft delete). La empresa y sus datos permanecen en la base de datos.
+     */
+    public function archive(Company $company)
+    {
+        if (!Auth::user()->isSuperAdmin()) {
+            return redirect()->route('dashboard')->with('error', 'No tienes permiso para archivar empresas.');
+        }
+
+        // Si la empresa archivada es la actual en sesión, salir
+        if (session('company_id') == $company->id) {
+            session()->forget('company_id');
+        }
+
+        $company->delete();
+
+        return redirect()->route('company.select')
+            ->with('success', 'Empresa "' . $company->name . '" archivada correctamente. Puedes recuperarla desde la sección de empresas archivadas.');
+    }
+
+    /**
+     * Recuperar una empresa archivada.
+     */
+    public function restore(int $company)
+    {
+        if (!Auth::user()->isSuperAdmin()) {
+            return redirect()->route('dashboard')->with('error', 'No tienes permiso para recuperar empresas.');
+        }
+
+        $company = Company::withoutGlobalScopes()->withTrashed()->findOrFail($company);
+        $company->restore();
+
+        return redirect()->route('company.select')
+            ->with('success', 'Empresa "' . $company->name . '" recuperada correctamente.');
+    }
+
+    /**
+     * Eliminar definitivamente una empresa archivada (y todos sus datos en cascada).
+     */
+    public function forceDelete(int $company)
+    {
+        if (!Auth::user()->isSuperAdmin()) {
+            return redirect()->route('dashboard')->with('error', 'No tienes permiso para eliminar empresas.');
+        }
+
+        $company = Company::withoutGlobalScopes()->withTrashed()->findOrFail($company);
+        $name = $company->name;
+
+        // Si estaba en sesión, salir
+        if (session('company_id') == $company->id) {
+            session()->forget('company_id');
+        }
+
+        $company->forceDelete();
+
+        return redirect()->route('company.select')
+            ->with('success', 'Empresa "' . $name . '" eliminada definitivamente.');
     }
 }

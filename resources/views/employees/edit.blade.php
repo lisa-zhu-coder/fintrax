@@ -323,7 +323,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify(data),
             })
-            .then(function(res) { return res.json().then(function(body) { return { ok: res.ok, status: res.status, body: body }; }); })
+            .then(function(res) {
+                return res.text().then(function(text) {
+                    try {
+                        const body = text ? JSON.parse(text) : {};
+                        return { ok: res.ok, status: res.status, body: body };
+                    } catch (e) {
+                        return { ok: false, status: res.status, body: { message: 'El servidor devolvió una respuesta inesperada (código ' + res.status + ').' } };
+                    }
+                });
+            })
             .then(function(result) {
                 if (result.ok) {
                     const opt = document.createElement('option');
@@ -340,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(function() {
-                newUserFormError.textContent = 'Error de conexión. Inténtalo de nuevo.';
+                newUserFormError.textContent = 'Error de conexión. Comprueba tu conexión a internet o si la aplicación está accesible.';
                 newUserFormError.classList.remove('hidden');
             })
             .finally(function() {

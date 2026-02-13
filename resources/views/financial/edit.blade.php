@@ -202,7 +202,9 @@
                     </div>
                 </div>
 
-                <!-- Vales -->
+                <!-- Vales (visible solo si está activado en ajustes) -->
+                @php $vouchersEnabled = $dailyCloseSettings['vouchers_enabled'] ?? true; @endphp
+                @if($vouchersEnabled)
                 <div class="rounded-xl border-2 border-emerald-100 bg-emerald-50/30 p-4 ring-1 ring-emerald-100">
                     <div class="mb-3 flex items-center gap-2">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-emerald-700">
@@ -225,23 +227,33 @@
                         </label>
                     </div>
                 </div>
+                @else
+                <input type="hidden" name="vouchers_in" value="{{ old('vouchers_in', $entry->vouchers_in ?? 0) }}">
+                <input type="hidden" name="vouchers_out" value="{{ old('vouchers_out', $entry->vouchers_out ?? 0) }}">
+                <input type="hidden" name="vouchers_result" value="{{ old('vouchers_result', $entry->vouchers_result ?? 0) }}">
+                @endif
 
-                <!-- Shopify POS -->
+                <!-- Sistema POS (nombres configurables en Ajustes > Cierre de caja) -->
+                @php
+                    $posLabel = $dailyCloseSettings['pos_label'] ?? 'Sistema POS';
+                    $posCashLabel = $dailyCloseSettings['pos_cash_label'] ?? 'Sistema POS · Efectivo (€)';
+                    $posCardLabel = $dailyCloseSettings['pos_card_label'] ?? 'Sistema POS · Tarjeta (€)';
+                @endphp
                 <div class="rounded-xl border-2 border-blue-100 bg-blue-50/30 p-4 ring-1 ring-blue-100">
                     <div class="mb-3 flex items-center gap-2">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-blue-700">
                             <path d="M12 2L2 7l10 5 10-5-10-5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                         </svg>
-                        <span class="text-sm font-semibold text-blue-900">Shopify POS</span>
+                        <span class="text-sm font-semibold text-blue-900">{{ $posLabel }}</span>
                     </div>
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <label class="block">
-                            <span class="text-xs font-semibold text-slate-700">Shopify POS · Efectivo (€)</span>
+                            <span class="text-xs font-semibold text-slate-700">{{ $posCashLabel }}</span>
                             <input type="number" name="shopify_cash" id="shopifyCash" step="0.01" min="0" value="{{ old('shopify_cash', $entry->shopify_cash) }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                         </label>
                         <label class="block">
-                            <span class="text-xs font-semibold text-slate-700">Shopify POS · Tarjeta (€)</span>
+                            <span class="text-xs font-semibold text-slate-700">{{ $posCardLabel }}</span>
                             <input type="number" name="shopify_tpv" id="shopifyTpv" step="0.01" min="0" value="{{ old('shopify_tpv', $entry->shopify_tpv) }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                         </label>
                     </div>
@@ -270,7 +282,9 @@
                         <div class="mt-2 space-y-1 text-xs text-slate-600">
                             <div>Efectivo: <span id="computedCashSales" class="font-semibold text-slate-900">{{ $isDailyClose ? number_format($initComputedCash, 2, ',', '.') . ' €' : '0,00 €' }}</span></div>
                             <div>Datáfono: <span id="computedTpvSales" class="font-semibold text-slate-900">{{ $isDailyClose ? number_format($initTpv, 2, ',', '.') . ' €' : '0,00 €' }}</span></div>
+                            @if($vouchersEnabled)
                             <div>Vales: <span id="computedVouchersSales" class="font-semibold text-slate-900">{{ $isDailyClose ? number_format($initVouchers, 2, ',', '.') . ' €' : '0,00 €' }}</span></div>
+                            @endif
                         </div>
                     </div>
                     <div class="mt-3 rounded-xl bg-white p-3 ring-1 ring-slate-100">

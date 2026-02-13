@@ -116,7 +116,8 @@
                     </div>
                     @endif
 
-                    @if($entry->vouchers_in || $entry->vouchers_out)
+                    @php $vouchersEnabled = $dailyCloseSettings['vouchers_enabled'] ?? true; @endphp
+                    @if(($vouchersEnabled) && ($entry->vouchers_in || $entry->vouchers_out))
                     <div class="rounded-xl border-2 border-emerald-100 bg-emerald-50/30 p-4 ring-1 ring-emerald-100">
                         <h3 class="mb-3 text-sm font-semibold text-emerald-900">Vales</h3>
                         <div class="grid grid-cols-3 gap-3 text-sm">
@@ -137,12 +138,17 @@
                     @endif
 
                     @if($entry->shopify_cash !== null || $entry->shopify_tpv !== null)
+                    @php
+                        $posLabel = $dailyCloseSettings['pos_label'] ?? 'Sistema POS';
+                        $posCashLabel = $dailyCloseSettings['pos_cash_label'] ?? 'Sistema POS · Efectivo (€)';
+                        $posCardLabel = $dailyCloseSettings['pos_card_label'] ?? 'Sistema POS · Tarjeta (€)';
+                    @endphp
                     <div class="rounded-xl border-2 border-blue-100 bg-blue-50/30 p-4 ring-1 ring-blue-100">
-                        <h3 class="mb-3 text-sm font-semibold text-blue-900">Shopify POS</h3>
+                        <h3 class="mb-3 text-sm font-semibold text-blue-900">{{ $posLabel }}</h3>
                         <div class="grid grid-cols-2 gap-3 text-sm">
                             @if($entry->shopify_cash !== null)
                             <div>
-                                <span class="text-xs text-slate-500">Efectivo Shopify</span>
+                                <span class="text-xs text-slate-500">{{ $posCashLabel }}</span>
                                 <div class="font-semibold">{{ number_format($entry->shopify_cash, 2, ',', '.') }} €</div>
                                 @php
                                     $cashDiscrepancy = $entry->calculateCashDiscrepancy();
@@ -156,7 +162,7 @@
                             @endif
                             @if($entry->shopify_tpv !== null)
                             <div>
-                                <span class="text-xs text-slate-500">Tarjeta Shopify</span>
+                                <span class="text-xs text-slate-500">{{ $posCardLabel }}</span>
                                 <div class="font-semibold">{{ number_format($entry->shopify_tpv, 2, ',', '.') }} €</div>
                                 @php
                                     $tpvDiscrepancy = $entry->calculateTpvDiscrepancy();
@@ -183,10 +189,12 @@
                                 <span>Ventas en tarjeta:</span>
                                 <span class="font-semibold">{{ number_format($entry->tpv ?? 0, 2, ',', '.') }} €</span>
                             </div>
+                            @if($vouchersEnabled)
                             <div class="flex justify-between">
                                 <span>Vales:</span>
                                 <span class="font-semibold">{{ number_format($entry->vouchers_result ?? 0, 2, ',', '.') }} €</span>
                             </div>
+                            @endif
                             <div class="mt-2 border-t border-slate-200 pt-2 flex justify-between font-semibold">
                                 <span>Total ventas:</span>
                                 <span>{{ number_format($entry->calculateTotalSales(), 2, ',', '.') }} €</span>

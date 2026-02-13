@@ -21,7 +21,7 @@ class EmployeeController extends Controller
 
     public function __construct()
     {
-        $this->middleware('permission:hr.employees.create')->only(['create', 'store']);
+        $this->middleware('permission:hr.employees.create')->only(['create', 'store', 'storeQuickUser']);
         $this->middleware('permission:hr.employees.edit')->only(['edit', 'update']);
         $this->middleware('permission:hr.employees.delete')->only(['destroy']);
         $this->middleware('permission:hr.employees.configure')->only(['uploadPayroll', 'uploadPayrollAuto']);
@@ -342,31 +342,54 @@ class EmployeeController extends Controller
      */
     public function storeQuickUser(Request $request)
     {
-        $validated = $request->validate([
-            'username' => 'required|string|max:255|unique:users',
-            'name' => 'required|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'password' => 'required|string|min:6',
-            'role_id' => 'required|exists:roles,id',
-            'store_id' => 'nullable|exists:stores,id',
-        ]);
+        try {
+            $companyId = session('company_id');
+            $validated = $request->validate([
+                'username' => 'required|string|max:255|unique:users,username',
+                'name' => 'required|string|max:255',
+                'email' => 'nullable|email|max:255',
+                'password' => 'required|string|min:6',
+                'role_id' => 'required|exists:roles,id',
+                'store_id' => 'nullable|exists:stores,id',
+            ]);
 
-        $validated['password'] = Hash::make($validated['password']);
-        if (empty($validated['store_id'])) {
-            $validated['store_id'] = null;
+            if (!empty($validated['store_id']) && $companyId) {
+                $store = Store::withoutGlobalScopes()->find($validated['store_id']);
+                if (!$store || (int) $store->company_id !== (int) $companyId) {
+                    return response()->json(['message' => 'La tienda seleccionada no pertenece a la empresa actual.'], 422);
+                }
+            }
+
+            $validated['password'] = Hash::make($validated['password']);
+            if (empty($validated['store_id'])) {
+                $validated['store_id'] = null;
+            }
+            if (array_key_exists('email', $validated) && $validated['email'] === '') {
+                $validated['email'] = null;
+            }
+
+            // Asignar company_id de la sesión para que el usuario pertenezca a la empresa actual
+            $validated['company_id'] = $companyId;
+
+            $user = User::create($validated);
+            $user->load('role');
+
+            return response()->json([
+                'id' => $user->id,
+                'name' => $user->name,
+                'role_name' => $user->role->name,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('Error en storeQuickUser: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->except(['password']),
+            ]);
+            return response()->json([
+                'message' => 'Error al crear el usuario: ' . $e->getMessage(),
+            ], 500);
         }
-        if (array_key_exists('email', $validated) && $validated['email'] === '') {
-            $validated['email'] = null;
-        }
-
-        $user = User::create($validated);
-        $user->load('role');
-
-        return response()->json([
-            'id' => $user->id,
-            'name' => $user->name,
-            'role_name' => $user->role->name,
-        ]);
     }
 
     public function destroy(Employee $employee)

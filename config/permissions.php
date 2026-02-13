@@ -123,6 +123,7 @@ return [
                 ['key' => 'overtime', 'label' => 'Ajustes horas extras', 'actions' => ['view', 'edit']],
                 ['key' => 'inventories', 'label' => 'Inventario (toggle anillos)', 'actions' => ['view']],
                 ['key' => 'products', 'label' => 'Productos', 'actions' => ['view', 'create', 'edit', 'delete']],
+                ['key' => 'daily_close', 'label' => 'Cierre de caja', 'actions' => ['view', 'edit']],
             ],
         ],
         [

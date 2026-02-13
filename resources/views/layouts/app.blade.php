@@ -392,7 +392,7 @@
                 </div>
                 @endif
 
-                @if(auth()->user()->isSuperAdmin() || auth()->user()->hasAnyPermission(['settings.cash_reduction.view', 'settings.objectives.view', 'settings.overtime.view', 'settings.inventories.view', 'settings.products.view']))
+                @if(auth()->user()->isSuperAdmin() || auth()->user()->hasAnyPermission(['settings.cash_reduction.view', 'settings.objectives.view', 'settings.overtime.view', 'settings.products.view', 'settings.daily_close.view']))
                 <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <button type="button" id="settingsMenuToggle" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors">
                         <div class="flex items-center gap-3">
@@ -426,14 +426,14 @@
                             Ajustes de horas extras
                         </a>
                         @endif
-                        @if(auth()->user()->hasPermission('settings.inventories.view'))
-                        <a href="{{ route('inventory-settings.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('inventory-settings.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50' }}">
-                            Inventario (anillos)
-                        </a>
-                        @endif
                         @if(auth()->user()->hasPermission('settings.products.view'))
                         <a href="{{ route('product-settings.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('product-settings.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50' }}">
                             Productos
+                        </a>
+                        @endif
+                        @if(auth()->user()->hasPermission('settings.daily_close.view'))
+                        <a href="{{ route('daily-close-settings.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('daily-close-settings.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
+                            Cierre de caja
                         </a>
                         @endif
                         @if(auth()->user()->isSuperAdmin())
@@ -766,7 +766,7 @@
             
             if (settingsToggle && settingsMenu) {
                 // Verificar si estamos en una página de ajustes para abrir el menú
-                const isSettingsPage = window.location.pathname.includes('/settings/cash-reductions') || window.location.pathname.includes('/settings/objectives') || window.location.pathname.includes('/settings/overtime') || window.location.pathname.includes('/settings/modules');
+                const isSettingsPage = window.location.pathname.includes('/settings/cash-reductions') || window.location.pathname.includes('/settings/objectives') || window.location.pathname.includes('/settings/overtime') || window.location.pathname.includes('/settings/daily-close') || window.location.pathname.includes('/settings/modules');
                 if (isSettingsPage) {
                     settingsMenu.classList.remove('hidden');
                     settingsIcon.style.transform = 'rotate(180deg)';

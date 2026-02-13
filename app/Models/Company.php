@@ -24,11 +24,17 @@ class Company extends Model
         'max_stores',
         'rings_inventory_enabled',
         'clients_module_enabled',
+        // Cierre de caja (ajustes)
+        'daily_close_pos_label',
+        'daily_close_pos_cash_label',
+        'daily_close_pos_card_label',
+        'daily_close_vouchers_enabled',
     ];
 
     protected $casts = [
         'rings_inventory_enabled' => 'boolean',
         'clients_module_enabled' => 'boolean',
+        'daily_close_vouchers_enabled' => 'boolean',
     ];
 
     /**

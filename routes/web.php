@@ -39,6 +39,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/company/switch', [CompanySelectController::class, 'switch'])->name('company.switch');
     Route::post('/company/store', [CompanySelectController::class, 'store'])->name('company.store');
     Route::post('/company/exit', [CompanySelectController::class, 'exit'])->name('company.exit');
+    Route::post('/company/archive/{company}', [CompanySelectController::class, 'archive'])->name('company.archive');
+    Route::post('/company/restore/{company}', [CompanySelectController::class, 'restore'])->name('company.restore');
+    Route::delete('/company/force-delete/{company}', [CompanySelectController::class, 'forceDelete'])->name('company.force-delete');
 });
 
 // Rutas que requieren empresa seleccionada
@@ -202,6 +205,10 @@ Route::middleware(['auth', 'company'])->group(function () {
     // Ajustes - Módulos (solo SuperAdmin)
     Route::get('/settings/modules', [ModuleSettingsController::class, 'index'])->name('module-settings.index');
     Route::put('/settings/modules', [ModuleSettingsController::class, 'update'])->name('module-settings.update');
+
+    // Ajustes - Cierre de caja (nombres POS y toggle vales)
+    Route::get('/settings/daily-close', [\App\Http\Controllers\DailyCloseSettingsController::class, 'index'])->name('daily-close-settings.index');
+    Route::put('/settings/daily-close', [\App\Http\Controllers\DailyCloseSettingsController::class, 'update'])->name('daily-close-settings.update');
 
     // Objetivos mensuales
     Route::get('/objectives', [MonthlyObjectiveController::class, 'index'])->name('objectives.index');

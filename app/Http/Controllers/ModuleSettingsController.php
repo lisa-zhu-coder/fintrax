@@ -61,6 +61,7 @@ class ModuleSettingsController extends Controller
 
         $company->update([
             'clients_module_enabled' => $request->boolean('clients_module_enabled'),
+            'rings_inventory_enabled' => $request->boolean('rings_inventory_enabled'),
         ]);
 
         return redirect()->route('module-settings.index')

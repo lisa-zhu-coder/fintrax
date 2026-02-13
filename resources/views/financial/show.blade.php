@@ -11,7 +11,7 @@
                 <p class="text-sm text-slate-500">Información completa del registro</p>
             </div>
             <div class="flex items-center gap-2">
-                @if(auth()->user()->hasPermission('financial.registros.edit') && $entry && $entry->id)
+                @if(($entry->type === 'daily_close' && auth()->user()->hasPermission('financial.daily_closes.edit')) || auth()->user()->hasPermission('financial.registros.edit'))
                 <a href="{{ route('financial.edit', $entry->id) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Editar
                 </a>

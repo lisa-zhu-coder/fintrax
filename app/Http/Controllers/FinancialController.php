@@ -31,12 +31,12 @@ class FinancialController extends Controller
     
     public function __construct()
     {
-        $this->middleware('permission:financial.registros.view')->only(['index', 'show', 'trash']);
+        $this->middleware('permission:financial.registros.view')->only(['index', 'trash']);
         $this->middleware('permission:financial.income.view')->only(['income']);
         $this->middleware('permission:financial.expenses.view')->only(['expenses']);
         $this->middleware('permission:financial.daily_closes.view')->only(['dailyCloses']);
         $this->middleware('permission:financial.registros.create')->only(['create', 'store']);
-        $this->middleware('permission:financial.registros.edit')->only(['edit', 'update']);
+        // show, edit, update: autorización por tipo de registro en el propio método
         $this->middleware('permission:financial.registros.delete')->only(['forceDelete', 'emptyTrash']);
         $this->middleware('permission:financial.registros.export')->only('export');
         $this->middleware('permission:treasury.cash_control.view')->only(['cashControl', 'cashControlStore', 'cashControlMonth']);
@@ -389,6 +389,12 @@ class FinancialController extends Controller
     public function show($id)
     {
         $entry = FinancialEntry::findOrFail($id);
+        $canView = $entry->type === 'daily_close'
+            ? auth()->user()->hasPermission('financial.daily_closes.view')
+            : auth()->user()->hasPermission('financial.registros.view');
+        if (!$canView) {
+            abort(403, 'No tienes permisos para ver esta acción.');
+        }
         $dailyCloseSettings = $this->getDailyCloseSettings($entry->store?->company_id);
         return view('financial.show', compact('entry', 'dailyCloseSettings'));
     }
@@ -419,6 +425,12 @@ class FinancialController extends Controller
     public function update(Request $request, $id)
     {
         $entry = FinancialEntry::findOrFail($id);
+        $canEdit = $entry->type === 'daily_close'
+            ? auth()->user()->hasPermission('financial.daily_closes.edit')
+            : auth()->user()->hasPermission('financial.registros.edit');
+        if (!$canEdit) {
+            abort(403, 'No tienes permisos para editar esta acción.');
+        }
         
         $validated = $request->validate([
             'date' => 'required|date',
@@ -1078,16 +1090,8 @@ class FinancialController extends Controller
         try {
             $this->syncStoresFromBusinesses();
             
-            // Obtener años disponibles para el filtro
-            try {
-                $availableYears = FinancialEntry::where('type', 'daily_close')
-                    ->selectRaw("DISTINCT CAST(strftime('%Y', date) AS INTEGER) as year")
-                    ->orderBy('year', 'desc')
-                    ->pluck('year')
-                    ->toArray();
-            } catch (\Exception $e) {
-                $availableYears = [];
-            }
+            // Obtener años disponibles para el filtro (compatible MySQL y SQLite)
+            $availableYears = $this->getDistinctYearsFromEntries(FinancialEntry::where('type', 'daily_close'));
             
             if (!is_array($availableYears)) {
                 $availableYears = [];
@@ -1132,7 +1136,7 @@ class FinancialController extends Controller
                     ->where('store_id', $storeId);
                 
                 if ($year) {
-                    $dailyClosesQuery->whereRaw("strftime('%Y', date) = ?", [$year]);
+                    $dailyClosesQuery->whereYear('date', $year);
                 }
                 
                 if ($period !== 'all') {
@@ -1145,7 +1149,7 @@ class FinancialController extends Controller
                 $transfersQuery = CashWalletTransfer::where('store_id', $storeId);
                 
                 if ($year) {
-                    $transfersQuery->whereRaw("strftime('%Y', date) = ?", [$year]);
+                    $transfersQuery->whereYear('date', $year);
                 }
                 
                 if ($period !== 'all') {
@@ -1163,7 +1167,7 @@ class FinancialController extends Controller
                     });
                 
                 if ($year) {
-                    $bankMovementsQuery->whereRaw("strftime('%Y', date) = ?", [$year]);
+                    $bankMovementsQuery->whereYear('date', $year);
                 }
                 
                 if ($period !== 'all') {
@@ -1171,9 +1175,9 @@ class FinancialController extends Controller
                     if ($period === 'last_30') {
                         $bankMovementsQuery->where('date', '>=', now()->subDays(30)->format('Y-m-d'));
                     } elseif ($period === 'this_month') {
-                        $bankMovementsQuery->whereRaw("strftime('%Y-%m', date) = ?", [now()->format('Y-m')]);
+                        $bankMovementsQuery->whereYear('date', now()->year)->whereMonth('date', now()->month);
                     } elseif ($period === 'this_year') {
-                        $bankMovementsQuery->whereRaw("strftime('%Y', date) = ?", [now()->format('Y')]);
+                        $bankMovementsQuery->whereYear('date', now()->year);
                     }
                 }
                 
@@ -1259,16 +1263,16 @@ class FinancialController extends Controller
                     ->where('destination_store_id', $storeId);
                 
                 if ($year) {
-                    $receivedTransfersQuery->whereRaw("strftime('%Y', date) = ?", [$year]);
+                    $receivedTransfersQuery->whereYear('date', $year);
                 }
                 
                 if ($period !== 'all') {
                     if ($period === 'last_30') {
                         $receivedTransfersQuery->where('date', '>=', now()->subDays(30)->format('Y-m-d'));
                     } elseif ($period === 'this_month') {
-                        $receivedTransfersQuery->whereRaw("strftime('%Y-%m', date) = ?", [now()->format('Y-m')]);
+                        $receivedTransfersQuery->whereYear('date', now()->year)->whereMonth('date', now()->month);
                     } elseif ($period === 'this_year') {
-                        $receivedTransfersQuery->whereRaw("strftime('%Y', date) = ?", [now()->format('Y')]);
+                        $receivedTransfersQuery->whereYear('date', now()->year);
                     }
                 }
                 
@@ -1305,15 +1309,15 @@ class FinancialController extends Controller
                         });
                     });
                 if ($year) {
-                    $reconciledTransfersQuery->whereRaw("strftime('%Y', date) = ?", [$year]);
+                    $reconciledTransfersQuery->whereYear('date', $year);
                 }
                 if ($period !== 'all') {
                     if ($period === 'last_30') {
                         $reconciledTransfersQuery->where('date', '>=', now()->subDays(30)->format('Y-m-d'));
                     } elseif ($period === 'this_month') {
-                        $reconciledTransfersQuery->whereRaw("strftime('%Y-%m', date) = ?", [now()->format('Y-m')]);
+                        $reconciledTransfersQuery->whereYear('date', now()->year)->whereMonth('date', now()->month);
                     } elseif ($period === 'this_year') {
-                        $reconciledTransfersQuery->whereRaw("strftime('%Y', date) = ?", [now()->format('Y')]);
+                        $reconciledTransfersQuery->whereYear('date', now()->year);
                     }
                 }
                 $reconciledTransfers = $reconciledTransfersQuery->get();
@@ -1540,8 +1544,12 @@ class FinancialController extends Controller
             $month['cash_collected'] = (float) $monthCashWithdrawals->sum('amount');
             
             // Gastos del mes: control_efectivo con procedencia en este mes + efectivo con procedencia TIENDA (no cartera) con fecha en este mes
+            // Excluir gastos de cierre diario (expense_source=cierre_diario): ya están en cash_expenses del cierre
             $expensesQuery = FinancialEntry::where('type', 'expense')
                 ->where('store_id', $storeId)
+                ->where(function ($q) {
+                    $q->where('expense_source', '!=', 'cierre_diario')->orWhereNull('expense_source');
+                })
                 ->where(function ($q) use ($year, $monthNum, $monthKey) {
                     $q->where(function ($q1) use ($monthKey) {
                         $q1->where('expense_source', 'control_efectivo')
@@ -1628,8 +1636,12 @@ class FinancialController extends Controller
         
         // Gastos del mes: (1) añadidos desde "Añadir gasto" con procedencia en este mes, (2) pagados en efectivo con procedencia TIENDA (no cartera) y fecha en este mes
         // Los pagos en efectivo con procedencia cartera se apuntan en el historial de la cartera, no aquí
+        // Excluir gastos de cierre diario (expense_source=cierre_diario): ya están en cash_expenses del cierre
         $expensesQuery = FinancialEntry::where('type', 'expense')
             ->where('store_id', $storeId)
+            ->where(function ($q) {
+                $q->where('expense_source', '!=', 'cierre_diario')->orWhereNull('expense_source');
+            })
             ->where(function ($q) use ($year, $month, $monthKey) {
                 $q->where(function ($q1) use ($monthKey) {
                     $q1->where('expense_source', 'control_efectivo')

@@ -20,9 +20,8 @@ class CompanySelectController extends Controller
             return redirect()->route('dashboard');
         }
 
-        // Empresas activas (no archivadas)
-        $companies = Company::withoutGlobalScopes()
-            ->orderBy('name')
+        // Empresas activas (no archivadas) - sin withoutGlobalScopes para respetar SoftDeletes
+        $companies = Company::orderBy('name')
             ->get()
             ->unique('id')
             ->values();

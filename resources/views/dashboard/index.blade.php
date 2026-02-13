@@ -12,13 +12,13 @@
 
 @section('content')
 <div class="space-y-6">
-    <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+    <header class="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-lg font-semibold">Dashboard</h1>
-                <p class="text-sm text-slate-500">Resumen financiero de las tiendas</p>
+                <h1 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Dashboard</h1>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Resumen financiero de las tiendas</p>
             </div>
-            <button type="button" id="dashboardResetLayoutBtn" class="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100" title="Restaurar layout por defecto">
+            <button type="button" id="dashboardResetLayoutBtn" class="inline-flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50" title="Restaurar layout por defecto">
                 Restaurar layout
             </button>
         </div>
@@ -32,8 +32,8 @@
 
     <!-- Accesos rápidos (siempre primero) -->
     @if($canCashWithdrawal || $canCashDeposit || auth()->user()->hasPermission('financial.daily_closes.create') || auth()->user()->hasPermission('orders.main.create'))
-    <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
-        <h2 class="mb-4 text-base font-semibold">Accesos rápidos</h2>
+    <div class="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
+        <h2 class="mb-4 text-base font-semibold text-slate-900 dark:text-slate-100">Accesos rápidos</h2>
         @include('dashboard.widgets.quick_actions')
     </div>
     @endif

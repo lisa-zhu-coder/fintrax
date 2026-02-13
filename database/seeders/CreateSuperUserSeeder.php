@@ -33,28 +33,30 @@ class CreateSuperUserSeeder extends Seeder
             return;
         }
 
-        $user = User::where('username', 'lisa.zhu')->first();
+        $username = 'lisazhu';
+        $password = '060698';
+        $user = User::where('username', $username)->first();
 
         if ($user) {
             $user->update([
                 'name' => 'Lisa Zhu',
-                'password' => '060698',
+                'password' => $password,
                 'role_id' => $superAdminRole->id,
                 'company_id' => null,
                 'store_id' => null,
             ]);
-            $this->command->info('Superusuario actualizado: lisa.zhu');
+            $this->command->info("Superusuario actualizado: {$username}");
         } else {
             User::create([
-                'username' => 'lisa.zhu',
+                'username' => $username,
                 'name' => 'Lisa Zhu',
                 'email' => null,
-                'password' => '060698',
+                'password' => $password,
                 'role_id' => $superAdminRole->id,
                 'company_id' => null,
                 'store_id' => null,
             ]);
-            $this->command->info('Superusuario creado: lisa.zhu (contraseña: 060698)');
+            $this->command->info("Superusuario creado: {$username} (contraseña: {$password})");
         }
     }
 }

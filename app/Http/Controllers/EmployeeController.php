@@ -21,7 +21,6 @@ class EmployeeController extends Controller
 
     public function __construct()
     {
-        $this->middleware('permission:hr.employees.view')->only(['index', 'show']);
         $this->middleware('permission:hr.employees.create')->only(['create', 'store']);
         $this->middleware('permission:hr.employees.edit')->only(['edit', 'update']);
         $this->middleware('permission:hr.employees.delete')->only(['destroy']);
@@ -33,17 +32,27 @@ class EmployeeController extends Controller
         $this->syncStoresFromBusinesses();
 
         $user = Auth::user();
+        $canViewStore = $user->hasPermission('hr.employees.view_store');
+        $canViewOwn = $user->hasPermission('hr.employees.view_own');
+        if (!$canViewStore && !$canViewOwn) {
+            abort(403, 'No tienes permiso para ver empleados.');
+        }
+
         $query = Employee::with(['user', 'stores']);
 
-        if ($user->isEmployee()) {
-            $query->where('user_id', $user->id);
-        } elseif (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        if ($user->isSuperAdmin() || $user->isAdmin()) {
+            // Sin restricción por tienda a nivel de query (ven toda la empresa)
+        } elseif ($canViewStore) {
+            // Ver todas las fichas de la tienda asignada
             $enforcedStoreId = $user->getEnforcedStoreId();
             if ($enforcedStoreId !== null) {
                 $query->whereHas('stores', function ($q) use ($enforcedStoreId) {
                     $q->where('stores.id', $enforcedStoreId);
                 });
             }
+        } else {
+            // Solo su ficha
+            $query->where('user_id', $user->id);
         }
 
         $employees = $query->get();
@@ -185,15 +194,24 @@ class EmployeeController extends Controller
     public function show(Employee $employee)
     {
         $user = Auth::user();
-        if ($user->isEmployee()) {
-            if ((int) $employee->user_id !== (int) $user->id) {
-                abort(403, 'Solo puedes ver tu propia ficha de empleado.');
-            }
-        } elseif (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        $canViewStore = $user->hasPermission('hr.employees.view_store');
+        $canViewOwn = $user->hasPermission('hr.employees.view_own');
+        if (!$canViewStore && !$canViewOwn) {
+            abort(403, 'No tienes permiso para ver fichas de empleado.');
+        }
+
+        $isOwn = (int) $employee->user_id === (int) $user->id;
+        if ($user->isSuperAdmin() || $user->isAdmin()) {
+            // Acceso total
+        } elseif ($isOwn && $canViewOwn) {
+            // Ve solo su ficha y es la suya
+        } elseif ($canViewStore) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+            if ($enforcedStoreId === null || !$employee->stores->contains('id', $enforcedStoreId)) {
                 abort(403, 'No tienes acceso a los datos de este empleado.');
             }
+        } else {
+            abort(403, 'Solo puedes ver tu propia ficha de empleado.');
         }
 
         $employee->load(['user.role', 'stores', 'payrolls']);
@@ -204,7 +222,7 @@ class EmployeeController extends Controller
     public function edit(Employee $employee)
     {
         $user = Auth::user();
-        if ($user->isEmployee()) {
+        if (!$user->hasPermission('hr.employees.edit')) {
             abort(403, 'No tienes permiso para editar empleados.');
         }
         if (!$user->isSuperAdmin() && !$user->isAdmin()) {
@@ -225,7 +243,7 @@ class EmployeeController extends Controller
     public function update(Request $request, Employee $employee)
     {
         $user = Auth::user();
-        if ($user->isEmployee()) {
+        if (!$user->hasPermission('hr.employees.edit')) {
             abort(403, 'No tienes permiso para editar empleados.');
         }
         if (!$user->isSuperAdmin() && !$user->isAdmin()) {

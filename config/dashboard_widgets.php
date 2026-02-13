@@ -39,7 +39,7 @@ return [
         'default_height' => 2,
         'resizable' => true,
         'movable' => true,
-        'permission' => 'orders.main.view',
+        'permission' => 'dashboard.orders.view',
     ],
     'horas_extras_rrhh' => [
         'name' => 'Horas extra y festivos',
@@ -48,7 +48,7 @@ return [
         'default_height' => 2,
         'resizable' => true,
         'movable' => true,
-        'permission' => 'hr.overtime.view',
+        'permission' => 'dashboard.overtime.view',
     ],
     'evolucion_ventas' => [
         'name' => 'Evolución de ventas y gastos',

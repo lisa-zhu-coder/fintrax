@@ -13,6 +13,8 @@ return [
         'delete' => 'Eliminar',
         'export' => 'Exportar',
         'configure' => 'Configurar',
+        'view_own' => 'Solo su ficha',
+        'view_store' => 'Todas las fichas de la tienda',
     ],
 
     'modules' => [
@@ -21,11 +23,13 @@ return [
             'label' => 'Dashboard',
             'items' => [
                 ['key' => 'main', 'label' => 'Acceso al Dashboard', 'actions' => ['view']],
-                ['key' => 'income', 'label' => 'Tarjeta de Ingresos', 'actions' => ['view']],
-                ['key' => 'expenses', 'label' => 'Tarjeta de Gastos', 'actions' => ['view']],
+                ['key' => 'income', 'label' => 'Tarjeta / Gráfica de Ingresos', 'actions' => ['view']],
+                ['key' => 'expenses', 'label' => 'Tarjeta / Gráfica de Gastos', 'actions' => ['view']],
                 ['key' => 'profit', 'label' => 'Tarjeta de Beneficio', 'actions' => ['view']],
-                ['key' => 'chart', 'label' => 'Gráfica de evolución', 'actions' => ['view']],
+                ['key' => 'chart', 'label' => 'Gráfica evolución ventas y gastos', 'actions' => ['view']],
                 ['key' => 'records', 'label' => 'Registros recientes', 'actions' => ['view']],
+                ['key' => 'orders', 'label' => 'Gráfica Pedidos (Pagado vs Pendiente)', 'actions' => ['view']],
+                ['key' => 'overtime', 'label' => 'Gráfica Horas extra y festivos', 'actions' => ['view']],
             ],
         ],
         [
@@ -105,7 +109,7 @@ return [
             'key' => 'hr',
             'label' => 'RR.HH.',
             'items' => [
-                ['key' => 'employees', 'label' => 'Empleados', 'actions' => ['view', 'create', 'edit', 'delete', 'configure']],
+                ['key' => 'employees', 'label' => 'Empleados', 'actions' => ['view_own', 'view_store', 'create', 'edit', 'delete', 'configure']],
                 ['key' => 'overtime', 'label' => 'Horas extras', 'actions' => ['view', 'create', 'edit', 'delete']],
                 ['key' => 'vacations', 'label' => 'Vacaciones', 'actions' => ['view', 'edit']],
             ],

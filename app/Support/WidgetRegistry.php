@@ -119,6 +119,8 @@ class WidgetRegistry
             'gastos_por_categoria',
             'ingresos_por_metodo',
             'evolucion_ventas',
+            'pedidos_pagado_vs_pendiente',
+            'horas_extras_rrhh',
         ], true);
     }
 

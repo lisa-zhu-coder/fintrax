@@ -60,6 +60,14 @@ class Role extends Model
         if (isset($permissions[$permission]) && $permissions[$permission] === true) {
             return true;
         }
+
+        // Compatibilidad: hr.employees.view (legacy) o permiso general 'view' = ver empleados
+        if ($permission === 'hr.employees.view_store' && (!empty($permissions['hr.employees.view']) || !empty($permissions['view']))) {
+            return true;
+        }
+        if ($permission === 'hr.employees.view_own' && (!empty($permissions['hr.employees.view']) || !empty($permissions['view']))) {
+            return true;
+        }
         
         // Mapeo de permisos granulares a permisos generales (compatibilidad)
         // Si el permiso termina en .view, .create, .edit, .delete, verificar el permiso general

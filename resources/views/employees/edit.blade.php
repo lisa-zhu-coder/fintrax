@@ -313,7 +313,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 _token: formData.get('_token'),
             };
 
-            fetch('{{ route("employees.quick-user") }}', {
+            fetch('{{ route("employees.quick-user", [], false) }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

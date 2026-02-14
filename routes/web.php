@@ -14,6 +14,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\StoreCashReductionController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\TransferController;
+use App\Http\Controllers\TrashController;
 use App\Http\Controllers\MonthlyObjectiveController;
 use App\Http\Controllers\ModuleSettingsController;
 use App\Http\Controllers\MonthlyObjectiveSettingController;
@@ -164,10 +165,11 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::get('/financial/income', [FinancialController::class, 'income'])->name('financial.income');
     Route::get('/financial/expenses', [FinancialController::class, 'expenses'])->name('financial.expenses');
     Route::get('/financial/daily-closes', [FinancialController::class, 'dailyCloses'])->name('financial.daily-closes');
-    Route::get('/financial/trash', [FinancialController::class, 'trash'])->name('financial.trash');
-    Route::post('/financial/restore/{id}', [FinancialController::class, 'restore'])->name('financial.restore');
-    Route::delete('/financial/force-delete/{id}', [FinancialController::class, 'forceDelete'])->name('financial.force-delete');
-    Route::post('/financial/empty-trash', [FinancialController::class, 'emptyTrash'])->name('financial.empty-trash');
+    // Papelera (módulo independiente con permisos trash.main.view, trash.main.edit, trash.main.delete)
+    Route::get('/trash', [TrashController::class, 'index'])->name('trash.index');
+    Route::post('/trash/restore/{id}', [TrashController::class, 'restore'])->name('trash.restore');
+    Route::delete('/trash/force-delete/{id}', [TrashController::class, 'forceDelete'])->name('trash.force-delete');
+    Route::post('/trash/empty', [TrashController::class, 'emptyTrash'])->name('trash.empty');
     Route::post('/financial/generate-daily-close-entries', [FinancialController::class, 'generateDailyCloseEntries'])->name('financial.generate-daily-close-entries');
     
     // Recogida de efectivo

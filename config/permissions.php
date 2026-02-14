@@ -127,6 +127,13 @@ return [
             ],
         ],
         [
+            'key' => 'trash',
+            'label' => 'Papelera',
+            'items' => [
+                ['key' => 'main', 'label' => 'Papelera', 'actions' => ['view', 'edit', 'delete']],
+            ],
+        ],
+        [
             'key' => 'admin',
             'label' => 'Administración',
             'items' => [

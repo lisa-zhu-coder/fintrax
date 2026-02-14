@@ -8,11 +8,11 @@
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-lg font-semibold">Papelera</h1>
-                <p class="text-sm text-slate-500">Registros eliminados (se eliminarán automáticamente después de 30 días)</p>
+                <p class="text-sm text-slate-500">Registros eliminados. Se eliminarán automáticamente después de 30 días si no se recuperan.</p>
             </div>
             <div class="flex items-center gap-2">
-                @if(auth()->user()->hasPermission('financial.registros.delete'))
-                <form method="POST" action="{{ route('financial.empty-trash') }}" onsubmit="return confirm('¿Estás seguro de que quieres vaciar la papelera? Esta acción no se puede deshacer.')">
+                @if(auth()->user()->hasPermission('trash.main.delete'))
+                <form method="POST" action="{{ route('trash.empty') }}" onsubmit="return confirm('¿Estás seguro de que quieres vaciar la papelera? Esta acción no se puede deshacer.');">
                     @csrf
                     <button type="submit" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100">
                         Vaciar papelera
@@ -28,7 +28,7 @@
 
     <!-- Filtros -->
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
-        <form method="GET" action="{{ route('financial.trash') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <form method="GET" action="{{ route('trash.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-4">
             <label class="block">
                 <span class="text-xs font-semibold text-slate-700">Tipo</span>
                 <select name="type" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
@@ -46,6 +46,18 @@
                     @foreach($stores as $store)
                         <option value="{{ $store->id }}" {{ request('store') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
                     @endforeach
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-xs font-semibold text-slate-700">Período (eliminado)</span>
+                <select name="period" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                    <option value="last_7" {{ ($period ?? '') === 'last_7' ? 'selected' : '' }}>Últimos 7 días</option>
+                    <option value="last_30" {{ ($period ?? '') === 'last_30' ? 'selected' : '' }}>Últimos 30 días</option>
+                    <option value="last_90" {{ ($period ?? '') === 'last_90' ? 'selected' : '' }}>Últimos 90 días</option>
+                    <option value="this_month" {{ ($period ?? '') === 'this_month' ? 'selected' : '' }}>Este mes</option>
+                    <option value="last_month" {{ ($period ?? '') === 'last_month' ? 'selected' : '' }}>Mes pasado</option>
+                    <option value="this_year" {{ ($period ?? '') === 'this_year' ? 'selected' : '' }}>Este año</option>
+                    <option value="all" {{ ($period ?? '') === 'all' ? 'selected' : '' }}>Todos</option>
                 </select>
             </label>
             <div class="flex items-end">
@@ -67,7 +79,6 @@
                         <th class="whitespace-nowrap px-3 py-2">Tienda</th>
                         <th class="whitespace-nowrap px-3 py-2">Concepto</th>
                         <th class="whitespace-nowrap px-3 py-2">Importe</th>
-                        <th class="whitespace-nowrap px-3 py-2">Eliminado por</th>
                         <th class="whitespace-nowrap px-3 py-2">Eliminado el</th>
                         <th class="whitespace-nowrap px-3 py-2">Días restantes</th>
                         <th class="whitespace-nowrap px-3 py-2"></th>
@@ -92,9 +103,8 @@
                                 </span>
                             </td>
                             <td class="whitespace-nowrap px-3 py-2">{{ $entry->store->name ?? '—' }}</td>
-                            <td class="whitespace-nowrap px-3 py-2">{{ $entry->concept ?? '—' }}</td>
-                            <td class="whitespace-nowrap px-3 py-2 font-medium">{{ number_format($entry->amount, 2, ',', '.') }} €</td>
-                            <td class="whitespace-nowrap px-3 py-2">{{ $entry->creator->name ?? '—' }}</td>
+                            <td class="whitespace-nowrap px-3 py-2">{{ $entry->concept ?? $entry->expense_concept ?? '—' }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 font-medium">{{ number_format($entry->amount ?? 0, 2, ',', '.') }} €</td>
                             <td class="whitespace-nowrap px-3 py-2">{{ $entry->deleted_at->format('d/m/Y H:i') }}</td>
                             <td class="whitespace-nowrap px-3 py-2">
                                 @php
@@ -106,14 +116,16 @@
                             </td>
                             <td class="whitespace-nowrap px-3 py-2 text-right">
                                 <div class="flex items-center gap-2 justify-end flex-nowrap">
-                                    @if(auth()->user()->hasPermission('financial.registros.delete'))
-                                    <form method="POST" action="{{ route('financial.restore', $entry->id) }}" class="inline">
+                                    @if(auth()->user()->hasPermission('trash.main.edit'))
+                                    <form method="POST" action="{{ route('trash.restore', $entry->id) }}" class="inline">
                                         @csrf
                                         <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50">
                                             Restaurar
                                         </button>
                                     </form>
-                                    <form method="POST" action="{{ route('financial.force-delete', $entry->id) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que quieres eliminar permanentemente este registro?')">
+                                    @endif
+                                    @if(auth()->user()->hasPermission('trash.main.delete'))
+                                    <form method="POST" action="{{ route('trash.force-delete', $entry->id) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que quieres eliminar permanentemente este registro?');">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">
@@ -126,7 +138,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="px-3 py-6 text-center text-slate-500">La papelera está vacía</td>
+                            <td colspan="8" class="px-3 py-6 text-center text-slate-500">La papelera está vacía</td>
                         </tr>
                     @endforelse
                 </tbody>

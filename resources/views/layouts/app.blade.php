@@ -392,6 +392,15 @@
                 </div>
                 @endif
 
+                @if(auth()->user()->hasPermission('trash.main.view'))
+                <a href="{{ route('trash.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('trash.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Papelera
+                </a>
+                @endif
+
                 @if(auth()->user()->isSuperAdmin() || auth()->user()->hasAnyPermission(['settings.cash_reduction.view', 'settings.objectives.view', 'settings.overtime.view', 'settings.products.view', 'settings.daily_close.view']))
                 <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <button type="button" id="settingsMenuToggle" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors">

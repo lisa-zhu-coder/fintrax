@@ -15,7 +15,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // Purgar papelera: eliminar registros con más de 30 días cada día a las 2:00
+        $schedule->command('trash:purge')->dailyAt('02:00');
     }
 
     /**

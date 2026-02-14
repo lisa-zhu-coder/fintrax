@@ -31,13 +31,13 @@ class FinancialController extends Controller
     
     public function __construct()
     {
-        $this->middleware('permission:financial.registros.view')->only(['index', 'trash']);
+        $this->middleware('permission:financial.registros.view')->only(['index']);
         $this->middleware('permission:financial.income.view')->only(['income']);
         $this->middleware('permission:financial.expenses.view')->only(['expenses']);
         $this->middleware('permission:financial.daily_closes.view')->only(['dailyCloses']);
         $this->middleware('permission:financial.registros.create')->only(['create', 'store']);
         // show, edit, update: autorización por tipo de registro en el propio método
-        $this->middleware('permission:financial.registros.delete')->only(['forceDelete', 'emptyTrash']);
+        $this->middleware('permission:financial.registros.delete')->only(['destroy']);
         $this->middleware('permission:financial.registros.export')->only('export');
         $this->middleware('permission:treasury.cash_control.view')->only(['cashControl', 'cashControlStore', 'cashControlMonth']);
         $this->middleware('permission:treasury.cash_control.create')->only(['storeCashControlExpense']);
@@ -787,62 +787,6 @@ class FinancialController extends Controller
         $stores = $this->getAvailableStores();
 
         return view('financial.daily-closes', compact('entries', 'stores', 'period'));
-    }
-
-    public function trash(Request $request)
-    {
-        $this->syncStoresFromBusinesses();
-        
-        $query = FinancialEntry::onlyTrashed()->with(['store', 'creator']);
-
-        if (auth()->user()->store_id) {
-            $query->where('store_id', auth()->user()->store_id);
-        } elseif ($request->has('store') && $request->store !== 'all') {
-            $query->where('store_id', $request->store);
-        }
-
-        $period = $request->get('period', 'last_30');
-        $this->applyPeriodFilter($query, $period, $request);
-
-        $entries = $query->orderBy('deleted_at', 'desc')->get();
-        $stores = $this->getAvailableStores();
-
-        return view('financial.trash', compact('entries', 'stores', 'period'));
-    }
-
-    public function restore($id)
-    {
-        try {
-            $entry = FinancialEntry::onlyTrashed()->findOrFail($id);
-            $entry->restore();
-            return redirect()->route('financial.trash')->with('success', 'Registro restaurado correctamente');
-        } catch (\Exception $e) {
-            Log::error('Error restaurando registro: ' . $e->getMessage());
-            return back()->with('error', 'Error al restaurar el registro');
-        }
-    }
-
-    public function forceDelete($id)
-    {
-        try {
-            $entry = FinancialEntry::onlyTrashed()->findOrFail($id);
-            $entry->forceDelete();
-            return redirect()->route('financial.trash')->with('success', 'Registro eliminado permanentemente');
-        } catch (\Exception $e) {
-            Log::error('Error eliminando permanentemente: ' . $e->getMessage());
-            return back()->with('error', 'Error al eliminar permanentemente');
-        }
-    }
-
-    public function emptyTrash()
-    {
-        try {
-            FinancialEntry::onlyTrashed()->forceDelete();
-            return redirect()->route('financial.trash')->with('success', 'Papelera vaciada correctamente');
-        } catch (\Exception $e) {
-            Log::error('Error vaciando papelera: ' . $e->getMessage());
-            return back()->with('error', 'Error al vaciar la papelera');
-        }
     }
 
     public function export(Request $request)

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Company;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Database\DatabaseManager;
@@ -27,6 +28,12 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // En producción, forzar HTTPS para que los redirects y URLs generadas usen https://
+        // Evita que POST /users (y otros) redirijan a http:// y pierdan la sesión
+        if ($this->app->environment('production')) {
+            URL::forceScheme('https');
+        }
+
         // Compartir nombre de empresa con todas las vistas (para el sidebar, debajo de Fintrax)
         // Usa View Composer para obtener el nombre de la empresa activa desde la sesión
         View::composer('*', function ($view) {

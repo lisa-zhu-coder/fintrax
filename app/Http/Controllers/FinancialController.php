@@ -55,10 +55,11 @@ class FinancialController extends Controller
         $this->syncStoresFromBusinesses();
 
         $query = FinancialEntry::with(['store', 'creator']);
-        $this->scopeStoreForCurrentUser($query);
-
         $storeParam = $request->get('store', 'all');
-        if ($storeParam !== 'all' && (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())) {
+        $storeIdForScope = ($storeParam !== 'all' && $storeParam !== '') ? (int) $storeParam : null;
+        $this->scopeStoreForCurrentUser($query, 'store_id', $storeIdForScope);
+
+        if ($storeParam !== 'all' && $storeParam !== '' && (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())) {
             $query->where('store_id', $storeParam);
         }
 

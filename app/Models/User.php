@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Hash;
@@ -46,6 +47,14 @@ class User extends Authenticatable
     public function store()
     {
         return $this->belongsTo(Store::class);
+    }
+
+    /**
+     * Tiendas a las que tiene acceso este usuario (puede ser más de una).
+     */
+    public function stores(): BelongsToMany
+    {
+        return $this->belongsToMany(Store::class, 'user_store');
     }
 
     /**
@@ -230,36 +239,51 @@ class User extends Authenticatable
     }
 
     /**
-     * Store ID al que está limitado el usuario. null = admin/super_admin (todas las tiendas).
-     * Con company_user se usa el store_id de la empresa actual si existe.
+     * IDs de tiendas a las que el usuario tiene acceso (vía user_store o legacy store_id).
+     * Admin/Super Admin: array vacío = todas las tiendas de la empresa.
+     */
+    public function getAllowedStoreIds(): array
+    {
+        if ($this->isSuperAdmin() || $this->isAdmin()) {
+            return [];
+        }
+        $ids = $this->stores()->pluck('stores.id')->map(fn ($id) => (int) $id)->values()->all();
+        if (empty($ids) && $this->store_id) {
+            return [(int) $this->store_id];
+        }
+        return $ids;
+    }
+
+    /**
+     * Store ID al que está limitado el usuario cuando solo tiene UNA tienda.
+     * null = admin/super_admin (todas) o usuario con múltiples tiendas (elige en el filtro).
      */
     public function getEnforcedStoreId(): ?int
     {
         if ($this->isSuperAdmin() || $this->isAdmin()) {
             return null;
         }
-        $companyId = session('company_id');
-        if ($companyId) {
-            $pivot = \App\Models\CompanyUser::where('user_id', $this->id)
-                ->where('company_id', $companyId)
-                ->first();
-            if ($pivot && $pivot->store_id !== null) {
-                return (int) $pivot->store_id;
-            }
+        $allowed = $this->getAllowedStoreIds();
+        if (count($allowed) === 1) {
+            return $allowed[0];
         }
-        return $this->store_id ? (int) $this->store_id : null;
+        return null;
     }
 
     /**
-     * Comprueba si el usuario puede acceder a la tienda (super_admin/admin = cualquiera, resto = solo su tienda).
+     * Comprueba si el usuario puede acceder a la tienda.
+     * Admin/Super Admin: cualquiera. Resto: solo las de getAllowedStoreIds().
      */
     public function canAccessStore(?int $storeId): bool
     {
         if ($this->isSuperAdmin() || $this->isAdmin() || $storeId === null) {
             return true;
         }
-        $enforced = $this->getEnforcedStoreId();
-        return $enforced !== null && $enforced === (int) $storeId;
+        $allowed = $this->getAllowedStoreIds();
+        if (empty($allowed)) {
+            return false;
+        }
+        return in_array((int) $storeId, $allowed, true);
     }
 
     /**

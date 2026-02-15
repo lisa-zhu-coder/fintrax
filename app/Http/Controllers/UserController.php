@@ -75,7 +75,8 @@ class UserController extends Controller
             'email' => 'nullable|email|max:255',
             'password' => 'required|string|min:6',
             'role_id' => 'required|exists:roles,id',
-            'store_id' => 'nullable|exists:stores,id',
+            'store_ids' => 'nullable|array',
+            'store_ids.*' => 'exists:stores,id',
         ];
         if ($isSuperAdmin) {
             $rules['company_access'] = 'nullable|array';
@@ -84,7 +85,7 @@ class UserController extends Controller
             $rules['company_access.*.store_id'] = 'nullable|exists:stores,id';
         }
         $validated = $request->validate($rules, [
-            'store_id.required' => 'Los usuarios que no son administradores deben tener una tienda asignada.',
+            'store_ids.required' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.',
         ]);
 
         $role = Role::find($validated['role_id']);
@@ -93,22 +94,23 @@ class UserController extends Controller
             return redirect()->back()->withInput()->withErrors(['role_id' => 'No tienes permiso para crear usuarios con rol Super Admin.']);
         }
         
-        if ($role && !in_array($role->key, ['admin', 'super_admin']) && empty($validated['store_id'])) {
-            return redirect()->back()->withInput()->withErrors(['store_id' => 'Los usuarios que no son administradores deben tener una tienda asignada.']);
+        $storeIds = array_values(array_unique(array_filter($validated['store_ids'] ?? [])));
+        if ($role && !in_array($role->key, ['admin', 'super_admin']) && empty($storeIds)) {
+            return redirect()->back()->withInput()->withErrors(['store_ids' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.']);
         }
 
         $validated['password'] = Hash::make($validated['password']);
-        if (empty($validated['store_id'])) {
-            $validated['store_id'] = null;
-        }
-        
+        $validated['store_id'] = !empty($storeIds) ? (int) $storeIds[0] : null;
+
         if ($role && $role->key === 'super_admin') {
             $validated['company_id'] = null;
         } elseif ($isSuperAdmin && !empty($validated['company_access'])) {
             $first = $validated['company_access'][0] ?? null;
             $validated['company_id'] = $first ? (int) $first['company_id'] : session('company_id');
             $validated['role_id'] = $first ? (int) $first['role_id'] : $validated['role_id'];
-            $validated['store_id'] = $first && !empty($first['store_id']) ? (int) $first['store_id'] : null;
+            $firstStoreId = $first && !empty($first['store_id']) ? (int) $first['store_id'] : null;
+            $validated['store_id'] = $firstStoreId;
+            $storeIds = $firstStoreId ? [$firstStoreId] : [];
         } else {
             $validated['company_id'] = session('company_id');
         }
@@ -117,14 +119,22 @@ class UserController extends Controller
             $user = User::create($validated);
             if ($isSuperAdmin && !empty($validated['company_access']) && $role && $role->key !== 'super_admin') {
                 $sync = [];
+                $cuStoreIds = [];
                 foreach ($validated['company_access'] as $row) {
                     $sync[(int) $row['company_id']] = [
                         'role_id' => (int) $row['role_id'],
                         'store_id' => !empty($row['store_id']) ? (int) $row['store_id'] : null,
                     ];
+                    if (!empty($row['store_id'])) {
+                        $cuStoreIds[] = (int) $row['store_id'];
+                    }
                 }
                 $user->companyAccess()->sync($sync);
-            } elseif (!$user->isSuperAdmin() && $user->company_id) {
+                $user->stores()->sync(array_values(array_unique($cuStoreIds)));
+            } else {
+                $user->stores()->sync($storeIds);
+            }
+            if (!$user->isSuperAdmin() && $user->company_id) {
                 CompanyUser::firstOrCreate(
                     ['user_id' => $user->id, 'company_id' => $user->company_id],
                     ['role_id' => $user->role_id, 'store_id' => $user->store_id]
@@ -148,12 +158,17 @@ class UserController extends Controller
             abort(403, 'No tienes permiso para ver este usuario.');
         }
         
+        $storeIds = \Illuminate\Support\Facades\DB::table('user_store')->where('user_id', $user->id)->pluck('store_id')->map(fn ($id) => (int) $id)->values()->all();
+        if (empty($storeIds) && $user->store_id) {
+            $storeIds = [(int) $user->store_id];
+        }
         $data = [
             'username' => $user->username,
             'name' => $user->name,
             'email' => $user->email,
             'role_id' => $user->role_id,
             'store_id' => $user->store_id,
+            'store_ids' => array_map('intval', $storeIds),
         ];
         if (auth()->user()->isSuperAdmin()) {
             $data['company_access'] = $user->companyAccess()->get()->map(function ($company) {
@@ -188,7 +203,8 @@ class UserController extends Controller
             'email' => 'nullable|email|max:255',
             'password' => 'nullable|string|min:6',
             'role_id' => 'required|exists:roles,id',
-            'store_id' => 'nullable|exists:stores,id',
+            'store_ids' => 'nullable|array',
+            'store_ids.*' => 'exists:stores,id',
         ];
         if ($isSuperAdmin) {
             $rules['company_access'] = 'nullable|array';
@@ -214,13 +230,12 @@ class UserController extends Controller
             return redirect()->back()->withInput()->withErrors(['role_id' => 'No tienes permiso para cambiar el rol de un Super Admin.']);
         }
         
-        if ($newRole && !in_array($newRole->key, ['admin', 'super_admin']) && empty($validated['store_id'])) {
-            return redirect()->back()->withInput()->withErrors(['store_id' => 'Los usuarios que no son administradores deben tener una tienda asignada.']);
+        $storeIds = array_values(array_unique(array_filter($validated['store_ids'] ?? [])));
+        if ($newRole && !in_array($newRole->key, ['admin', 'super_admin']) && empty($storeIds)) {
+            return redirect()->back()->withInput()->withErrors(['store_ids' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.']);
         }
 
-        if (isset($validated['store_id']) && empty($validated['store_id'])) {
-            $validated['store_id'] = null;
-        }
+        $validated['store_id'] = !empty($storeIds) ? (int) $storeIds[0] : null;
 
         if ($isSuperAdmin && $user->isSuperAdmin() === false && isset($validated['company_access']) && is_array($validated['company_access'])) {
             $first = $validated['company_access'][0] ?? null;
@@ -235,13 +250,20 @@ class UserController extends Controller
             $user->update($validated);
             if ($isSuperAdmin && $user->isSuperAdmin() === false && isset($validated['company_access'])) {
                 $sync = [];
+                $cuStoreIds = [];
                 foreach ($validated['company_access'] as $row) {
                     $sync[(int) $row['company_id']] = [
                         'role_id' => (int) $row['role_id'],
                         'store_id' => !empty($row['store_id']) ? (int) $row['store_id'] : null,
                     ];
+                    if (!empty($row['store_id'])) {
+                        $cuStoreIds[] = (int) $row['store_id'];
+                    }
                 }
                 $user->companyAccess()->sync($sync);
+                $user->stores()->sync(array_values(array_unique($cuStoreIds)));
+            } else {
+                $user->stores()->sync($storeIds);
             }
             return redirect()->route('users.index')->with('success', 'Usuario actualizado correctamente.');
         } catch (\Exception $e) {

@@ -24,6 +24,14 @@ class Store extends Model
         return $this->hasMany(User::class);
     }
 
+    /**
+     * Usuarios que tienen acceso a esta tienda (vía user_store, múltiples tiendas).
+     */
+    public function usersWithAccess(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_store');
+    }
+
     public function employees(): BelongsToMany
     {
         return $this->belongsToMany(Employee::class, 'employee_store');

@@ -208,7 +208,8 @@ class CompanyController extends Controller
                         $store->financialEntries()->exists() ||
                         $store->orders()->exists() ||
                         $store->employees()->exists() ||
-                        $store->users()->exists();
+                        $store->users()->exists() ||
+                        $store->usersWithAccess()->exists();
 
                     if ($hasUsage) {
                         throw new \RuntimeException('No se puede eliminar este negocio porque ya tiene datos asociados (registros, pedidos, empleados o usuarios).');

@@ -41,7 +41,11 @@ class DashboardController extends Controller
         $selectedStore = $request->get('store', 'all');
         if (!$user->isSuperAdmin() && !$user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            $selectedStore = $enforcedStoreId !== null ? (string) $enforcedStoreId : 'all';
+            if ($enforcedStoreId !== null) {
+                $selectedStore = (string) $enforcedStoreId;
+            } elseif ($selectedStore !== 'all' && !$user->canAccessStore((int) $selectedStore)) {
+                $selectedStore = 'all';
+            }
         }
 
         $entries = $this->getFilteredEntries($selectedStore, $period, $user, $fromDate, $toDate);
@@ -67,8 +71,13 @@ class DashboardController extends Controller
         $enforcedStoreId = $user->getEnforcedStoreId();
         if ($enforcedStoreId !== null) {
             $query->where('store_id', $enforcedStoreId);
-        } elseif ($selectedStore !== 'all') {
+        } elseif ($selectedStore !== 'all' && $user->canAccessStore((int) $selectedStore)) {
             $query->where('store_id', $selectedStore);
+        } else {
+            $allowed = $user->getAllowedStoreIds();
+            if (!empty($allowed)) {
+                $query->whereIn('store_id', $allowed);
+            }
         }
 
         $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
@@ -217,8 +226,13 @@ class DashboardController extends Controller
         $enforcedStoreId = $user->getEnforcedStoreId();
         if ($enforcedStoreId !== null) {
             $query->where('store_id', $enforcedStoreId);
-        } elseif ($selectedStore !== 'all') {
+        } elseif ($selectedStore !== 'all' && $user->canAccessStore((int) $selectedStore)) {
             $query->where('store_id', $selectedStore);
+        } else {
+            $allowed = $user->getAllowedStoreIds();
+            if (!empty($allowed)) {
+                $query->whereIn('store_id', $allowed);
+            }
         }
 
         $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
@@ -250,8 +264,13 @@ class DashboardController extends Controller
         $enforcedStoreId = $user->getEnforcedStoreId();
         if ($enforcedStoreId !== null) {
             $query->where('store_id', $enforcedStoreId);
-        } elseif ($selectedStore !== 'all') {
+        } elseif ($selectedStore !== 'all' && $user->canAccessStore((int) $selectedStore)) {
             $query->where('store_id', $selectedStore);
+        } else {
+            $allowed = $user->getAllowedStoreIds();
+            if (!empty($allowed)) {
+                $query->whereIn('store_id', $allowed);
+            }
         }
 
         $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
@@ -269,8 +288,13 @@ class DashboardController extends Controller
         $enforcedStoreId = $user->getEnforcedStoreId();
         if ($enforcedStoreId !== null) {
             $query->where('store_id', $enforcedStoreId);
-        } elseif ($selectedStore !== 'all') {
+        } elseif ($selectedStore !== 'all' && $user->canAccessStore((int) $selectedStore)) {
             $query->where('store_id', $selectedStore);
+        } else {
+            $allowed = $user->getAllowedStoreIds();
+            if (!empty($allowed)) {
+                $query->whereIn('store_id', $allowed);
+            }
         }
 
         $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
@@ -362,9 +386,13 @@ class DashboardController extends Controller
             return [(int) $enforcedStoreId];
         }
         if ($selectedStore === 'all') {
-            return Store::pluck('id')->all();
+            $allowed = $user->getAllowedStoreIds();
+            return !empty($allowed) ? $allowed : Store::pluck('id')->all();
         }
-        return [(int) $selectedStore];
+        if ($user->canAccessStore((int) $selectedStore)) {
+            return [(int) $selectedStore];
+        }
+        return $user->getAllowedStoreIds();
     }
 
     /**

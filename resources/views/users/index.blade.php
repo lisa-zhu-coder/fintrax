@@ -55,7 +55,16 @@
                                     {{ $user->role->name }}
                                 </span>
                             </td>
-                            <td class="px-3 py-2 text-xs text-slate-600">{{ $user->store ? $user->store->name : 'Todas' }}</td>
+                            <td class="px-3 py-2 text-xs text-slate-600">
+                @php $userStores = $user->stores; @endphp
+                @if($user->isSuperAdmin() || $user->isAdmin())
+                    Todas
+                @elseif($userStores->isEmpty())
+                    {{ $user->store ? $user->store->name : '—' }}
+                @else
+                    {{ $userStores->pluck('name')->join(', ') }}
+                @endif
+            </td>
                             <td class="px-3 py-2">
                                 <div class="flex items-center gap-2">
                                     @if(auth()->user()->hasPermission('admin.users.edit'))
@@ -158,7 +167,6 @@
             window.storesByCompany = @json($storesByCompany ?? []);
             </script>
             <input type="hidden" name="role_id" id="role_id" value="{{ $roles->where('key', '!=', 'super_admin')->first()?->id ?? '' }}"/>
-            <input type="hidden" name="store_id" id="store_id" value=""/>
             <div id="companyAccessSection" class="space-y-2">
                 <div class="flex items-center justify-between">
                     <span class="text-xs font-semibold text-slate-700">Acceso a empresas</span>
@@ -195,13 +203,13 @@
                 </select>
             </label>
             <label class="block" id="labelStore">
-                <span class="text-xs font-semibold text-slate-700">Tienda asignada</span>
-                <select name="store_id" id="store_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                    <option value="">Todas las tiendas</option>
+                <span class="text-xs font-semibold text-slate-700">Tiendas asignadas</span>
+                <select name="store_ids[]" id="store_ids" multiple class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" size="4">
                     @foreach($stores as $store)
-                        <option value="{{ $store->id }}" {{ old('store_id') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
+                        <option value="{{ $store->id }}" {{ in_array($store->id, old('store_ids', [])) ? 'selected' : '' }}>{{ $store->name }}</option>
                     @endforeach
                 </select>
+                <p class="mt-1 text-xs text-slate-500">Mantén Ctrl/Cmd para seleccionar varias tiendas</p>
             </label>
             @endif
 
@@ -232,12 +240,9 @@ function reindexCompanyAccess() {
     });
     const first = container.querySelector('.company-access-row');
     const roleEl = document.getElementById('role_id');
-    const storeEl = document.getElementById('store_id');
     if (roleEl && first) {
         const roleSelect = first.querySelector('.company-access-role');
-        const storeSelect = first.querySelector('.company-access-store');
         if (roleSelect) roleEl.value = roleSelect.value;
-        if (storeEl && storeSelect) storeEl.value = storeSelect.value || '';
     }
 }
 
@@ -280,8 +285,8 @@ function addCompanyAccessRow(data = {}) {
     } else {
         filterStoresByCompany(storeSelect, companySelect.value);
     }
-    if (data.role_id) row.querySelector('.company-access-role').value = data.role_id;
-    if (data.store_id) row.querySelector('.company-access-store').value = data.store_id;
+        if (data.role_id) row.querySelector('.company-access-role').value = data.role_id;
+    if (data.store_id) row.querySelector('.company-access-store').value = String(data.store_id);
     companySelect.addEventListener('change', function() {
         filterStoresByCompany(storeSelect, this.value);
         storeSelect.value = '';
@@ -312,10 +317,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 const first = container.querySelector('.company-access-row');
                 if (first) {
                     const r = document.getElementById('role_id');
-                    const s = document.getElementById('store_id');
                     if (r) r.value = first.querySelector('.company-access-role')?.value || r.value;
-                    if (s) s.value = first.querySelector('.company-access-store')?.value || '';
                 }
+            }
+            const storeSelect = document.getElementById('store_ids');
+            if (storeSelect) {
+                Array.from(storeSelect.options).forEach(opt => {
+                    opt.selected = opt.selected;
+                });
             }
         });
     }
@@ -348,16 +357,26 @@ function openUserModal(userId = null) {
         form.action = `/users/${userId}`;
         formMethod.value = 'PUT';
         
-        fetch(`/users/${userId}`)
-            .then(response => response.json())
-            .then(data => {
+        fetch(`{{ url('users') }}/${userId}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(response) {
+                if (!response.ok) throw new Error('Error ' + response.status);
+                return response.json();
+            })
+            .then(function(data) {
                 document.getElementById('username').value = data.username || '';
                 document.getElementById('name').value = data.name || '';
                 document.getElementById('email').value = data.email || '';
                 const roleEl = document.getElementById('role_id');
-                const storeEl = document.getElementById('store_id');
-                if (roleEl) roleEl.value = data.role_id || '';
-                if (storeEl) storeEl.value = data.store_id || '';
+                if (roleEl) roleEl.value = String(data.role_id || '');
+                const storeEl = document.getElementById('store_ids');
+                if (storeEl) {
+                    const ids = (data.store_ids || []).map(function(x) { return parseInt(x, 10); });
+                    Array.from(storeEl.options).forEach(function(opt) {
+                        opt.selected = ids.indexOf(parseInt(opt.value, 10)) >= 0;
+                    });
+                }
                 const container = document.getElementById('companyAccessContainer');
                 if (container && data.company_access && data.company_access.length) {
                     container.innerHTML = '';
@@ -370,7 +389,10 @@ function openUserModal(userId = null) {
                     });
                 }
             })
-            .catch(error => console.error('Error cargando usuario:', error));
+            .catch(function(error) {
+                console.error('Error cargando usuario:', error);
+                alert('No se pudo cargar el usuario. Comprueba la consola para más detalles.');
+            });
     } else {
         title.textContent = 'Añadir usuario';
         passwordLabel.textContent = 'Contraseña';

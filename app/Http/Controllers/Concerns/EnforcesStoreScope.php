@@ -20,10 +20,12 @@ use Illuminate\Support\Facades\Auth;
 trait EnforcesStoreScope
 {
     /**
-     * Aplica el filtro de tienda a la query. Si el usuario no es admin, fuerza store_id = su tienda.
-     * NOTA: El filtro de empresa se aplica automáticamente vía Global Scope en los modelos.
+     * Aplica el filtro de tienda a la query.
+     * - Usuario con una tienda: fuerza esa tienda.
+     * - Usuario con varias tiendas: si $requestStoreId viene, filtra por esa (validando acceso); si no, filtra por todas las suyas.
+     * - Admin: si $requestStoreId viene, filtra por esa; si no, sin filtro (todas).
      */
-    protected function scopeStoreForCurrentUser(Builder $query, string $column = 'store_id'): Builder
+    protected function scopeStoreForCurrentUser(Builder $query, string $column = 'store_id', ?int $requestStoreId = null): Builder
     {
         $user = Auth::user();
         if (!$user) {
@@ -32,13 +34,26 @@ trait EnforcesStoreScope
         $enforcedStoreId = $user->getEnforcedStoreId();
         if ($enforcedStoreId !== null) {
             $query->where($column, $enforcedStoreId);
+            return $query;
+        }
+        $allowed = $user->getAllowedStoreIds();
+        if (!empty($allowed)) {
+            if ($requestStoreId !== null && $requestStoreId !== 0) {
+                if (!$user->canAccessStore($requestStoreId)) {
+                    abort(403, 'No tienes acceso a los datos de esta tienda.');
+                }
+                $query->where($column, $requestStoreId);
+            } else {
+                $query->whereIn($column, $allowed);
+            }
         }
         return $query;
     }
 
     /**
      * Devuelve el store_id que debe usarse para crear/actualizar.
-     * No-admin: siempre el de su usuario. Admin: el que venga en $requestStoreId (o null).
+     * No-admin con una tienda: siempre esa. No-admin con varias: el de $requestStoreId si está en allowed.
+     * Admin: el que venga en $requestStoreId (o null).
      */
     protected function enforcedStoreIdForCreate(?int $requestStoreId = null): ?int
     {
@@ -50,34 +65,36 @@ trait EnforcesStoreScope
             return $requestStoreId;
         }
         $enforced = $user->getEnforcedStoreId();
-        return $enforced !== null ? $enforced : null;
+        if ($enforced !== null) {
+            return $enforced;
+        }
+        $allowed = $user->getAllowedStoreIds();
+        if (!empty($allowed) && $requestStoreId !== null && $user->canAccessStore($requestStoreId)) {
+            return $requestStoreId;
+        }
+        return !empty($allowed) ? $allowed[0] : null;
     }
 
     /**
      * Tiendas disponibles para el usuario actual (para selects, listados).
-     * Admin/Super Admin: todas las tiendas de la empresa activa (filtradas por Global Scope).
-     * No-admin: solo su tienda.
+     * Admin/Super Admin: todas. No-admin: sus tiendas permitidas (una o varias).
      */
     protected function storesForCurrentUser()
     {
         $user = Auth::user();
         if (!$user) {
-            // Store::all() ya filtra por company_id vía Global Scope
             return Store::query()->get();
         }
-        $enforcedStoreId = $user->getEnforcedStoreId();
-        if ($enforcedStoreId === null) {
-            // Store::all() ya filtra por company_id vía Global Scope
+        $allowed = $user->getAllowedStoreIds();
+        if (empty($allowed)) {
             return Store::all();
         }
-        return Store::where('id', $enforcedStoreId)->get();
+        return Store::whereIn('id', $allowed)->get();
     }
 
     /**
      * Comprueba que el usuario pueda acceder al recurso de la tienda dada.
      * Aborta 403 si no tiene acceso.
-     * 
-     * NOTA: También verifica que la tienda pertenezca a la empresa activa.
      */
     protected function authorizeStoreAccess(?int $storeId): void
     {
@@ -85,26 +102,14 @@ trait EnforcesStoreScope
         if (!$user) {
             abort(403, 'No autenticado.');
         }
-
-        // Verificar que la tienda pertenezca a la empresa activa
         if ($storeId !== null) {
-            // Store::find() aplica el Global Scope, así que si no encuentra la tienda,
-            // significa que no pertenece a la empresa activa
             $store = Store::find($storeId);
             if (!$store) {
                 abort(403, 'No tienes acceso a los datos de esta tienda.');
             }
-        }
-
-        // Admin y Super Admin pueden acceder a cualquier tienda de su empresa
-        if ($user->isAdmin() || $user->isSuperAdmin()) {
-            return;
-        }
-
-        // Usuarios con tienda asignada (en empresa actual) solo pueden acceder a esa tienda
-        $enforcedStoreId = $user->getEnforcedStoreId();
-        if ($enforcedStoreId !== null && (int) $enforcedStoreId !== (int) $storeId) {
-            abort(403, 'No tienes acceso a los datos de esta tienda.');
+            if (!$user->canAccessStore($storeId)) {
+                abort(403, 'No tienes acceso a los datos de esta tienda.');
+            }
         }
     }
 

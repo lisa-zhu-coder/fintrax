@@ -4,11 +4,11 @@
 
 @section('content')
 <div class="space-y-6">
-    <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+    <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100 dark:bg-slate-800 dark:ring-slate-600">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-lg font-semibold">Cierres Diarios</h1>
-                <p class="text-sm text-slate-500">Registros de cierres de caja diarios</p>
+                <h1 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Cierres Diarios</h1>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Registros de cierres de caja diarios</p>
             </div>
             <div class="flex items-center gap-3">
                 @if(auth()->user()->hasPermission('financial.daily_closes.create'))
@@ -24,12 +24,12 @@
     </header>
 
     <!-- Filtros -->
-    <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+    <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100 dark:bg-slate-800 dark:ring-slate-600">
         <form method="GET" action="{{ route('financial.daily-closes') }}" class="space-y-4">
             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <label class="block">
-                    <span class="text-xs font-semibold text-slate-700">Tienda</span>
-                    <select name="store" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                    <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Tienda</span>
+                    <select name="store" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-brand-200 focus:ring-4 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">
                         <option value="all" {{ request('store') === 'all' ? 'selected' : '' }}>Todas las tiendas</option>
                         @foreach($stores as $store)
                             <option value="{{ $store->id }}" {{ request('store') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
@@ -38,8 +38,8 @@
                 </label>
                 
                 <label class="block" id="periodLabel">
-                    <span class="text-xs font-semibold text-slate-700">Período</span>
-                    <select name="period" id="periodSelect" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                    <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Período</span>
+                    <select name="period" id="periodSelect" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-brand-200 focus:ring-4 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">
                         <option value="last_7" {{ $period === 'last_7' ? 'selected' : '' }}>Últimos 7 días</option>
                         <option value="last_30" {{ $period === 'last_30' ? 'selected' : '' }}>Últimos 30 días</option>
                         <option value="last_90" {{ $period === 'last_90' ? 'selected' : '' }}>Últimos 90 días</option>
@@ -59,25 +59,25 @@
             
             <div id="customDateRange" class="hidden grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label class="block">
-                    <span class="text-xs font-semibold text-slate-700">Desde</span>
-                    <input type="date" name="date_from" value="{{ request('date_from') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Desde</span>
+                    <input type="date" name="date_from" value="{{ request('date_from') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-brand-200 focus:ring-4 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"/>
                 </label>
                 <label class="block">
-                    <span class="text-xs font-semibold text-slate-700">Hasta</span>
-                    <input type="date" name="date_to" value="{{ request('date_to') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Hasta</span>
+                    <input type="date" name="date_to" value="{{ request('date_to') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-brand-200 focus:ring-4 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"/>
                 </label>
             </div>
         </form>
     </div>
 
     <!-- Tabla -->
-    <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+    <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100 dark:bg-slate-800 dark:ring-slate-600">
         <div class="overflow-x-auto">
             <table class="min-w-full text-left text-sm">
-                <thead class="text-xs uppercase text-slate-500">
+                <thead class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     <tr>
-                        <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 select-none">
-                            <a href="{{ route('financial.daily-closes', array_merge(request()->query(), ['sort_by' => 'date', 'sort_dir' => request('sort_by') === 'date' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center gap-1">
+                        <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 select-none rounded-tl">
+                            <a href="{{ route('financial.daily-closes', array_merge(request()->query(), ['sort_by' => 'date', 'sort_dir' => request('sort_by') === 'date' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center gap-1 text-inherit">
                                 Fecha
                                 @if(request('sort_by') === 'date')
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="{{ request('sort_dir') === 'asc' ? '' : 'rotate-180' }}">
@@ -87,8 +87,8 @@
                             </a>
                         </th>
                         <th class="px-3 py-2">Tienda</th>
-                        <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 select-none">
-                            <a href="{{ route('financial.daily-closes', array_merge(request()->query(), ['sort_by' => 'sales', 'sort_dir' => request('sort_by') === 'sales' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center gap-1">
+                        <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 select-none">
+                            <a href="{{ route('financial.daily-closes', array_merge(request()->query(), ['sort_by' => 'sales', 'sort_dir' => request('sort_by') === 'sales' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center gap-1 text-inherit">
                                 Ventas
                                 @if(request('sort_by') === 'sales')
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="{{ request('sort_dir') === 'asc' ? '' : 'rotate-180' }}">
@@ -99,8 +99,8 @@
                         </th>
                         <th class="px-3 py-2">TPV</th>
                         <th class="px-3 py-2">Efectivo</th>
-                        <th class="px-3 py-2 text-right cursor-pointer hover:bg-slate-50 select-none">
-                            <a href="{{ route('financial.daily-closes', array_merge(request()->query(), ['sort_by' => 'amount', 'sort_dir' => request('sort_by') === 'amount' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center justify-end gap-1">
+                        <th class="px-3 py-2 text-right cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 select-none">
+                            <a href="{{ route('financial.daily-closes', array_merge(request()->query(), ['sort_by' => 'amount', 'sort_dir' => request('sort_by') === 'amount' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center justify-end gap-1 text-inherit">
                                 Total
                                 @if(request('sort_by') === 'amount')
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="{{ request('sort_dir') === 'asc' ? '' : 'rotate-180' }}">
@@ -112,26 +112,26 @@
                         <th class="px-3 py-2"></th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-600">
                     @forelse($entries as $entry)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-3 py-2">{{ $entry->date->format('d/m/Y') }}</td>
-                            <td class="px-3 py-2">{{ $entry->store->name }}</td>
-                            <td class="px-3 py-2">
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                            <td class="px-3 py-2 text-slate-800 dark:text-slate-200">{{ $entry->date->format('d/m/Y') }}</td>
+                            <td class="px-3 py-2 text-slate-800 dark:text-slate-200">{{ $entry->store->name }}</td>
+                            <td class="px-3 py-2 text-slate-800 dark:text-slate-200">
                                 @if(isset($entry->sales))
                                     {{ number_format($entry->sales, 2, ',', '.') }} €
                                 @else
-                                    <span class="text-slate-400">—</span>
+                                    <span class="text-slate-400 dark:text-slate-500">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2">
+                            <td class="px-3 py-2 text-slate-800 dark:text-slate-200">
                                 @if(isset($entry->tpv))
                                     {{ number_format($entry->tpv, 2, ',', '.') }} €
                                 @else
-                                    <span class="text-slate-400">—</span>
+                                    <span class="text-slate-400 dark:text-slate-500">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2">
+                            <td class="px-3 py-2 text-slate-800 dark:text-slate-200">
                                 @if(isset($entry->cash_count))
                                     @php
                                         $cashTotal = 0;
@@ -141,22 +141,22 @@
                                     @endphp
                                     {{ number_format($cashTotal, 2, ',', '.') }} €
                                 @else
-                                    <span class="text-slate-400">—</span>
+                                    <span class="text-slate-400 dark:text-slate-500">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2 text-right font-semibold text-blue-700">
+                            <td class="px-3 py-2 text-right font-semibold text-blue-700 dark:text-blue-300">
                                 {{ number_format($entry->amount, 2, ',', '.') }} €
                             </td>
                             <td class="px-3 py-2 text-right">
                                 <div class="flex items-center gap-2 justify-end">
-                                    <a href="{{ route('financial.show', $entry->id) }}" class="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" title="Ver">
+                                    <a href="{{ route('financial.show', $entry->id) }}" class="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-600" title="Ver">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                             <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                         </svg>
                                     </a>
                                     @if(auth()->user()->hasPermission('financial.daily_closes.edit') || auth()->user()->hasPermission('financial.registros.edit'))
-                                    <a href="{{ route('financial.edit', $entry->id) }}" class="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Editar">
+                                    <a href="{{ route('financial.edit', $entry->id) }}" class="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/30" title="Editar">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                             <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -167,7 +167,7 @@
                                     <form method="POST" action="{{ route('financial.destroy', $entry->id) }}" class="inline" onsubmit="return confirm('¿Estás seguro?')">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" title="Eliminar">
+                                        <button type="submit" class="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/30" title="Eliminar">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                 <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                             </svg>
@@ -179,7 +179,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-3 py-6 text-center text-slate-500">No hay registros</td>
+                            <td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">No hay registros</td>
                         </tr>
                     @endforelse
                 </tbody>

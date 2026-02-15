@@ -123,6 +123,80 @@
         th.cursor-pointer svg {
             transition: transform 0.2s;
         }
+
+        /* Dark mode global: contenido principal (todas las páginas) */
+        .dark .app-main-content .bg-white {
+            background-color: rgb(30 41 59);
+        }
+        .dark .app-main-content .ring-slate-100 {
+            --tw-ring-color: rgb(71 85 105);
+            box-shadow: 0 0 0 1px rgb(71 85 105);
+        }
+        .dark .app-main-content .text-slate-500 {
+            color: rgb(148 163 184);
+        }
+        .dark .app-main-content .text-slate-600 {
+            color: rgb(203 213 225);
+        }
+        .dark .app-main-content .text-slate-700 {
+            color: rgb(203 213 225);
+        }
+        .dark .app-main-content .text-slate-800 {
+            color: rgb(226 232 240);
+        }
+        .dark .app-main-content .text-slate-900 {
+            color: rgb(248 250 252);
+        }
+        .dark .app-main-content .border-slate-200 {
+            border-color: rgb(71 85 105);
+        }
+        .dark .app-main-content .divide-slate-100 > * + * {
+            border-color: rgb(71 85 105);
+        }
+        .dark .app-main-content .bg-slate-50 {
+            background-color: rgb(30 41 59);
+        }
+        .dark .app-main-content .hover\:bg-slate-50:hover,
+        .dark .app-main-content tr.hover\:bg-slate-50:hover {
+            background-color: rgb(51 65 85);
+        }
+        .dark .app-main-content .hover\:bg-slate-100:hover {
+            background-color: rgb(71 85 105);
+        }
+        .dark .app-main-content thead.text-slate-500,
+        .dark .app-main-content thead .text-slate-500 {
+            color: rgb(148 163 184);
+        }
+        .dark .app-main-content tbody td {
+            color: rgb(226 232 240);
+        }
+        .dark .app-main-content select.bg-white,
+        .dark .app-main-content input.bg-white,
+        .dark .app-main-content textarea.bg-white {
+            background-color: rgb(51 65 85);
+            border-color: rgb(71 85 105);
+            color: rgb(248 250 252);
+        }
+        .dark .app-main-content select:not([class*="bg-"]),
+        .dark .app-main-content input[type="text"]:not([class*="bg-"]),
+        .dark .app-main-content input[type="number"]:not([class*="bg-"]),
+        .dark .app-main-content input[type="email"]:not([class*="bg-"]),
+        .dark .app-main-content input[type="date"]:not([class*="bg-"]),
+        .dark .app-main-content input[type="search"]:not([class*="bg-"]),
+        .dark .app-main-content textarea:not([class*="bg-"]) {
+            background-color: rgb(51 65 85);
+            border-color: rgb(71 85 105);
+            color: rgb(248 250 252);
+        }
+        .dark .app-main-content label .text-slate-700 {
+            color: rgb(203 213 225);
+        }
+        .dark .app-main-content .text-slate-400 {
+            color: rgb(148 163 184);
+        }
+        .dark .app-main-content .ring-slate-200 {
+            --tw-ring-color: rgb(71 85 105);
+        }
     </style>
     
     @stack('styles')
@@ -491,26 +565,23 @@
             <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <p class="px-3 mb-2 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Tema</p>
                 <div id="themeSwitcher" class="flex gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-700/50 ring-1 ring-slate-200/80 dark:ring-slate-600/80" role="group" aria-label="Seleccionar tema">
-                    <button type="button" data-theme="light" class="theme-btn flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition-all duration-300 hover:bg-white dark:hover:bg-slate-600/50" title="Modo claro">
+                    <button type="button" data-theme="light" class="theme-btn flex-1 flex items-center justify-center rounded-lg p-2 transition-all duration-300 hover:bg-white dark:hover:bg-slate-600/50" title="Modo claro">
                         <svg class="theme-icon w-5 h-5 text-amber-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <circle class="theme-sun-rays" cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/>
                             <path class="theme-sun-rays" d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                         </svg>
-                        <span class="hidden sm:inline">Claro</span>
                     </button>
-                    <button type="button" data-theme="dark" class="theme-btn flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition-all duration-300 hover:bg-white dark:hover:bg-slate-600/50" title="Modo oscuro">
+                    <button type="button" data-theme="dark" class="theme-btn flex-1 flex items-center justify-center rounded-lg p-2 transition-all duration-300 hover:bg-white dark:hover:bg-slate-600/50" title="Modo oscuro">
                         <svg class="theme-icon theme-moon-glow w-5 h-5 text-indigo-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
-                        <span class="hidden sm:inline">Oscuro</span>
                     </button>
-                    <button type="button" data-theme="system" class="theme-btn flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition-all duration-300 hover:bg-white dark:hover:bg-slate-600/50" title="Seguir sistema">
+                    <button type="button" data-theme="system" class="theme-btn flex-1 flex items-center justify-center rounded-lg p-2 transition-all duration-300 hover:bg-white dark:hover:bg-slate-600/50" title="Seguir sistema">
                         <svg class="theme-icon theme-system-monitor w-5 h-5 text-slate-500 dark:text-slate-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/>
                             <path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                             <circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/>
                         </svg>
-                        <span class="hidden sm:inline">Sistema</span>
                     </button>
                 </div>
             </div>
@@ -533,7 +604,7 @@
         </aside>
         
         <!-- Main Content -->
-        <main class="flex-1 p-6">
+        <main class="app-main-content flex-1 p-6">
             @if(session('success'))
                 <div class="mb-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 p-4 text-sm text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-100 dark:ring-emerald-800/50">
                     {{ session('success') }}

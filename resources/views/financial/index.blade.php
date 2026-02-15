@@ -4,23 +4,15 @@
 
 @section('content')
 <div class="space-y-6">
-    <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-lg font-semibold">Registros Financieros</h1>
-                <p class="text-sm text-slate-500">Gestiona ingresos, gastos y cierres diarios</p>
+    <header class="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+                <h1 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Registros Financieros</h1>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Gestiona ingresos, gastos y cierres diarios</p>
             </div>
-            <div class="flex items-center gap-3">
-                @if(auth()->user()->hasPermission('trash.main.view'))
-                <a href="{{ route('trash.index') }}" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    Papelera
-                </a>
-                @endif
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
                 @if(auth()->user()->hasPermission('financial.registros.export'))
-                <a href="{{ route('financial.export', request()->query()) }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <a href="{{ route('financial.export', request()->query()) }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 whitespace-nowrap">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
@@ -28,16 +20,7 @@
                 </a>
                 @endif
                 @if(auth()->user()->hasPermission('financial.registros.create'))
-                <form method="POST" action="{{ route('financial.generate-daily-close-entries') }}" class="inline" onsubmit="return confirm('¿Generar registros de ingresos y gastos para todos los cierres diarios existentes?')">
-                    @csrf
-                    <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-600 bg-white px-4 py-2 text-sm font-semibold text-brand-600 hover:bg-brand-50">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 2v20M2 12h20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                        </svg>
-                        Generar registros de cierres
-                    </button>
-                </form>
-                <a href="{{ route('financial.create') }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+                <a href="{{ route('financial.create') }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 whitespace-nowrap">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                     </svg>

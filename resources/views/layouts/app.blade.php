@@ -197,14 +197,39 @@
         .dark .app-main-content .ring-slate-200 {
             --tw-ring-color: rgb(71 85 105);
         }
+        /* Sidebar responsive móvil */
+        @media (max-width: 767px) {
+            .sidebar-mobile {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 50;
+                box-shadow: none;
+            }
+            .sidebar-mobile.open {
+                transform: translateX(0);
+                box-shadow: 0.5rem 0 1rem rgba(0,0,0,0.15);
+            }
+            .sidebar-overlay {
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.3s, visibility 0.3s;
+            }
+            .sidebar-overlay.open {
+                opacity: 1;
+                visibility: visible;
+            }
+        }
     </style>
     
     @stack('styles')
 </head>
 <body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300">
     <div class="flex min-h-screen">
+        {{-- Overlay para cerrar sidebar en móvil --}}
+        <div id="sidebarOverlay" class="sidebar-overlay fixed inset-0 bg-slate-900/60 z-40 md:hidden" onclick="toggleSidebar()" aria-hidden="true"></div>
+        
         <!-- Sidebar -->
-        <aside class="w-64 bg-slate-200 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 p-4 flex flex-col transition-colors duration-300">
+        <aside id="sidebar" class="sidebar-mobile fixed inset-y-0 left-0 w-64 bg-slate-200 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 p-4 flex flex-col transition-colors duration-300 md:relative md:translate-x-0 md:flex-shrink-0">
             <div class="mb-6">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-slate-700 ring-1 ring-slate-200/80 dark:ring-slate-600/80">
@@ -604,7 +629,26 @@
         </aside>
         
         <!-- Main Content -->
-        <main class="app-main-content flex-1 p-6">
+        <div class="flex-1 flex flex-col min-w-0">
+        {{-- Header móvil con menú hamburguesa --}}
+        <header class="md:hidden flex items-center justify-between gap-3 px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+            <button type="button" id="sidebarToggle" onclick="toggleSidebar()" class="flex items-center justify-center w-10 h-10 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50" aria-label="Abrir menú">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600">
+                    <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M 6 20 A 14 14 0 0 1 34 20" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M 34 20 A 14 14 0 0 1 6 20" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{{ $companyName ?? 'Fintrax' }}</span>
+            </div>
+            <div class="w-10"></div>
+        </header>
+        <main class="app-main-content flex-1 p-4 md:p-6 min-w-0 overflow-x-auto">
             @if(session('success'))
                 <div class="mb-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 p-4 text-sm text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-100 dark:ring-emerald-800/50">
                     {{ session('success') }}
@@ -619,7 +663,33 @@
             
             @yield('content')
         </main>
+        </div>
     </div>
+    
+    <script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar && overlay) {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('open');
+            document.body.classList.toggle('overflow-hidden', sidebar.classList.contains('open'));
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        document.querySelectorAll('#sidebar a[href]').forEach(function(link) {
+            link.addEventListener('click', function() {
+                if (window.innerWidth < 768) {
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('open');
+                    document.body.classList.remove('overflow-hidden');
+                }
+            });
+        });
+    });
+    </script>
     
     <!-- Modal de previsualización de factura -->
     <div id="invoicePreviewModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">

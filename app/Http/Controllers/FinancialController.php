@@ -432,10 +432,9 @@ class FinancialController extends Controller
             abort(403, 'No tienes permisos para editar esta acción.');
         }
         
-        $validated = $request->validate([
+        $rules = [
             'date' => 'required|date',
             'store_id' => 'required|exists:stores,id',
-            'total_amount' => 'nullable|numeric|min:0',
             'status' => 'nullable|in:pendiente,pagado',
             'expense_payments' => 'nullable|array',
             'expense_payments.*.date' => 'required|date',
@@ -447,8 +446,16 @@ class FinancialController extends Controller
             'supplier_id' => 'nullable|exists:suppliers,id',
             'income_category' => 'nullable|string',
             'income_concept' => 'nullable|string',
-            'income_amount' => 'nullable|numeric|min:0',
-        ]);
+        ];
+        // Cierre diario: total_amount y amount pueden ser negativos (p. ej. gastos negativos)
+        if ($entry->type === 'daily_close') {
+            $rules['total_amount'] = 'nullable|numeric';
+            $rules['income_amount'] = 'nullable|numeric';
+        } else {
+            $rules['total_amount'] = 'nullable|numeric|min:0';
+            $rules['income_amount'] = 'nullable|numeric|min:0';
+        }
+        $validated = $request->validate($rules);
 
         if ($entry->type === 'daily_close') {
             $exists = FinancialEntry::where('type', 'daily_close')

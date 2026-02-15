@@ -48,6 +48,26 @@ class User extends Authenticatable
         return $this->belongsTo(Store::class);
     }
 
+    /**
+     * Acceso a empresas con rol (y opcionalmente tienda) por empresa.
+     * Solo el superadmin gestiona estas asignaciones.
+     */
+    public function companyAccess()
+    {
+        return $this->belongsToMany(Company::class, 'company_user')
+            ->withPivot('role_id', 'store_id')
+            ->withTimestamps()
+            ->using(CompanyUser::class);
+    }
+
+    /**
+     * Filas de la tabla company_user (para sincronizar desde el controlador).
+     */
+    public function companyUsers()
+    {
+        return $this->hasMany(CompanyUser::class);
+    }
+
     public function employee()
     {
         return $this->hasOne(Employee::class, 'user_id');
@@ -58,15 +78,46 @@ class User extends Authenticatable
         return $this->hasMany(FinancialEntry::class, 'created_by');
     }
 
+    /**
+     * Rol efectivo en la empresa actual (sesión). Con company_user, el rol puede ser distinto por empresa.
+     */
+    public function getEffectiveRole(): ?Role
+    {
+        if ($this->isSuperAdmin()) {
+            return $this->role;
+        }
+        $companyId = session('company_id');
+        if ($companyId) {
+            $pivot = \App\Models\CompanyUser::where('user_id', $this->id)
+                ->where('company_id', $companyId)
+                ->first();
+            if ($pivot) {
+                return $pivot->role;
+            }
+        }
+        return $this->role;
+    }
+
+    /**
+     * ID del rol efectivo en la empresa actual.
+     */
+    public function getEffectiveRoleId(): ?int
+    {
+        $role = $this->getEffectiveRole();
+        return $role ? (int) $role->id : null;
+    }
+
     public function hasPermission(string $permission): bool
     {
-        // Super admin y admin tienen todos los permisos
-        if ($this->isSuperAdmin() || $this->isAdmin()) {
+        $role = $this->getEffectiveRole();
+        if (!$role) {
+            return false;
+        }
+        if ($role->key === 'super_admin' || $role->key === 'admin') {
             return true;
         }
-        
-        // Pasar company_id para usar permisos personalizados por empresa
-        return $this->role && $this->role->hasPermission($permission, $this->company_id);
+        $companyId = session('company_id') ?? $this->company_id;
+        return $role->hasPermission($permission, $companyId);
     }
 
     /**
@@ -98,7 +149,8 @@ class User extends Authenticatable
      */
     public function isAdmin(): bool
     {
-        return $this->role && $this->role->key === 'admin';
+        $role = $this->getEffectiveRole();
+        return $role && $role->key === 'admin';
     }
 
     /**
@@ -106,7 +158,8 @@ class User extends Authenticatable
      */
     public function isManager(): bool
     {
-        return $this->role && $this->role->key === 'manager';
+        $role = $this->getEffectiveRole();
+        return $role && $role->key === 'manager';
     }
 
     /**
@@ -114,7 +167,8 @@ class User extends Authenticatable
      */
     public function isEmployee(): bool
     {
-        return $this->role && $this->role->key === 'employee';
+        $role = $this->getEffectiveRole();
+        return $role && $role->key === 'employee';
     }
 
     /**
@@ -122,7 +176,8 @@ class User extends Authenticatable
      */
     public function isViewer(): bool
     {
-        return $this->role && $this->role->key === 'viewer';
+        $role = $this->getEffectiveRole();
+        return $role && $role->key === 'viewer';
     }
 
     /**
@@ -130,7 +185,9 @@ class User extends Authenticatable
      */
     public function canCreate(): bool
     {
-        $perms = $this->role->permissions ?? [];
+        $role = $this->getEffectiveRole();
+        if (!$role) return false;
+        $perms = $role->permissions ?? [];
         foreach (array_keys($perms) as $key) {
             if ($perms[$key] && str_ends_with($key, '.create')) {
                 return true;
@@ -144,7 +201,9 @@ class User extends Authenticatable
      */
     public function canEdit(): bool
     {
-        $perms = $this->role->permissions ?? [];
+        $role = $this->getEffectiveRole();
+        if (!$role) return false;
+        $perms = $role->permissions ?? [];
         foreach (array_keys($perms) as $key) {
             if ($perms[$key] && str_ends_with($key, '.edit')) {
                 return true;
@@ -158,7 +217,9 @@ class User extends Authenticatable
      */
     public function canDelete(): bool
     {
-        $perms = $this->role->permissions ?? [];
+        $role = $this->getEffectiveRole();
+        if (!$role) return false;
+        $perms = $role->permissions ?? [];
         foreach (array_keys($perms) as $key) {
             if ($perms[$key] && str_ends_with($key, '.delete')) {
                 return true;
@@ -169,12 +230,21 @@ class User extends Authenticatable
 
     /**
      * Store ID al que está limitado el usuario. null = admin/super_admin (todas las tiendas).
-     * Para no-admin, SIEMPRE debe usarse este valor para filtrar/crear.
+     * Con company_user se usa el store_id de la empresa actual si existe.
      */
     public function getEnforcedStoreId(): ?int
     {
         if ($this->isSuperAdmin() || $this->isAdmin()) {
             return null;
+        }
+        $companyId = session('company_id');
+        if ($companyId) {
+            $pivot = \App\Models\CompanyUser::where('user_id', $this->id)
+                ->where('company_id', $companyId)
+                ->first();
+            if ($pivot && $pivot->store_id !== null) {
+                return (int) $pivot->store_id;
+            }
         }
         return $this->store_id ? (int) $this->store_id : null;
     }
@@ -187,6 +257,19 @@ class User extends Authenticatable
         if ($this->isSuperAdmin() || $this->isAdmin() || $storeId === null) {
             return true;
         }
-        return $this->store_id !== null && (int) $this->store_id === (int) $storeId;
+        $enforced = $this->getEnforcedStoreId();
+        return $enforced !== null && $enforced === (int) $storeId;
+    }
+
+    /**
+     * IDs de empresas a las que tiene acceso (vía company_user). Super_admin no usa esta tabla.
+     */
+    public function getCompanyAccessCompanyIds(): array
+    {
+        return \App\Models\CompanyUser::where('user_id', $this->id)
+            ->pluck('company_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
     }
 }

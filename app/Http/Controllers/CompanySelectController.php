@@ -9,53 +9,63 @@ use Illuminate\Support\Facades\Auth;
 class CompanySelectController extends Controller
 {
     /**
-     * Mostrar la pantalla de selección de empresa (solo para super_admin).
+     * Mostrar la pantalla de selección de empresa.
+     * Super_admin: ve todas las empresas. Otros: solo si tienen acceso a más de una (company_user).
      */
     public function index()
     {
         $user = Auth::user();
 
-        // Solo super_admin puede acceder a esta pantalla
-        if (!$user->isSuperAdmin()) {
+        if ($user->isSuperAdmin()) {
+            $companies = Company::orderBy('name')
+                ->get()
+                ->unique('id')
+                ->values();
+            $archivedCompanies = Company::withoutGlobalScopes()
+                ->onlyTrashed()
+                ->orderBy('name')
+                ->get();
+            return view('company.select', compact('companies', 'archivedCompanies'));
+        }
+
+        $companyIds = $user->getCompanyAccessCompanyIds();
+        if (count($companyIds) <= 1) {
             return redirect()->route('dashboard');
         }
 
-        // Empresas activas (no archivadas) - sin withoutGlobalScopes para respetar SoftDeletes
-        $companies = Company::orderBy('name')
-            ->get()
-            ->unique('id')
-            ->values();
-
-        // Empresas archivadas (soft deleted)
-        $archivedCompanies = Company::withoutGlobalScopes()
-            ->onlyTrashed()
-            ->orderBy('name')
-            ->get();
+        $companies = Company::whereIn('id', $companyIds)->orderBy('name')->get();
+        $archivedCompanies = collect();
 
         return view('company.select', compact('companies', 'archivedCompanies'));
     }
 
     /**
      * Cambiar a una empresa específica (guardar en sesión).
+     * Super_admin: cualquier empresa. Otros: solo empresas a las que tienen acceso (company_user).
      */
     public function switch(Request $request)
     {
         $user = Auth::user();
 
-        // Solo super_admin puede cambiar de empresa
-        if (!$user->isSuperAdmin()) {
-            return redirect()->route('dashboard')
-                ->with('error', 'No tienes permiso para cambiar de empresa.');
-        }
-
         $request->validate([
             'company_id' => 'required|exists:companies,id',
         ]);
 
-        // Guardar company_id en sesión
-        session(['company_id' => (int) $request->company_id]);
+        $companyId = (int) $request->company_id;
 
-        $company = Company::find($request->company_id);
+        if (!$user->isSuperAdmin()) {
+            $allowedIds = $user->getCompanyAccessCompanyIds();
+            if (count($allowedIds) === 0) {
+                $allowedIds = $user->company_id ? [$user->company_id] : [];
+            }
+            if (!in_array($companyId, $allowedIds, true)) {
+                return redirect()->route('dashboard')
+                    ->with('error', 'No tienes acceso a esa empresa.');
+            }
+        }
+
+        session(['company_id' => $companyId]);
+        $company = Company::find($companyId);
 
         return redirect()->route('dashboard')
             ->with('success', 'Has entrado a la empresa: ' . $company->name);
@@ -92,19 +102,20 @@ class CompanySelectController extends Controller
     }
 
     /**
-     * Salir de la empresa actual y volver a la pantalla de selección.
+     * Salir de la empresa actual y volver a la pantalla de selección (solo super_admin o quien tenga varias empresas).
      */
     public function exit()
     {
         $user = Auth::user();
 
-        // Solo super_admin puede cambiar de empresa
         if (!$user->isSuperAdmin()) {
-            return redirect()->route('dashboard')
-                ->with('error', 'No tienes permiso para cambiar de empresa.');
+            $companyIds = $user->getCompanyAccessCompanyIds();
+            if (count($companyIds) <= 1) {
+                return redirect()->route('dashboard')
+                    ->with('error', 'No tienes permiso para cambiar de empresa.');
+            }
         }
 
-        // Eliminar company_id de sesión
         session()->forget('company_id');
 
         return redirect()->route('company.select');

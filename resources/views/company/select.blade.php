@@ -80,6 +80,7 @@
         <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-lg font-semibold">Empresas disponibles</h2>
+                @if(auth()->user()->isSuperAdmin())
                 <button type="button" onclick="document.getElementById('createModal').classList.remove('hidden')" 
                     class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -87,6 +88,7 @@
                     </svg>
                     Añadir empresa
                 </button>
+                @endif
             </div>
 
             @if($companies->isEmpty())
@@ -121,6 +123,7 @@
                                     </div>
                                 </button>
                             </form>
+                            @if(auth()->user()->isSuperAdmin())
                             <form method="POST" action="{{ route('company.archive', $company) }}" class="flex items-center pr-2" onsubmit="return confirm('¿Archivar la empresa {{ addslashes($company->name) }}? Los datos se conservarán y podrás recuperarla después.');">
                                 @csrf
                                 <button type="submit" class="rounded-lg p-2 text-amber-600 hover:bg-amber-50" title="Archivar empresa">
@@ -129,6 +132,7 @@
                                     </svg>
                                 </button>
                             </form>
+                            @endif
                         </div>
                     @endforeach
                 </div>
@@ -175,7 +179,7 @@
         <!-- Info usuario y logout -->
         <div class="mt-6 text-center">
             <p class="text-sm text-slate-500">
-                Conectado como <strong>{{ auth()->user()->name }}</strong> (Super Admin)
+                Conectado como <strong>{{ auth()->user()->name }}</strong>@if(auth()->user()->isSuperAdmin()) (Super Admin)@endif
             </p>
             <form method="POST" action="{{ route('logout') }}" class="mt-2">
                 @csrf

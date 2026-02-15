@@ -160,7 +160,7 @@
             <div class="mb-4 rounded-xl bg-white/90 dark:bg-slate-700/90 px-3 py-2.5 ring-1 ring-slate-200/80 dark:ring-slate-600/80 shadow-sm">
                 <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Empresa</p>
                 <p class="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{{ $companyName }}</p>
-                @if(auth()->user()->isSuperAdmin())
+                @if(auth()->user()->isSuperAdmin() || count(auth()->user()->getCompanyAccessCompanyIds()) > 1)
                 <form method="POST" action="{{ route('company.exit') }}" class="mt-2">
                     @csrf
                     <button type="submit" class="text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:underline">

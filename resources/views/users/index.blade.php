@@ -136,7 +136,40 @@
                 <div class="mt-1 text-xs text-slate-500 hidden" id="passwordHint">Dejar vacío para no cambiar</div>
             </label>
 
-            <label class="block">
+            @if(auth()->user()->isSuperAdmin() && isset($companies) && $companies->isNotEmpty())
+            <input type="hidden" name="role_id" id="role_id" value="{{ $roles->where('key', '!=', 'super_admin')->first()?->id ?? '' }}"/>
+            <input type="hidden" name="store_id" id="store_id" value=""/>
+            <div id="companyAccessSection" class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-700">Acceso a empresas</span>
+                    <button type="button" id="addCompanyAccessBtn" class="text-xs text-brand-600 hover:underline">+ Añadir empresa</button>
+                </div>
+                <p class="text-xs text-slate-500">Asigna una o varias empresas y el rol en cada una. Solo el Super Admin puede gestionar esto.</p>
+                <div id="companyAccessContainer" class="space-y-2 max-h-48 overflow-y-auto"></div>
+            </div>
+            <template id="companyAccessRowTemplate">
+                <div class="company-access-row flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-2">
+                    <select name="company_access[__INDEX__][company_id]" class="company-access-company flex-1 min-w-[120px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm">
+                        @foreach($companies as $c)
+                        <option value="{{ $c->id }}">{{ $c->name }}</option>
+                        @endforeach
+                    </select>
+                    <select name="company_access[__INDEX__][role_id]" class="company-access-role rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm">
+                        @foreach($roles->where('key', '!=', 'super_admin') as $role)
+                        <option value="{{ $role->id }}">{{ $role->name }}</option>
+                        @endforeach
+                    </select>
+                    <select name="company_access[__INDEX__][store_id]" class="company-access-store rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm">
+                        <option value="">Todas</option>
+                        @foreach($stores as $s)
+                        <option value="{{ $s->id }}">{{ $s->name }}</option>
+                        @endforeach
+                    </select>
+                    <button type="button" class="remove-company-access rounded p-1.5 text-rose-600 hover:bg-rose-50" aria-label="Quitar">×</button>
+                </div>
+            </template>
+            @else
+            <label class="block" id="labelRole">
                 <span class="text-xs font-semibold text-slate-700">Rol</span>
                 <select name="role_id" id="role_id" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                     @foreach($roles as $role)
@@ -144,8 +177,7 @@
                     @endforeach
                 </select>
             </label>
-
-            <label class="block">
+            <label class="block" id="labelStore">
                 <span class="text-xs font-semibold text-slate-700">Tienda asignada</span>
                 <select name="store_id" id="store_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                     <option value="">Todas las tiendas</option>
@@ -154,6 +186,7 @@
                     @endforeach
                 </select>
             </label>
+            @endif
 
             <div class="flex items-center justify-end gap-2 mt-4">
                 <button type="button" onclick="closeUserModal()" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
@@ -170,6 +203,73 @@
 @push('scripts')
 <script>
 let currentUserId = null;
+let companyAccessIndex = 0;
+
+function reindexCompanyAccess() {
+    const container = document.getElementById('companyAccessContainer');
+    if (!container) return;
+    container.querySelectorAll('.company-access-row').forEach((row, i) => {
+        row.querySelectorAll('[name^="company_access"]').forEach(input => {
+            input.name = input.name.replace(/company_access\[\d+\]/, 'company_access[' + i + ']');
+        });
+    });
+    const first = container.querySelector('.company-access-row');
+    const roleEl = document.getElementById('role_id');
+    const storeEl = document.getElementById('store_id');
+    if (roleEl && first) {
+        const roleSelect = first.querySelector('.company-access-role');
+        const storeSelect = first.querySelector('.company-access-store');
+        if (roleSelect) roleEl.value = roleSelect.value;
+        if (storeEl && storeSelect) storeEl.value = storeSelect.value || '';
+    }
+}
+
+function addCompanyAccessRow(data = {}) {
+    const container = document.getElementById('companyAccessContainer');
+    const template = document.getElementById('companyAccessRowTemplate');
+    if (!container || !template) return;
+    const idx = container.querySelectorAll('.company-access-row').length;
+    const html = template.innerHTML.replace(/__INDEX__/g, idx);
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    const row = wrap.firstElementChild;
+    if (data.company_id) row.querySelector('.company-access-company').value = data.company_id;
+    if (data.role_id) row.querySelector('.company-access-role').value = data.role_id;
+    if (data.store_id) row.querySelector('.company-access-store').value = data.store_id;
+    row.querySelector('.remove-company-access').addEventListener('click', function() {
+        row.remove();
+        reindexCompanyAccess();
+    });
+    container.appendChild(row);
+    reindexCompanyAccess();
+}
+
+function initCompanyAccessSection() {
+    const section = document.getElementById('companyAccessSection');
+    const btn = document.getElementById('addCompanyAccessBtn');
+    if (!section) return;
+    if (btn) btn.onclick = () => addCompanyAccessRow();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    initCompanyAccessSection();
+    const form = document.getElementById('userForm');
+    if (form) {
+        form.addEventListener('submit', function() {
+            reindexCompanyAccess();
+            const container = document.getElementById('companyAccessContainer');
+            if (container) {
+                const first = container.querySelector('.company-access-row');
+                if (first) {
+                    const r = document.getElementById('role_id');
+                    const s = document.getElementById('store_id');
+                    if (r) r.value = first.querySelector('.company-access-role')?.value || r.value;
+                    if (s) s.value = first.querySelector('.company-access-store')?.value || '';
+                }
+            }
+        });
+    }
+});
 
 function openUserModal(userId = null) {
     currentUserId = userId;
@@ -189,19 +289,29 @@ function openUserModal(userId = null) {
         form.action = `/users/${userId}`;
         formMethod.value = 'PUT';
         
-        // Cargar datos del usuario vía fetch
         fetch(`/users/${userId}`)
             .then(response => response.json())
             .then(data => {
                 document.getElementById('username').value = data.username || '';
                 document.getElementById('name').value = data.name || '';
                 document.getElementById('email').value = data.email || '';
-                document.getElementById('role_id').value = data.role_id || '';
-                document.getElementById('store_id').value = data.store_id || '';
+                const roleEl = document.getElementById('role_id');
+                const storeEl = document.getElementById('store_id');
+                if (roleEl) roleEl.value = data.role_id || '';
+                if (storeEl) storeEl.value = data.store_id || '';
+                const container = document.getElementById('companyAccessContainer');
+                if (container && data.company_access && data.company_access.length) {
+                    container.innerHTML = '';
+                    data.company_access.forEach(function(row) {
+                        addCompanyAccessRow({
+                            company_id: String(row.company_id),
+                            role_id: String(row.role_id),
+                            store_id: row.store_id ? String(row.store_id) : ''
+                        });
+                    });
+                }
             })
-            .catch(error => {
-                console.error('Error cargando usuario:', error);
-            });
+            .catch(error => console.error('Error cargando usuario:', error));
     } else {
         title.textContent = 'Añadir usuario';
         passwordLabel.textContent = 'Contraseña';
@@ -210,6 +320,11 @@ function openUserModal(userId = null) {
         form.action = '{{ route("users.store") }}';
         formMethod.value = 'POST';
         form.reset();
+        const container = document.getElementById('companyAccessContainer');
+        if (container) {
+            container.innerHTML = '';
+            addCompanyAccessRow();
+        }
     }
     
     modal.classList.remove('hidden');

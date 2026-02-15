@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Models\BankAccount;
 use App\Models\Store;
 use App\Models\Transfer;
@@ -9,11 +10,14 @@ use Illuminate\Http\Request;
 
 class StoreController extends Controller
 {
+    use EnforcesStoreScope;
+
     /**
      * Show the form for editing the specified store.
      */
     public function edit(Store $store)
     {
+        $this->authorizeStoreAccess($store->id);
         // Cargar la tienda con sus cuentas bancarias
         $store->load('bankAccounts');
         
@@ -41,6 +45,7 @@ class StoreController extends Controller
      */
     public function storeBankAccount(Store $store, Request $request)
     {
+        $this->authorizeStoreAccess($store->id);
         $validated = $request->validate([
             'bank_name' => 'required|string|max:255',
             'iban' => 'required|string|max:255|unique:bank_accounts,iban',
@@ -66,6 +71,7 @@ class StoreController extends Controller
      */
     public function destroyBankAccount(BankAccount $bankAccount)
     {
+        $this->authorizeStoreAccess($bankAccount->store_id);
         try {
             $storeId = $bankAccount->store_id;
             

@@ -40,7 +40,8 @@ class DashboardController extends Controller
 
         $selectedStore = $request->get('store', 'all');
         if (!$user->isSuperAdmin() && !$user->isAdmin()) {
-            $selectedStore = $user->store_id ? (string) $user->store_id : 'all';
+            $enforcedStoreId = $user->getEnforcedStoreId();
+            $selectedStore = $enforcedStoreId !== null ? (string) $enforcedStoreId : 'all';
         }
 
         $entries = $this->getFilteredEntries($selectedStore, $period, $user, $fromDate, $toDate);

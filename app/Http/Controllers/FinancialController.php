@@ -705,8 +705,9 @@ class FinancialController extends Controller
         $query = FinancialEntry::with(['store', 'creator'])
             ->where('type', 'income');
 
-        if (auth()->user()->store_id) {
-            $query->where('store_id', auth()->user()->store_id);
+        $enforcedStoreId = auth()->user()->getEnforcedStoreId();
+        if ($enforcedStoreId !== null) {
+            $query->where('store_id', $enforcedStoreId);
         } elseif ($request->has('store') && $request->store !== 'all') {
             $query->where('store_id', $request->store);
         }
@@ -742,8 +743,9 @@ class FinancialController extends Controller
         $query = FinancialEntry::with(['store', 'creator', 'invoice'])
             ->where('type', 'expense');
 
-        if (auth()->user()->store_id) {
-            $query->where('store_id', auth()->user()->store_id);
+        $enforcedStoreId = auth()->user()->getEnforcedStoreId();
+        if ($enforcedStoreId !== null) {
+            $query->where('store_id', $enforcedStoreId);
         } elseif ($request->has('store') && $request->store !== 'all') {
             $query->where('store_id', $request->store);
         }
@@ -821,8 +823,9 @@ class FinancialController extends Controller
             $query = FinancialEntry::with(['store'])
                 ->where('type', 'daily_close');
 
-            if (auth()->user()->store_id) {
-                $query->where('store_id', auth()->user()->store_id);
+            $enforcedStoreId = auth()->user()->getEnforcedStoreId();
+            if ($enforcedStoreId !== null) {
+                $query->where('store_id', $enforcedStoreId);
             }
 
             // Aplicar filtro por año si se especifica (por defecto el año más reciente con datos o el actual)

@@ -49,7 +49,8 @@ trait EnforcesStoreScope
         if ($user->isAdmin() || $user->isSuperAdmin()) {
             return $requestStoreId;
         }
-        return $user->store_id ? (int) $user->store_id : null;
+        $enforced = $user->getEnforcedStoreId();
+        return $enforced !== null ? $enforced : null;
     }
 
     /**
@@ -100,8 +101,9 @@ trait EnforcesStoreScope
             return;
         }
 
-        // Usuarios normales solo pueden acceder a su tienda
-        if ($storeId === null || (int) $user->store_id !== (int) $storeId) {
+        // Usuarios con tienda asignada (en empresa actual) solo pueden acceder a esa tienda
+        $enforcedStoreId = $user->getEnforcedStoreId();
+        if ($enforcedStoreId !== null && (int) $enforcedStoreId !== (int) $storeId) {
             abort(403, 'No tienes acceso a los datos de esta tienda.');
         }
     }

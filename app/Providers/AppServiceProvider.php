@@ -28,9 +28,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // En producción, forzar HTTPS para que los redirects y URLs generadas usen https://
-        // Evita que POST /users (y otros) redirijan a http:// y pierdan la sesión
-        if ($this->app->environment('production')) {
+        // Forzar HTTPS cuando no es entorno local (production, staging, Laravel Cloud, etc.)
+        // Evita que POST /users y otros redirects vayan a http:// y se pierda la sesión
+        $forceHttps = !$this->app->environment('local')
+            || filter_var(env('FORCE_HTTPS', false), FILTER_VALIDATE_BOOLEAN);
+        if ($forceHttps) {
             URL::forceScheme('https');
         }
 

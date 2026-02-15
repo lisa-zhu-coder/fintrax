@@ -436,10 +436,6 @@ class FinancialController extends Controller
             'date' => 'required|date',
             'store_id' => 'required|exists:stores,id',
             'status' => 'nullable|in:pendiente,pagado',
-            'expense_payments' => 'nullable|array',
-            'expense_payments.*.date' => 'required|date',
-            'expense_payments.*.method' => 'required|in:cash,bank',
-            'expense_payments.*.amount' => 'required|numeric|min:0',
             'expense_category' => 'nullable|string',
             'expense_concept' => 'nullable|string',
             'expense_payment_method' => 'nullable|in:cash,bank,card,datafono,tarjeta',
@@ -447,13 +443,17 @@ class FinancialController extends Controller
             'income_category' => 'nullable|string',
             'income_concept' => 'nullable|string',
         ];
-        // Cierre diario: total_amount y amount pueden ser negativos (p. ej. gastos negativos)
+        // Cierre diario: total_amount y amount pueden ser negativos; no validar expense_payments
         if ($entry->type === 'daily_close') {
             $rules['total_amount'] = 'nullable|numeric';
             $rules['income_amount'] = 'nullable|numeric';
         } else {
             $rules['total_amount'] = 'nullable|numeric|min:0';
             $rules['income_amount'] = 'nullable|numeric|min:0';
+            $rules['expense_payments'] = 'nullable|array';
+            $rules['expense_payments.*.date'] = 'required|date';
+            $rules['expense_payments.*.method'] = 'required|in:cash,bank';
+            $rules['expense_payments.*.amount'] = 'required|numeric|min:0';
         }
         $validated = $request->validate($rules);
 
@@ -587,7 +587,20 @@ class FinancialController extends Controller
                 }
             }
 
-            $entry->update($validated);
+            // Solo pasar atributos que el modelo puede asignar (evita errores si el request trae campos extra)
+            $fillable = (new FinancialEntry)->getFillable();
+            $dataToUpdate = array_intersect_key($validated, array_flip($fillable));
+            // MySQL ENUM y columnas nullable no aceptan ''; convertir a null para evitar "Data truncated"
+            $nullableStringFields = [
+                'concept', 'income_category', 'income_concept', 'expense_category', 'expense_payment_method',
+                'expense_concept', 'expense_source', 'notes', 'refund_concept', 'refund_type',
+            ];
+            foreach ($nullableStringFields as $key) {
+                if (array_key_exists($key, $dataToUpdate) && $dataToUpdate[$key] === '') {
+                    $dataToUpdate[$key] = null;
+                }
+            }
+            $entry->update($dataToUpdate);
             $entry->refresh();
 
             // Sincronizar ingresos automáticos y gastos del cierre si es un cierre diario
@@ -632,8 +645,13 @@ class FinancialController extends Controller
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
-            Log::error('Error actualizando registro: ' . $e->getMessage());
-            return back()->withInput()->with('error', 'Error al actualizar el registro');
+            Log::error('Error actualizando registro financiero', [
+                'entry_id' => $id ?? null,
+                'type' => $entry->type ?? null,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->withInput()->with('error', 'Error al actualizar el registro. Revisa el log para más detalles.');
         }
     }
 

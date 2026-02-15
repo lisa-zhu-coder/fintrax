@@ -99,15 +99,33 @@
                 </label>
 
                 <label class="block">
-                    <span class="text-xs font-semibold text-slate-700">Contraseña</span>
-                    <input
-                        type="password"
-                        name="password"
-                        required
-                        autocomplete="current-password"
-                        class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"
-                        placeholder="Contraseña"
-                    />
+                    <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Contraseña</span>
+                    <div class="relative mt-1">
+                        <input
+                            type="password"
+                            name="password"
+                            id="loginPassword"
+                            required
+                            autocomplete="current-password"
+                            class="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 pr-10 text-sm text-slate-900 dark:text-slate-100 outline-none ring-brand-200 focus:ring-4"
+                            placeholder="Contraseña"
+                        />
+                        <button
+                            type="button"
+                            id="toggleLoginPassword"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600 dark:text-slate-400 dark:hover:text-slate-200"
+                            title="Mostrar contraseña"
+                            aria-label="Mostrar contraseña"
+                        >
+                            <svg id="iconEye" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                            <svg id="iconEyeOff" class="h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878a4.5 4.5 0 106.262 6.262M4.5 4.5a10 10 0 0114.5 4.5"/>
+                            </svg>
+                        </button>
+                    </div>
                 </label>
 
                 <button
@@ -127,6 +145,24 @@
     <style>.auth-theme-btn.active{background:rgb(226 232 240);}.dark .auth-theme-btn.active{background:rgb(71 85 105);}</style>
     <script>
         (function(){const k='theme',h=document.documentElement;function g(){return localStorage.getItem(k)||'system';}function d(){return matchMedia('(prefers-color-scheme: dark)').matches;}function a(t){h.classList.toggle('dark',t==='dark'||(t==='system'&&d()));}function u(t){document.querySelectorAll('.auth-theme-btn').forEach(b=>{b.classList.toggle('active',b.dataset.theme===t);});}document.getElementById('authThemeSwitcher')?.querySelectorAll('button').forEach(b=>{b.addEventListener('click',()=>{const t=b.dataset.theme;localStorage.setItem(k,t);a(t);u(t);});});a(g());u(g());matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(g()==='system'){a('system');u('system');}});})();
+    </script>
+    <script>
+        (function(){
+            var input = document.getElementById('loginPassword');
+            var btn = document.getElementById('toggleLoginPassword');
+            var iconEye = document.getElementById('iconEye');
+            var iconEyeOff = document.getElementById('iconEyeOff');
+            if (input && btn && iconEye && iconEyeOff) {
+                btn.addEventListener('click', function() {
+                    var isPassword = input.type === 'password';
+                    input.type = isPassword ? 'text' : 'password';
+                    iconEye.classList.toggle('hidden', isPassword);
+                    iconEyeOff.classList.toggle('hidden', !isPassword);
+                    btn.setAttribute('title', isPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
+                    btn.setAttribute('aria-label', isPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
+                });
+            }
+        })();
     </script>
 </body>
 </html>

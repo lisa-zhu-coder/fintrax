@@ -138,7 +138,18 @@
 
             <label class="block">
                 <span class="text-xs font-semibold text-slate-700" id="passwordLabel">Contraseña</span>
-                <input type="password" name="password" id="password" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                <div class="relative mt-1">
+                    <input type="password" name="password" id="password" required class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 pr-10 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <button type="button" id="toggleUserPassword" class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" title="Mostrar contraseña" aria-label="Mostrar contraseña">
+                        <svg id="userIconEye" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                        <svg id="userIconEyeOff" class="h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878a4.5 4.5 0 106.262 6.262M4.5 4.5a10 10 0 0114.5 4.5"/>
+                        </svg>
+                    </button>
+                </div>
                 <div class="mt-1 text-xs text-slate-500 hidden" id="passwordHint">Dejar vacío para no cambiar</div>
             </label>
 
@@ -319,7 +330,16 @@ function openUserModal(userId = null) {
     const passwordInput = document.getElementById('password');
     const passwordHint = document.getElementById('passwordHint');
     const formMethod = document.getElementById('formMethod');
-    
+    // Resetear visibilidad de contraseña al abrir el modal
+    if (passwordInput) {
+        passwordInput.type = 'password';
+        var ue = document.getElementById('userIconEye');
+        var ueo = document.getElementById('userIconEyeOff');
+        if (ue) ue.classList.remove('hidden');
+        if (ueo) ueo.classList.add('hidden');
+        var tb = document.getElementById('toggleUserPassword');
+        if (tb) { tb.setAttribute('title', 'Mostrar contraseña'); tb.setAttribute('aria-label', 'Mostrar contraseña'); }
+    }
     if (userId) {
         title.textContent = 'Editar usuario';
         passwordLabel.textContent = 'Nueva contraseña';
@@ -378,6 +398,23 @@ function closeUserModal() {
 function editUser(userId) {
     openUserModal(userId);
 }
+
+(function(){
+    var input = document.getElementById('password');
+    var btn = document.getElementById('toggleUserPassword');
+    var iconEye = document.getElementById('userIconEye');
+    var iconEyeOff = document.getElementById('userIconEyeOff');
+    if (input && btn && iconEye && iconEyeOff) {
+        btn.addEventListener('click', function() {
+            var isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            iconEye.classList.toggle('hidden', isPassword);
+            iconEyeOff.classList.toggle('hidden', !isPassword);
+            btn.setAttribute('title', isPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
+            btn.setAttribute('aria-label', isPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
+        });
+    }
+})();
 </script>
 @endpush
 @endsection

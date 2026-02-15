@@ -25,10 +25,12 @@
                 <p class="text-sm text-slate-500">Empleadas con registros en el mes. Pincha en una empleada para ver su historial.</p>
             </div>
             <div class="flex items-center gap-2">
+                @if(auth()->user()->hasPermission('hr.overtime.create'))
                 <a href="{{ route('overtime.create', ['store' => $store, 'year' => $year, 'month' => $month]) }}" class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     Añadir horas
                 </a>
+                @endif
                 <a href="{{ route('overtime.store-months', ['store' => $store, 'year' => $year]) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">← Meses</a>
             </div>
         </div>

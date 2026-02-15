@@ -87,7 +87,8 @@ class User extends Authenticatable
             return $this->role;
         }
         $companyId = session('company_id');
-        if ($companyId) {
+        if ($companyId !== null && $companyId !== '') {
+            $companyId = (int) $companyId;
             $pivot = \App\Models\CompanyUser::where('user_id', $this->id)
                 ->where('company_id', $companyId)
                 ->first();

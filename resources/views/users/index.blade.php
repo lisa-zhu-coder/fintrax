@@ -22,12 +22,14 @@
                 <h1 class="text-lg font-semibold">Usuarios</h1>
                 <p class="text-sm text-slate-500">Gestiona las cuentas de usuario del sistema</p>
             </div>
+            @if(auth()->user()->hasPermission('admin.users.create'))
             <button onclick="openUserModal()" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
                 Añadir usuario
             </button>
+            @endif
         </div>
     </header>
 
@@ -56,12 +58,15 @@
                             <td class="px-3 py-2 text-xs text-slate-600">{{ $user->store ? $user->store->name : 'Todas' }}</td>
                             <td class="px-3 py-2">
                                 <div class="flex items-center gap-2">
+                                    @if(auth()->user()->hasPermission('admin.users.edit'))
                                     <button onclick="editUser({{ $user->id }})" class="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                             <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                         </svg>
                                     </button>
+                                    @endif
+                                    @if(auth()->user()->hasPermission('admin.users.delete'))
                                     <form method="POST" action="{{ route('users.destroy', $user) }}" class="inline" onsubmit="return confirm('¿Estás seguro?')">
                                         @csrf
                                         @method('DELETE')
@@ -71,6 +76,7 @@
                                             </svg>
                                         </button>
                                     </form>
+                                    @endif
                                 </div>
                             </td>
                         </tr>
@@ -137,6 +143,9 @@
             </label>
 
             @if(auth()->user()->isSuperAdmin() && isset($companies) && $companies->isNotEmpty())
+            <script type="text/javascript">
+            window.storesByCompany = @json($storesByCompany ?? []);
+            </script>
             <input type="hidden" name="role_id" id="role_id" value="{{ $roles->where('key', '!=', 'super_admin')->first()?->id ?? '' }}"/>
             <input type="hidden" name="store_id" id="store_id" value=""/>
             <div id="companyAccessSection" class="space-y-2">
@@ -161,9 +170,6 @@
                     </select>
                     <select name="company_access[__INDEX__][store_id]" class="company-access-store rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm">
                         <option value="">Todas</option>
-                        @foreach($stores as $s)
-                        <option value="{{ $s->id }}">{{ $s->name }}</option>
-                        @endforeach
                     </select>
                     <button type="button" class="remove-company-access rounded p-1.5 text-rose-600 hover:bg-rose-50" aria-label="Quitar">×</button>
                 </div>
@@ -224,6 +230,28 @@ function reindexCompanyAccess() {
     }
 }
 
+function filterStoresByCompany(storeSelect, companyId) {
+    if (!storeSelect) return;
+    const storesByCompany = window.storesByCompany || {};
+    const cid = String(companyId || '');
+    const stores = storesByCompany[cid] || [];
+    const currentValue = storeSelect.value;
+    storeSelect.innerHTML = '';
+    const optTodas = document.createElement('option');
+    optTodas.value = '';
+    optTodas.textContent = 'Todas';
+    storeSelect.appendChild(optTodas);
+    stores.forEach(function(s) {
+        const opt = document.createElement('option');
+        opt.value = String(s.id);
+        opt.textContent = s.name;
+        storeSelect.appendChild(opt);
+    });
+    if (currentValue && stores.some(function(s) { return String(s.id) === currentValue; })) {
+        storeSelect.value = currentValue;
+    }
+}
+
 function addCompanyAccessRow(data = {}) {
     const container = document.getElementById('companyAccessContainer');
     const template = document.getElementById('companyAccessRowTemplate');
@@ -233,9 +261,20 @@ function addCompanyAccessRow(data = {}) {
     const wrap = document.createElement('div');
     wrap.innerHTML = html;
     const row = wrap.firstElementChild;
-    if (data.company_id) row.querySelector('.company-access-company').value = data.company_id;
+    const companySelect = row.querySelector('.company-access-company');
+    const storeSelect = row.querySelector('.company-access-store');
+    if (data.company_id) {
+        companySelect.value = data.company_id;
+        filterStoresByCompany(storeSelect, data.company_id);
+    } else {
+        filterStoresByCompany(storeSelect, companySelect.value);
+    }
     if (data.role_id) row.querySelector('.company-access-role').value = data.role_id;
     if (data.store_id) row.querySelector('.company-access-store').value = data.store_id;
+    companySelect.addEventListener('change', function() {
+        filterStoresByCompany(storeSelect, this.value);
+        storeSelect.value = '';
+    });
     row.querySelector('.remove-company-access').addEventListener('click', function() {
         row.remove();
         reindexCompanyAccess();

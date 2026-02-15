@@ -36,6 +36,8 @@
                         Subir nómina
                     </button>
                 </form>
+                @endif
+                @if(auth()->user()->hasPermission('hr.employees.create'))
                 <a href="{{ route('employees.create') }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -93,10 +95,12 @@
                                     <a href="{{ route('employees.show', $employee) }}" class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                                         Ver
                                     </a>
-                                    @if(auth()->user()->hasPermission('hr.employees.configure'))
+                                    @if(auth()->user()->hasPermission('hr.employees.edit'))
                                     <a href="{{ route('employees.edit', $employee) }}" class="rounded-lg px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50">
                                         Editar
                                     </a>
+                                    @endif
+                                    @if(auth()->user()->hasPermission('hr.employees.delete'))
                                     <form method="POST" action="{{ route('employees.destroy', $employee) }}" class="inline" onsubmit="return confirm('¿Estás seguro?')">
                                         @csrf
                                         @method('DELETE')

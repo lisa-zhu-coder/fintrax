@@ -1,10 +1,12 @@
 @php
+    $canSeeQuickActions = auth()->user()->hasPermission('dashboard.quick_actions.view');
     $canDailyClose = auth()->user()->hasPermission('financial.daily_closes.create');
     $canCashWithdrawal = auth()->user()->hasPermission('treasury.cash_control.view');
     $canCashDeposit = auth()->user()->hasPermission('treasury.cash_wallets.create');
     $canCreateOrder = auth()->user()->hasPermission('orders.main.create');
     $defaultStoreId = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() ? '' : (auth()->user()->store_id ?? '');
 @endphp
+@if($canSeeQuickActions)
 <div class="widget-content">
     <div class="flex flex-wrap gap-3">
         @if($canDailyClose)
@@ -33,3 +35,4 @@
         @endif
     </div>
 </div>
+@endif

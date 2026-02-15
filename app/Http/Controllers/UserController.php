@@ -56,8 +56,14 @@ class UserController extends Controller
         $roles = $rolesQuery->get();
         $stores = Store::all();
         $companies = auth()->user()->isSuperAdmin() ? Company::orderBy('name')->get() : collect();
+        // Para el desplegable "Acceso a empresas" el super admin necesita tiendas de TODAS las empresas
+        $storesByCompany = [];
+        if (auth()->user()->isSuperAdmin()) {
+            $allStores = Store::withoutGlobalScopes()->get();
+            $storesByCompany = $allStores->groupBy('company_id')->map(fn ($group) => $group->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values()->all())->all();
+        }
         
-        return view('users.index', compact('users', 'roles', 'stores', 'companies'));
+        return view('users.index', compact('users', 'roles', 'stores', 'companies', 'storesByCompany'));
     }
 
     public function store(Request $request)

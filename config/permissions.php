@@ -30,6 +30,7 @@ return [
                 ['key' => 'records', 'label' => 'Registros recientes', 'actions' => ['view']],
                 ['key' => 'orders', 'label' => 'Gráfica Pedidos (Pagado vs Pendiente)', 'actions' => ['view']],
                 ['key' => 'overtime', 'label' => 'Gráfica Horas extra y festivos', 'actions' => ['view']],
+                ['key' => 'quick_actions', 'label' => 'Accesos rápidos', 'actions' => ['view']],
             ],
         ],
         [

@@ -10,12 +10,14 @@
                 <h1 class="text-lg font-semibold">Carteras de Efectivo</h1>
                 <p class="text-sm text-slate-500">Gestiona las carteras para la recogida de efectivo</p>
             </div>
+            @if(auth()->user()->hasPermission('treasury.cash_wallets.create'))
             <a href="{{ route('cash-wallets.create') }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
                 Añadir cartera
             </a>
+            @endif
         </div>
     </header>
 

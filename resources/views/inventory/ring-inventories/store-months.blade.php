@@ -23,14 +23,16 @@
             </div>
             <div class="flex items-center gap-2">
                 <a href="{{ route('ring-inventories.index', ['year' => $year]) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">← Tiendas</a>
+                @if(auth()->user()->hasPermission('inventory.rings.create'))
                 <a href="{{ route('ring-inventories.create', ['store_id' => $store->id]) }}" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">+ Nuevo registro</a>
+                @endif
             </div>
         </div>
     </header>
 
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         @if(empty($monthsData))
-            <p class="text-slate-600">No hay registros de cierre en esta tienda para {{ $year }}. <a href="{{ route('ring-inventories.create', ['store_id' => $store->id]) }}" class="font-medium text-brand-600 hover:underline">Crear registro</a>.</p>
+            <p class="text-slate-600">No hay registros de cierre en esta tienda para {{ $year }}. @if(auth()->user()->hasPermission('inventory.rings.create'))<a href="{{ route('ring-inventories.create', ['store_id' => $store->id]) }}" class="font-medium text-brand-600 hover:underline">Crear registro</a>.@endif</p>
         @else
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">

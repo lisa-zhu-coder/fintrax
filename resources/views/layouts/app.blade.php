@@ -518,7 +518,7 @@
             <div class="mt-4 pt-6 border-t border-slate-200 dark:border-slate-700">
                 <div class="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
                     <div class="font-semibold">{{ auth()->user()->name }}</div>
-                    <div>{{ auth()->user()->role->name }}</div>
+                    <div>{{ auth()->user()->getEffectiveRole()?->name ?? auth()->user()->role?->name }}</div>
                 </div>
                 <form method="POST" action="{{ route('logout') }}" class="mt-2">
                     @csrf
@@ -595,7 +595,7 @@
     @auth
     <script>
         window.LaravelAuth = {
-            permissions: @json(auth()->user()->role ? (auth()->user()->role->permissions ?? []) : []),
+            permissions: @json(auth()->user()->getEffectiveRole() ? (auth()->user()->getEffectiveRole()->permissions ?? []) : []),
             user: { name: @json(auth()->user()->name ?? ''), username: @json(auth()->user()->username ?? '') }
         };
     </script>

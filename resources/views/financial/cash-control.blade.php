@@ -10,6 +10,7 @@
                 <h1 class="text-lg font-semibold">Control de Efectivo</h1>
                 <p class="text-sm text-slate-500">Efectivo retirado de los cierres de caja</p>
             </div>
+            @if(auth()->user()->hasPermission('treasury.cash_control.create'))
             <div>
                 <a href="{{ route('financial.cash-withdrawals.create') }}" class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -18,6 +19,7 @@
                     Recoger efectivo
                 </a>
             </div>
+            @endif
         </div>
     </header>
 

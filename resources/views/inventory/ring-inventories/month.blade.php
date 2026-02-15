@@ -24,7 +24,9 @@
             </div>
             <div class="flex items-center gap-2">
                 <a href="{{ route('ring-inventories.store-months', ['store' => $store, 'year' => $year]) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">← Meses</a>
+                @if(auth()->user()->hasPermission('inventory.rings.create'))
                 <a href="{{ route('ring-inventories.create', ['store_id' => $store->id, 'date' => sprintf('%04d-%02d-01', $year, $month)]) }}" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">+ Nuevo registro</a>
+                @endif
             </div>
         </div>
     </header>

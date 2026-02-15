@@ -224,6 +224,7 @@
                                                     </svg>
                                                     Enlazar gasto
                                                 </button>
+                                                @if(auth()->user()->hasPermission('financial.expenses.create'))
                                                 <button type="button" 
                                                     class="btn-create-expense inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-600 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50"
                                                     data-movement-id="{{ $movement->id }}"
@@ -236,6 +237,7 @@
                                                     </svg>
                                                     Crear gasto
                                                 </button>
+                                                @endif
                                             @endif
                                             <form method="POST" action="{{ route('financial.bank-conciliation.ignore', $movement) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que deseas ignorar este movimiento?')">
                                                 @csrf

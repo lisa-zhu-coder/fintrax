@@ -776,8 +776,9 @@ class FinancialController extends Controller
         $query = FinancialEntry::with(['store', 'creator'])
             ->where('type', 'daily_close');
 
-        if (auth()->user()->store_id) {
-            $query->where('store_id', auth()->user()->store_id);
+        $enforcedStoreId = auth()->user()->getEnforcedStoreId();
+        if ($enforcedStoreId !== null) {
+            $query->where('store_id', $enforcedStoreId);
         } elseif ($request->has('store') && $request->store !== 'all') {
             $query->where('store_id', $request->store);
         }

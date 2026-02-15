@@ -94,7 +94,7 @@
 <!-- Modal de usuario -->
 <div id="userModal" class="hidden fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 z-50">
     <div class="w-full max-w-md rounded-2xl bg-white p-5 shadow-soft">
-        <form id="userForm" method="POST" action="{{ route('users.store') }}" class="space-y-3">
+        <form id="userForm" method="POST" action="{{ route('users.store') }}" class="space-y-3" autocomplete="off">
             @csrf
             <input type="hidden" name="_method" id="formMethod" value="POST">
             
@@ -123,7 +123,7 @@
 
             <label class="block">
                 <span class="text-xs font-semibold text-slate-700">Nombre de usuario</span>
-                <input type="text" name="username" id="username" value="{{ old('username') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                <input type="text" name="username" id="username" value="{{ old('username') }}" required autocomplete="off" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
             </label>
 
             <label class="block">
@@ -139,7 +139,7 @@
             <label class="block">
                 <span class="text-xs font-semibold text-slate-700" id="passwordLabel">Contraseña</span>
                 <div class="relative mt-1">
-                    <input type="password" name="password" id="password" required class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 pr-10 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <input type="password" name="password" id="password" required autocomplete="new-password" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 pr-10 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     <button type="button" id="toggleUserPassword" class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" title="Mostrar contraseña" aria-label="Mostrar contraseña">
                         <svg id="userIconEye" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>

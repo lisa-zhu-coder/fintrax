@@ -139,7 +139,7 @@ class FinancialController extends Controller
         if ($request->input('type') === 'daily_close') {
             $rules['cash_initial'] = 'required|numeric|min:0';
             $rules['tpv'] = 'required|numeric|min:0';
-            $rules['cash_expenses'] = 'nullable|numeric|min:0';
+            $rules['cash_expenses'] = 'nullable|numeric';
             $rules['cash_count'] = 'nullable|array';
             $rules['shopify_cash'] = 'nullable|numeric|min:0';
             $rules['shopify_tpv'] = 'nullable|numeric|min:0';
@@ -148,12 +148,12 @@ class FinancialController extends Controller
             $rules['vouchers_result'] = 'nullable|numeric';
             $rules['expense_items'] = 'nullable|array';
             $rules['expense_items.*.concept'] = 'nullable|string';
-            $rules['expense_items.*.amount'] = 'nullable|numeric|min:0';
+            $rules['expense_items.*.amount'] = 'nullable|numeric';
         } else {
             // Campos opcionales para otros tipos
             $rules['cash_initial'] = 'nullable|numeric|min:0';
             $rules['tpv'] = 'nullable|numeric|min:0';
-            $rules['cash_expenses'] = 'nullable|numeric|min:0';
+            $rules['cash_expenses'] = 'nullable|numeric';
             $rules['cash_count'] = 'nullable|array';
             $rules['shopify_cash'] = 'nullable|numeric|min:0';
             $rules['shopify_tpv'] = 'nullable|numeric|min:0';
@@ -162,7 +162,7 @@ class FinancialController extends Controller
             $rules['vouchers_result'] = 'nullable|numeric';
             $rules['expense_items'] = 'nullable|array';
             $rules['expense_items.*.concept'] = 'nullable|string';
-            $rules['expense_items.*.amount'] = 'nullable|numeric|min:0';
+            $rules['expense_items.*.amount'] = 'nullable|numeric';
         }
 
         $validated = $request->validate($rules);
@@ -3753,7 +3753,7 @@ class FinancialController extends Controller
         $userId = $dailyClose->created_by ?? Auth::id();
         foreach ($expenseItems as $index => $item) {
             $amount = (float) ($item['amount'] ?? 0);
-            if ($amount <= 0) {
+            if ($amount == 0) {
                 continue;
             }
             $concept = $item['concept'] ?? $item['expense_concept'] ?? 'Gasto cierre diario';

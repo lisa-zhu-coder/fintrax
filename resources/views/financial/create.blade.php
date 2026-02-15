@@ -161,7 +161,6 @@
                                     name="expense_items[{{ $idx }}][amount]"
                                     value="{{ $item['amount'] ?? '' }}"
                                     step="0.01"
-                                    min="0"
                                     placeholder="0.00"
                                     required
                                     class="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"
@@ -555,7 +554,7 @@ function addExpenseItem() {
     div.dataset.expenseIndex = index;
     div.innerHTML = `
         <input type="text" name="expense_items[${index}][concept]" placeholder="Concepto" required class="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"/>
-        <input type="number" name="expense_items[${index}][amount]" step="0.01" min="0" placeholder="0.00" required class="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"/>
+        <input type="number" name="expense_items[${index}][amount]" step="0.01" placeholder="0.00" required class="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"/>
         <button type="button" onclick="this.closest('div[data-expense-index]').remove(); updateDailyCloseTotals();" class="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>

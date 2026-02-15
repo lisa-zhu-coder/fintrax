@@ -509,6 +509,55 @@
 
 @push('scripts')
 <script type="text/javascript">
+// — Botón "Añadir gasto" (independiente de runEditFormInit para que siempre funcione) —
+(function() {
+    function getNextExpenseIndex() {
+        var container = document.getElementById('expenseItemsContainer');
+        if (!container) return 0;
+        var max = -1;
+        container.querySelectorAll('[data-expense-index]').forEach(function(el) {
+            var idx = parseInt(el.getAttribute('data-expense-index'), 10) || 0;
+            if (idx > max) max = idx;
+        });
+        return max + 1;
+    }
+    function addExpenseRow() {
+        var container = document.getElementById('expenseItemsContainer');
+        if (!container) return;
+        var index = getNextExpenseIndex();
+        var div = document.createElement('div');
+        div.className = 'flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2';
+        div.setAttribute('data-expense-index', index);
+        div.innerHTML = '<input type="text" name="expense_items[' + index + '][concept]" placeholder="Concepto" required class="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"/>' +
+            '<input type="number" name="expense_items[' + index + '][amount]" step="0.01" placeholder="0.00" required class="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"/>' +
+            '<button type="button" class="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" aria-label="Eliminar gasto"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+        var removeBtn = div.querySelector('button');
+        removeBtn.addEventListener('click', function() {
+            div.remove();
+            if (window._editFormUpdateDailyCloseTotals) window._editFormUpdateDailyCloseTotals();
+        });
+        container.appendChild(div);
+        div.querySelectorAll('input').forEach(function(input) {
+            input.addEventListener('input', function() {
+                if (window._editFormUpdateDailyCloseTotals) window._editFormUpdateDailyCloseTotals();
+            });
+        });
+        if (window._editFormUpdateDailyCloseTotals) window._editFormUpdateDailyCloseTotals();
+    }
+    function onDocClick(e) {
+        var btn = e.target && e.target.closest && e.target.closest('#addExpenseItemBtn');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        addExpenseRow();
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() { document.addEventListener('click', onDocClick); });
+    } else {
+        document.addEventListener('click', onDocClick);
+    }
+})();
+
 // Ejecutar cuando el DOM esté listo (si el script se carga al final del body, DOMContentLoaded ya pudo haber disparado)
 function runEditFormInit() {
 const DENOMINATIONS = [
@@ -826,8 +875,7 @@ document.getElementById('entryType').addEventListener('change', function() {
     }
 });
 
-// Event listeners
-document.getElementById('addExpenseItemBtn')?.addEventListener('click', addExpenseItem);
+// El botón "Añadir gasto" se maneja solo en el script independiente al inicio (una sola fila por clic)
 document.getElementById('cashInitial')?.addEventListener('input', updateDailyCloseTotals);
 document.getElementById('cashInitial')?.addEventListener('change', updateDailyCloseTotals);
 document.getElementById('tpv')?.addEventListener('input', updateDailyCloseTotals);
@@ -1156,8 +1204,7 @@ if (financialForm) {
     });
 }
 
-// Sincronizar campos de gastos
-const expenseAmountInput = document.getElementById('expenseAmount');
+// Sincronizar campos de gastos (expenseAmountInput ya declarado más arriba)
 const totalAmountInput = document.getElementById('totalAmount');
 const paidAmountInput = document.getElementById('paidAmount');
 const paymentDateInput = document.getElementById('paymentDate');

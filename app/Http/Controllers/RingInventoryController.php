@@ -21,6 +21,21 @@ class RingInventoryController extends Controller
     }
 
     /**
+     * Discrepancia efectiva para un registro Cierre (usa inicial calculado si hace falta).
+     */
+    private function effectiveDiscrepancyForCierre(RingInventory $r, ?RingInventory $cambioTurnoSameDay): int
+    {
+        $initial = $cambioTurnoSameDay !== null
+            ? ($cambioTurnoSameDay->initial_quantity ?? 0) + ($cambioTurnoSameDay->replenishment_quantity ?? 0)
+            : ($r->initial_quantity ?? 0);
+        $rep = $r->replenishment_quantity ?? 0;
+        $tara = $r->tara_quantity ?? 0;
+        $sold = $r->sold_quantity ?? 0;
+        $final = $r->final_quantity ?? 0;
+        return $initial + $rep + $tara + $sold - $final;
+    }
+
+    /**
      * Vista 1: Tabla de tiendas con totales del año (solo shift = cierre).
      * Columnas: Tienda, Anillos vendidos, Taras, Discrepancia.
      * Filtro por año.
@@ -34,14 +49,25 @@ class RingInventoryController extends Controller
         $cierreRecords = $query
             ->whereYear('date', $year)
             ->get();
+        $storeIds = $stores->pluck('id')->toArray();
+        $cambioTurnoByStoreDate = RingInventory::where('shift', 'cambio_turno')
+            ->whereIn('store_id', $storeIds)
+            ->whereYear('date', $year)
+            ->get()
+            ->groupBy('store_id')
+            ->map(fn ($recs) => $recs->keyBy(fn (RingInventory $x) => $x->date->format('Y-m-d')));
         $byStore = $cierreRecords->groupBy('store_id');
         $storeTotals = [];
         foreach ($stores as $store) {
             $records = $byStore->get($store->id, collect());
+            $ctByDate = $cambioTurnoByStoreDate->get($store->id);
             $storeTotals[$store->id] = [
                 'sold' => $records->sum('sold_quantity'),
                 'tara' => $records->sum('tara_quantity'),
-                'discrepancy' => $records->sum(fn (RingInventory $r) => $r->discrepancy),
+                'discrepancy' => $records->sum(fn (RingInventory $r) => $this->effectiveDiscrepancyForCierre(
+                    $r,
+                    $ctByDate?->get($r->date->format('Y-m-d'))
+                )),
             ];
         }
         $availableYears = RingInventory::where('shift', 'cierre')
@@ -68,6 +94,11 @@ class RingInventoryController extends Controller
             ->where('shift', 'cierre')
             ->whereYear('date', $year)
             ->get();
+        $cambioTurnoByDate = RingInventory::where('store_id', $store->id)
+            ->where('shift', 'cambio_turno')
+            ->whereYear('date', $year)
+            ->get()
+            ->keyBy(fn (RingInventory $x) => $x->date->format('Y-m-d'));
         $byMonth = $cierreRecords->groupBy(fn (RingInventory $r) => $r->date->month);
         $monthsData = [];
         foreach (range(1, 12) as $month) {
@@ -78,7 +109,10 @@ class RingInventoryController extends Controller
                 'year' => $year,
                 'sold' => $records->sum('sold_quantity'),
                 'tara' => $records->sum('tara_quantity'),
-                'discrepancy' => $records->sum(fn (RingInventory $r) => $r->discrepancy),
+                'discrepancy' => $records->sum(fn (RingInventory $r) => $this->effectiveDiscrepancyForCierre(
+                    $r,
+                    $cambioTurnoByDate->get($r->date->format('Y-m-d'))
+                )),
             ];
         }
         return view('inventory.ring-inventories.store-months', compact('store', 'year', 'monthsData'));

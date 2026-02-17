@@ -81,9 +81,6 @@
                 white-space: nowrap;
             }
         }
-        .ring-comment-cell {
-            white-space: normal;
-        }
         th.cursor-pointer a {
             text-decoration: none;
             color: inherit;

@@ -61,8 +61,7 @@
                         <th class="px-3 py-2 text-right w-24 bg-slate-50 border-b border-slate-200">Vendidos</th>
                         <th class="px-3 py-2 text-right w-24 bg-slate-50 border-b border-slate-200">Final</th>
                         <th class="px-3 py-2 text-right w-24 bg-slate-50 border-b border-slate-200">Discrepancia</th>
-                        <th class="px-3 py-2 min-w-[120px] max-w-[200px] bg-slate-50 border-b border-slate-200">Comentario</th>
-                        <th class="px-3 py-2 w-32 bg-slate-50 border-b border-slate-200">Acciones</th>
+                        <th class="px-3 py-2 w-28 bg-slate-50 border-b border-slate-200">Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -107,20 +106,26 @@
                                 <span class="view-val {{ $row->display_discrepancy !== null && $row->display_discrepancy != 0 ? 'text-rose-600' : '' }}">{{ $row->display_discrepancy !== null ? number_format($row->display_discrepancy, 0, ',', '.') : '—' }}</span>
                                 <span class="edit-inp discrepancy-calc hidden">—</span>
                             </td>
-                            <td class="px-3 py-2 ring-comment-cell min-w-[120px] max-w-[200px]">
-                                <span class="view-val text-slate-600 text-xs">{{ $r && $r->comment ? e($r->comment) : '—' }}</span>
-                                <input form="{{ $formId }}" name="comment" type="text" class="edit-inp hidden w-full rounded border border-slate-200 px-2 py-1 text-sm" value="{{ $r?->comment ?? '' }}" placeholder="Comentario..." maxlength="2000">
-                            </td>
                             <td class="px-3 py-2">
-                                <span class="view-val">
-                                    @if(auth()->user()->hasPermission('inventory.rings.edit') || auth()->user()->hasPermission('inventory.rings.create'))
-                                        <button type="button" class="btn-edit rounded-lg px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50" data-row-id="{{ $rowId }}">Editar</button>
-                                    @else
-                                        —
-                                    @endif
-                                </span>
                                 @if(auth()->user()->hasPermission('inventory.rings.edit') || auth()->user()->hasPermission('inventory.rings.create'))
+                                    <div class="relative inline-flex items-center gap-1">
+                                        <span class="view-val flex items-center gap-1">
+                                            <button type="button" class="btn-edit rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" data-row-id="{{ $rowId }}" title="Editar">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5Z"/></svg>
+                                            </button>
+                                            <button type="button" class="btn-comment rounded-lg p-1.5 {{ $r && $r->comment ? 'text-amber-600 hover:bg-amber-50' : 'text-slate-500 hover:bg-slate-100' }}" data-row-id="{{ $rowId }}" data-has-comment="{{ $r && $r->comment ? '1' : '0' }}" title="{{ $r && $r->comment ? 'Ver comentario' : 'Añadir comentario' }}">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                            </button>
+                                        </span>
+                                        <div class="comment-popover hidden absolute right-0 top-full z-20 mt-1 min-w-[200px] max-w-[280px] rounded-lg border border-slate-200 bg-white p-3 shadow-lg" data-row-id="{{ $rowId }}">
+                                            <div class="comment-popover-view text-sm text-slate-700 whitespace-pre-wrap">{{ $r && $r->comment ? e($r->comment) : 'Sin comentario' }}</div>
+                                            <textarea form="{{ $formId }}" name="comment" class="comment-popover-edit hidden mt-2 w-full rounded border border-slate-200 px-2 py-1 text-sm" rows="2" maxlength="2000" placeholder="Comentario...">{{ $r?->comment ?? '' }}</textarea>
+                                        </div>
+                                    </div>
                                     <span class="edit-inp hidden flex items-center gap-1">
+                                        <button type="button" class="btn-comment rounded-lg p-1.5 {{ $r && $r->comment ? 'text-amber-600 hover:bg-amber-50' : 'text-slate-500 hover:bg-slate-100' }}" data-row-id="{{ $rowId }}" data-edit-mode="1" title="Comentario">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                        </button>
                                         @if($r)
                                             <form id="{{ $formId }}" method="POST" action="{{ route('ring-inventories.update', $r) }}" class="inline">
                                                 @csrf
@@ -128,7 +133,9 @@
                                                 <input type="hidden" name="store_id" value="{{ $store->id }}">
                                                 <input type="hidden" name="date" value="{{ $row->date_str }}">
                                                 <input type="hidden" name="shift" value="{{ $row->shift }}">
-                                                <button type="submit" class="rounded-lg px-2 py-1 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700">Guardar</button>
+                                                <button type="submit" class="rounded-lg p-1.5 text-white bg-brand-600 hover:bg-brand-700" title="Guardar">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+                                                </button>
                                             </form>
                                         @else
                                             <form id="{{ $formId }}" method="POST" action="{{ route('ring-inventories.store') }}" class="inline">
@@ -136,11 +143,17 @@
                                                 <input type="hidden" name="store_id" value="{{ $store->id }}">
                                                 <input type="hidden" name="date" value="{{ $row->date_str }}">
                                                 <input type="hidden" name="shift" value="{{ $row->shift }}">
-                                                <button type="submit" class="rounded-lg px-2 py-1 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700">Guardar</button>
+                                                <button type="submit" class="rounded-lg p-1.5 text-white bg-brand-600 hover:bg-brand-700" title="Guardar">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+                                                </button>
                                             </form>
                                         @endif
-                                        <button type="button" class="btn-cancel rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100" data-row-id="{{ $rowId }}">Cancelar</button>
+                                        <button type="button" class="btn-cancel rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" data-row-id="{{ $rowId }}" title="Cancelar">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
                                     </span>
+                                @else
+                                    <span class="text-slate-400">—</span>
                                 @endif
                             </td>
                         </tr>
@@ -201,18 +214,52 @@
         });
     }
 
+    function closeAllCommentPopovers() {
+        table.querySelectorAll('.comment-popover').forEach(p => p.classList.add('hidden'));
+    }
+
     table.addEventListener('click', function(e) {
         const btnEdit = e.target.closest('.btn-edit');
         const btnCancel = e.target.closest('.btn-cancel');
+        const btnComment = e.target.closest('.btn-comment');
         if (btnEdit) {
             e.preventDefault();
             const rowId = btnEdit.getAttribute('data-row-id');
+            closeAllCommentPopovers();
             closeAllEditing();
             setRowEditing(rowId, true);
         } else if (btnCancel) {
             e.preventDefault();
             const rowId = btnCancel.getAttribute('data-row-id');
             setRowEditing(rowId, false);
+            closeAllCommentPopovers();
+        } else if (btnComment) {
+            e.preventDefault();
+            const rowId = btnComment.getAttribute('data-row-id');
+            const tr = document.getElementById(rowId);
+            const popover = table.querySelector('.comment-popover[data-row-id="' + rowId + '"]');
+            if (!popover) return;
+            const viewDiv = popover.querySelector('.comment-popover-view');
+            const editTa = popover.querySelector('.comment-popover-edit');
+            const isOpen = !popover.classList.contains('hidden');
+            closeAllCommentPopovers();
+            if (!isOpen) {
+                const isEditMode = tr && tr.classList.contains('bg-brand-50');
+                if (isEditMode && editTa) {
+                    viewDiv.classList.add('hidden');
+                    editTa.classList.remove('hidden');
+                } else {
+                    viewDiv.classList.remove('hidden');
+                    if (editTa) editTa.classList.add('hidden');
+                }
+                popover.classList.remove('hidden');
+            }
+        }
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!table.contains(e.target) && !e.target.closest('.comment-popover')) {
+            closeAllCommentPopovers();
         }
     });
 

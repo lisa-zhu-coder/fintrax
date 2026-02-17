@@ -268,6 +268,37 @@
         const tr = e.target.closest('.ring-row');
         if (tr) updateDiscrepancy(tr);
     });
+
+    // Enter en un campo: ir al siguiente campo vacío de la fila (no enviar el formulario)
+    table.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter') return;
+        const active = document.activeElement;
+        const tr = active.closest('.ring-row');
+        if (!tr) return;
+        const form = tr.querySelector('form');
+        if (!form) return;
+        const formId = form.id;
+        const fields = tr.querySelectorAll('input[form="' + formId + '"]:not([type="hidden"]), textarea[form="' + formId + '"]');
+        const list = Array.from(fields);
+        const idx = list.indexOf(active);
+        if (idx === -1) return;
+        e.preventDefault();
+        for (let i = idx + 1; i < list.length; i++) {
+            if (list[i].value.trim() === '') {
+                list[i].focus();
+                return;
+            }
+        }
+        for (let i = 0; i < idx; i++) {
+            if (list[i].value.trim() === '') {
+                list[i].focus();
+                return;
+            }
+        }
+        if (idx < list.length - 1) {
+            list[idx + 1].focus();
+        }
+    });
 })();
 </script>
 @endpush

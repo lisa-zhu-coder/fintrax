@@ -167,8 +167,29 @@ class RingInventoryController extends Controller
         return view('inventory.ring-inventories.create', compact('stores', 'storeId', 'date'));
     }
 
+    /**
+     * Convierte cadenas vacías a null en campos opcionales para que pasen la validación.
+     */
+    private function normalizeRingInventoryRequest(Request $request): void
+    {
+        $nullableFields = [
+            'initial_quantity', 'replenishment_quantity', 'tara_quantity',
+            'sold_quantity', 'final_quantity', 'comment',
+        ];
+        $merge = [];
+        foreach ($nullableFields as $key) {
+            if ($request->has($key) && $request->input($key) === '') {
+                $merge[$key] = null;
+            }
+        }
+        if ($merge !== []) {
+            $request->merge($merge);
+        }
+    }
+
     public function store(Request $request)
     {
+        $this->normalizeRingInventoryRequest($request);
         $validated = $request->validate([
             'store_id' => 'required|exists:stores,id',
             'date' => 'required|date',
@@ -208,6 +229,7 @@ class RingInventoryController extends Controller
 
     public function update(Request $request, RingInventory $ringInventory)
     {
+        $this->normalizeRingInventoryRequest($request);
         $validated = $request->validate([
             'store_id' => 'required|exists:stores,id',
             'date' => 'required|date',

@@ -16,7 +16,7 @@
                     Editar
                 </a>
                 @endif
-                <a href="{{ route('financial.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <a href="{{ $entry->type === 'daily_close' ? route('financial.daily-closes') : route('financial.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     ← Volver
                 </a>
             </div>

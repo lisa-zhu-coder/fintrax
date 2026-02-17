@@ -10,7 +10,7 @@
                 <h1 class="text-lg font-semibold">Editar Registro Financiero</h1>
                 <p class="text-sm text-slate-500">Modifica los datos del registro</p>
             </div>
-            <a href="{{ route('financial.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <a href="{{ $entry->type === 'daily_close' ? route('financial.daily-closes') : route('financial.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 ← Volver
             </a>
         </div>
@@ -496,7 +496,7 @@
             </label>
 
             <div class="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
-                <a href="{{ route('financial.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <a href="{{ $entry->type === 'daily_close' ? route('financial.daily-closes') : route('financial.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Cancelar
                 </a>
                 <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">

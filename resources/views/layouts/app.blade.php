@@ -51,6 +51,24 @@
     
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
+        /* Móvil: tablas de registros en una sola línea con scroll horizontal */
+        .overflow-x-auto {
+            -webkit-overflow-scrolling: touch;
+        }
+        .overflow-x-auto table {
+            min-width: max-content;
+        }
+        .overflow-x-auto th,
+        .overflow-x-auto td {
+            white-space: nowrap;
+        }
+        .overflow-auto.table-records-mobile th,
+        .overflow-auto.table-records-mobile td {
+            white-space: nowrap;
+        }
+        .overflow-auto.table-records-mobile table {
+            min-width: max-content;
+        }
         th.cursor-pointer a {
             text-decoration: none;
             color: inherit;

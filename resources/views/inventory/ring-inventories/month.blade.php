@@ -49,7 +49,7 @@
     </div>
 
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
-        <div class="overflow-auto max-h-[70vh]">
+        <div class="overflow-auto max-h-[70vh] table-records-mobile">
             <table class="min-w-full text-left text-sm ring-inventory-table">
                 <thead class="text-xs uppercase text-slate-500 bg-slate-50 sticky top-0 z-10">
                     <tr>

@@ -43,6 +43,10 @@
                 <dd class="mt-1">{{ $ringInventory->initial_quantity !== null ? number_format($ringInventory->initial_quantity, 0, ',', '.') : '—' }}</dd>
             </div>
             <div>
+                <dt class="text-xs font-semibold text-slate-500">Reposición</dt>
+                <dd class="mt-1">{{ $ringInventory->replenishment_quantity !== null ? number_format($ringInventory->replenishment_quantity, 0, ',', '.') : '—' }}</dd>
+            </div>
+            <div>
                 <dt class="text-xs font-semibold text-slate-500">Taras</dt>
                 <dd class="mt-1">{{ $ringInventory->tara_quantity !== null ? number_format($ringInventory->tara_quantity, 0, ',', '.') : '—' }}</dd>
             </div>

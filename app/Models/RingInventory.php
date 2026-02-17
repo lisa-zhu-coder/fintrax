@@ -15,6 +15,7 @@ class RingInventory extends Model
         'date',
         'shift',
         'initial_quantity',
+        'replenishment_quantity',
         'tara_quantity',
         'sold_quantity',
         'final_quantity',
@@ -23,6 +24,7 @@ class RingInventory extends Model
     protected $casts = [
         'date' => 'date',
         'initial_quantity' => 'integer',
+        'replenishment_quantity' => 'integer',
         'tara_quantity' => 'integer',
         'sold_quantity' => 'integer',
         'final_quantity' => 'integer',
@@ -34,16 +36,17 @@ class RingInventory extends Model
     }
 
     /**
-     * Discrepancia = initial_quantity + tara_quantity + sold_quantity - final_quantity
+     * Discrepancia = initial + replenishment + tara + sold - final
      * (null se considera 0).
      */
     public function getDiscrepancyAttribute(): int
     {
         $initial = $this->initial_quantity ?? 0;
+        $replenishment = $this->replenishment_quantity ?? 0;
         $tara = $this->tara_quantity ?? 0;
         $sold = $this->sold_quantity ?? 0;
         $final = $this->final_quantity ?? 0;
-        return $initial + $tara + $sold - $final;
+        return $initial + $replenishment + $tara + $sold - $final;
     }
 
     public static function shiftOptions(): array

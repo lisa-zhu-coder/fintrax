@@ -55,10 +55,14 @@
                     </select>
                 </label>
             </div>
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Cantidad inicial</span>
                     <input type="number" name="initial_quantity" min="0" value="{{ old('initial_quantity') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Reposición</span>
+                    <input type="number" name="replenishment_quantity" value="{{ old('replenishment_quantity') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" placeholder="Puede ser + o -"/>
                 </label>
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Taras</span>
@@ -66,7 +70,7 @@
                 </label>
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Cantidad vendida</span>
-                    <input type="number" name="sold_quantity" min="0" value="{{ old('sold_quantity') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <input type="number" name="sold_quantity" value="{{ old('sold_quantity') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" placeholder="Puede ser + o -"/>
                 </label>
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Cantidad final</span>

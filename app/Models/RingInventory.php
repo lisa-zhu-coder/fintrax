@@ -19,6 +19,7 @@ class RingInventory extends Model
         'tara_quantity',
         'sold_quantity',
         'final_quantity',
+        'comment',
     ];
 
     protected $casts = [

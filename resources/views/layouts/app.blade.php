@@ -51,23 +51,38 @@
     
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
-        /* Móvil: tablas de registros en una sola línea con scroll horizontal */
+        /* Tablas: en escritorio ocupan todo el ancho; en móvil una línea por fila con scroll horizontal */
         .overflow-x-auto {
             -webkit-overflow-scrolling: touch;
         }
         .overflow-x-auto table {
-            min-width: max-content;
+            width: 100%;
         }
-        .overflow-x-auto th,
-        .overflow-x-auto td {
-            white-space: nowrap;
-        }
-        .overflow-auto.table-records-mobile th,
-        .overflow-auto.table-records-mobile td {
-            white-space: nowrap;
+        @media (max-width: 767px) {
+            .overflow-x-auto table {
+                min-width: max-content;
+                width: max-content;
+            }
+            .overflow-x-auto th,
+            .overflow-x-auto td {
+                white-space: nowrap;
+            }
         }
         .overflow-auto.table-records-mobile table {
-            min-width: max-content;
+            width: 100%;
+        }
+        @media (max-width: 767px) {
+            .overflow-auto.table-records-mobile table {
+                min-width: max-content;
+                width: max-content;
+            }
+            .overflow-auto.table-records-mobile th,
+            .overflow-auto.table-records-mobile td {
+                white-space: nowrap;
+            }
+        }
+        .ring-comment-cell {
+            white-space: normal;
         }
         th.cursor-pointer a {
             text-decoration: none;

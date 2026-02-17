@@ -77,6 +77,10 @@
                     <input type="number" name="final_quantity" min="0" value="{{ old('final_quantity') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                 </label>
             </div>
+            <label class="block">
+                <span class="text-xs font-semibold text-slate-700">Comentario</span>
+                <textarea name="comment" rows="2" maxlength="2000" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" placeholder="Opcional">{{ old('comment') }}</textarea>
+            </label>
             <div class="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
                 <a href="{{ route('ring-inventories.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</a>
                 <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar</button>

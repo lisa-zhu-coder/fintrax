@@ -61,6 +61,7 @@
                         <th class="px-3 py-2 text-right w-24 bg-slate-50 border-b border-slate-200">Vendidos</th>
                         <th class="px-3 py-2 text-right w-24 bg-slate-50 border-b border-slate-200">Final</th>
                         <th class="px-3 py-2 text-right w-24 bg-slate-50 border-b border-slate-200">Discrepancia</th>
+                        <th class="px-3 py-2 min-w-[120px] max-w-[200px] bg-slate-50 border-b border-slate-200">Comentario</th>
                         <th class="px-3 py-2 w-32 bg-slate-50 border-b border-slate-200">Acciones</th>
                     </tr>
                 </thead>
@@ -105,6 +106,10 @@
                             <td class="px-3 py-2 text-right font-medium discrepancy-cell">
                                 <span class="view-val {{ $row->display_discrepancy !== null && $row->display_discrepancy != 0 ? 'text-rose-600' : '' }}">{{ $row->display_discrepancy !== null ? number_format($row->display_discrepancy, 0, ',', '.') : '—' }}</span>
                                 <span class="edit-inp discrepancy-calc hidden">—</span>
+                            </td>
+                            <td class="px-3 py-2 ring-comment-cell min-w-[120px] max-w-[200px]">
+                                <span class="view-val text-slate-600 text-xs">{{ $r && $r->comment ? e($r->comment) : '—' }}</span>
+                                <input form="{{ $formId }}" name="comment" type="text" class="edit-inp hidden w-full rounded border border-slate-200 px-2 py-1 text-sm" value="{{ $r?->comment ?? '' }}" placeholder="Comentario..." maxlength="2000">
                             </td>
                             <td class="px-3 py-2">
                                 <span class="view-val">

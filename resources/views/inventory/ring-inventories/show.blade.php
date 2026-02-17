@@ -62,6 +62,12 @@
                 <dt class="text-xs font-semibold text-slate-500">Discrepancia</dt>
                 <dd class="mt-1 font-medium {{ $ringInventory->discrepancy != 0 ? 'text-rose-600' : '' }}">{{ number_format($ringInventory->discrepancy, 0, ',', '.') }}</dd>
             </div>
+            @if($ringInventory->comment)
+            <div class="sm:col-span-2">
+                <dt class="text-xs font-semibold text-slate-500">Comentario</dt>
+                <dd class="mt-1 text-slate-700">{{ $ringInventory->comment }}</dd>
+            </div>
+            @endif
         </dl>
     </div>
 </div>

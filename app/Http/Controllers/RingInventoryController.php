@@ -178,6 +178,7 @@ class RingInventoryController extends Controller
             'tara_quantity' => 'nullable|integer|min:0',
             'sold_quantity' => 'nullable|integer',
             'final_quantity' => 'nullable|integer|min:0',
+            'comment' => 'nullable|string|max:2000',
         ]);
         $validated['store_id'] = $this->enforcedStoreIdForCreate((int) ($validated['store_id'] ?? 0)) ?: (int) $validated['store_id'];
         if (!$validated['store_id']) {
@@ -216,6 +217,7 @@ class RingInventoryController extends Controller
             'tara_quantity' => 'nullable|integer|min:0',
             'sold_quantity' => 'nullable|integer',
             'final_quantity' => 'nullable|integer|min:0',
+            'comment' => 'nullable|string|max:2000',
         ]);
         $validated['store_id'] = $this->enforcedStoreIdForCreate((int) ($validated['store_id'] ?? 0) ?: null) ?? (int) $validated['store_id'];
         if (($validated['shift'] ?? '') === 'cierre') {

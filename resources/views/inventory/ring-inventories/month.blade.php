@@ -77,13 +77,15 @@
                             <td class="px-3 py-2 whitespace-nowrap">{{ $row->shift_label }}</td>
                             <td class="px-3 py-2 text-right">
                                 @if($isCierre)
-                                    {{-- Cierre: Inicial calculado = Inicial + Reposición del cambio de turno del mismo día (solo lectura) --}}
+                                    {{-- Cierre: Inicial = Inicial + Reposición del cambio de turno del mismo día (solo lectura) --}}
                                     <span class="view-val">{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
                                     <span class="edit-inp hidden text-right text-sm" data-initial-readonly>{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
                                     <input form="{{ $formId }}" name="initial_quantity" type="hidden" value="{{ $row->display_initial ?? '' }}">
                                 @else
-                                    <span class="view-val">{{ $r && $r->initial_quantity !== null ? number_format($r->initial_quantity, 0, ',', '.') : '—' }}</span>
-                                    <input form="{{ $formId }}" name="initial_quantity" type="number" min="0" class="edit-inp hidden w-full rounded border border-slate-200 px-2 py-1 text-right text-sm" value="{{ $r?->initial_quantity ?? '' }}" placeholder="—">
+                                    {{-- Cambio de turno: Inicial = Final del cierre del día anterior (solo lectura) --}}
+                                    <span class="view-val">{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
+                                    <span class="edit-inp hidden text-right text-sm" data-initial-readonly>{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
+                                    <input form="{{ $formId }}" name="initial_quantity" type="hidden" value="{{ $row->display_initial ?? '' }}">
                                 @endif
                             </td>
                             <td class="px-3 py-2 text-right">

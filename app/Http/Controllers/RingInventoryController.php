@@ -131,6 +131,11 @@ class RingInventoryController extends Controller
             ->whereBetween('date', [$start, $end])
             ->get();
         $byKey = $records->keyBy(fn (RingInventory $r) => $r->date->format('Y-m-d') . '-' . $r->shift);
+        $lastCierreBeforeMonth = RingInventory::where('store_id', $store->id)
+            ->where('shift', 'cierre')
+            ->where('date', '<', $start->format('Y-m-d'))
+            ->orderByDesc('date')
+            ->first();
         $rows = [];
         $shifts = [
             ['value' => 'cambio_turno', 'label' => 'Cambio de turno'],
@@ -139,13 +144,17 @@ class RingInventoryController extends Controller
         for ($day = 1; $day <= $lastDay; $day++) {
             $date = Carbon::createFromDate($year, $month, $day);
             $dateStr = $date->format('Y-m-d');
+            $prevDateStr = $date->copy()->subDay()->format('Y-m-d');
             $cambioTurnoRecord = $byKey->get($dateStr . '-cambio_turno');
+            $cierrePrevDay = $prevDateStr >= $start->format('Y-m-d')
+                ? $byKey->get($prevDateStr . '-cierre')
+                : $lastCierreBeforeMonth;
             foreach ($shifts as $shift) {
                 $key = $dateStr . '-' . $shift['value'];
                 $record = $byKey->get($key);
                 $displayInitial = null;
                 if ($shift['value'] === 'cambio_turno') {
-                    $displayInitial = $record?->initial_quantity;
+                    $displayInitial = $cierrePrevDay?->final_quantity ?? $record?->initial_quantity;
                 } else {
                     // Cierre: Inicial = Inicial + Reposición del cambio de turno del mismo día
                     if ($cambioTurnoRecord !== null) {
@@ -245,6 +254,12 @@ class RingInventoryController extends Controller
                 $validated['date']
             );
         }
+        if (($validated['shift'] ?? '') === 'cambio_turno') {
+            $validated['initial_quantity'] = $this->initialForCambioTurno(
+                (int) $validated['store_id'],
+                $validated['date']
+            );
+        }
         $record = RingInventory::create($validated);
         $date = Carbon::parse($record->date);
         return redirect()->route('ring-inventories.month', [
@@ -278,6 +293,12 @@ class RingInventoryController extends Controller
         $validated['store_id'] = $this->enforcedStoreIdForCreate((int) ($validated['store_id'] ?? 0) ?: null) ?? (int) $validated['store_id'];
         if (($validated['shift'] ?? '') === 'cierre') {
             $validated['initial_quantity'] = $this->computedInitialForCierre(
+                (int) $validated['store_id'],
+                $validated['date']
+            );
+        }
+        if (($validated['shift'] ?? '') === 'cambio_turno') {
+            $validated['initial_quantity'] = $this->initialForCambioTurno(
                 (int) $validated['store_id'],
                 $validated['date']
             );
@@ -319,5 +340,22 @@ class RingInventoryController extends Controller
         $initial = $ct->initial_quantity ?? 0;
         $replenishment = $ct->replenishment_quantity ?? 0;
         return $initial + $replenishment;
+    }
+
+    /**
+     * Inicial del turno cambio de turno = Final del turno cierre del día anterior.
+     * Si no hay datos del día anterior (ej. cambio de mes), usa el final del último cierre con datos.
+     */
+    private function initialForCambioTurno(int $storeId, string $date): ?int
+    {
+        $lastCierre = RingInventory::where('store_id', $storeId)
+            ->where('shift', 'cierre')
+            ->where('date', '<', $date)
+            ->orderByDesc('date')
+            ->first();
+        if ($lastCierre === null) {
+            return null;
+        }
+        return $lastCierre->final_quantity;
     }
 }

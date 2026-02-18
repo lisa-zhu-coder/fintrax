@@ -301,19 +301,21 @@ class Transfer extends Model
                     $createdRecord = null; // No crear movimientos fantasma; usar solo los enlazados (transfer_id).
                 } else {
                     $bankAccount = BankAccount::where('store_id', $this->destination_id)->first();
-                    if ($bankAccount) {
-                        $movement = BankMovement::create([
-                            'bank_account_id' => $bankAccount->id,
-                            'date' => $this->date,
-                            'description' => 'Transferencia de ' . $this->getOriginName(),
-                            'raw_description' => 'Transferencia de ' . $this->getOriginName(),
-                            'amount' => $this->amount,
-                            'type' => 'credit',
-                            'is_conciliated' => true,
-                            'status' => 'conciliado',
-                        ]);
-                        $createdRecord = ['type' => 'bank_movement', 'id' => $movement->id];
+                    if (!$bankAccount) {
+                        $storeName = $this->getDestinationName();
+                        throw new \Exception("La tienda de destino ({$storeName}) no tiene una cuenta bancaria configurada. Configura la cuenta bancaria en la ficha de la tienda antes de ingresar efectivo en banco.");
                     }
+                    $movement = BankMovement::create([
+                        'bank_account_id' => $bankAccount->id,
+                        'date' => $this->date,
+                        'description' => 'Transferencia de ' . $this->getOriginName(),
+                        'raw_description' => 'Transferencia de ' . $this->getOriginName(),
+                        'amount' => $this->amount,
+                        'type' => 'credit',
+                        'is_conciliated' => true,
+                        'status' => 'conciliado',
+                    ]);
+                    $createdRecord = ['type' => 'bank_movement', 'id' => $movement->id];
                 }
             }
         } elseif ($this->destination_type === 'wallet') {

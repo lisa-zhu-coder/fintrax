@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\EnforcesStoreScope;
+use App\Models\BankAccount;
 use App\Models\CashWallet;
 use App\Models\CashWalletExpense;
 use App\Models\CashWalletTransfer;
@@ -389,6 +390,15 @@ class CashWalletController extends Controller
                     ->with('error', 'La cartera no tiene saldo suficiente. Saldo disponible: ' . number_format($currentBalance, 2, ',', '.') . ' €');
             }
 
+            // Verificar que la tienda de destino tiene una cuenta bancaria configurada
+            $bankAccount = BankAccount::where('store_id', $validated['store_id'])->first();
+            if (!$bankAccount) {
+                $store = Store::find($validated['store_id']);
+                $storeName = $store ? $store->name : 'Tienda #' . $validated['store_id'];
+                return redirect()->route('cash-wallets.show', $cashWallet)
+                    ->with('error', "La tienda \"{$storeName}\" no tiene una cuenta bancaria configurada. Configura la cuenta en la ficha de la tienda (Datos de la empresa / Tiendas) antes de ingresar efectivo en banco.");
+            }
+
             // Crear registro en cash_wallet_transfers (para el historial y resta de saldo de cartera)
             $cashWalletTransfer = CashWalletTransfer::create([
                 'cash_wallet_id' => $cashWallet->id,
@@ -685,7 +695,8 @@ class CashWalletController extends Controller
     }
 
     /**
-     * Eliminar transferencia
+     * Eliminar transferencia (ingreso a banco) desde el historial de la cartera.
+     * También elimina el Transfer y el BankMovement asociados para mantener consistencia.
      */
     public function destroyTransfer(CashWallet $cashWallet, CashWalletTransfer $transfer)
     {
@@ -695,11 +706,44 @@ class CashWalletController extends Controller
         }
 
         try {
+            DB::beginTransaction();
+
+            // Buscar el Transfer asociado (cartera → banco tienda, mismo día/importe/tienda)
+            $relatedTransfer = Transfer::where('origin_type', 'wallet')
+                ->where('origin_id', $cashWallet->id)
+                ->where('destination_type', 'store')
+                ->where('destination_id', $transfer->store_id)
+                ->where('destination_fund', 'bank')
+                ->where('method', 'manual')
+                ->whereDate('date', $transfer->date)
+                ->where('amount', $transfer->amount)
+                ->first();
+
+            if ($relatedTransfer) {
+                if ($relatedTransfer->status === 'reconciled') {
+                    $rollbackResult = $relatedTransfer->rollback();
+                    if (!$rollbackResult['success']) {
+                        DB::rollBack();
+                        return redirect()->route('cash-wallets.show', $cashWallet)
+                            ->with('error', $rollbackResult['message'] ?? 'Error al revertir el traspaso asociado.');
+                    }
+                    $relatedTransfer->update(['status' => 'pending']);
+                }
+                $relatedTransfer->delete();
+            }
+
             $transfer->delete();
+            DB::commit();
 
             return redirect()->route('cash-wallets.show', $cashWallet)
-                ->with('success', 'Transferencia eliminada correctamente. El saldo de la cartera se ha ajustado.');
+                ->with('success', 'Transferencia eliminada correctamente. El saldo de la cartera y el movimiento en banco (si existía) se han ajustado.');
         } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al eliminar transferencia de cartera', [
+                'cash_wallet_transfer_id' => $transfer->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return redirect()->route('cash-wallets.show', $cashWallet)
                 ->with('error', 'Error al eliminar la transferencia: ' . $e->getMessage());
         }

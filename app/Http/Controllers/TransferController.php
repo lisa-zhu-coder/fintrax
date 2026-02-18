@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
 use App\Models\CashWallet;
+use App\Models\CashWalletTransfer;
 use App\Models\Store;
 use App\Models\Transfer;
 use Illuminate\Http\Request;
@@ -318,21 +319,33 @@ class TransferController extends Controller
     }
 
     /**
-     * Eliminar traspaso
+     * Eliminar traspaso.
+     * Si es un ingreso a banco desde cartera (wallet→store bank manual), también se elimina
+     * el registro del historial de la cartera (CashWalletTransfer) para mantener consistencia.
      */
     public function destroy(Transfer $transfer)
     {
-        // Si está reconciliado, ejecutar rollback() para restaurar los saldos
+        // Si está reconciliado, ejecutar rollback() para restaurar los saldos (ej. eliminar BankMovement creado)
         if ($transfer->status === 'reconciled') {
             $rollbackResult = $transfer->rollback();
             if (!$rollbackResult['success']) {
                 return back()->with('error', $rollbackResult['message'] ?? 'Error al revertir la transferencia antes de eliminarla. Los saldos no se han restaurado.');
             }
-            // Actualizar el status a 'pending' después del rollback
             $transfer->update(['status' => 'pending']);
         }
 
-        // Eliminar el traspaso
+        // Si es cartera → banco de tienda (ingreso a banco), eliminar también el registro del historial de la cartera
+        if ($transfer->origin_type === 'wallet' && $transfer->destination_type === 'store' && $transfer->destination_fund === 'bank' && $transfer->method === 'manual') {
+            $cashWalletTransfer = CashWalletTransfer::where('cash_wallet_id', $transfer->origin_id)
+                ->where('store_id', $transfer->destination_id)
+                ->whereDate('date', $transfer->date)
+                ->where('amount', $transfer->amount)
+                ->first();
+            if ($cashWalletTransfer) {
+                $cashWalletTransfer->delete();
+            }
+        }
+
         $transfer->delete();
 
         return redirect()->route('transfers.index')->with('success', 'Traspaso eliminado y saldos restaurados correctamente.');

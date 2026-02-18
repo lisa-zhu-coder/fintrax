@@ -1615,7 +1615,9 @@ class FinancialController extends Controller
             }
         }
 
-        $entries = $query->orderBy('date', 'desc')->orderBy('created_at', 'desc')->get();
+        $entriesSortDate = $request->get('sort_date', 'desc');
+        $dateOrder = ($entriesSortDate === 'asc') ? 'asc' : 'desc';
+        $entries = $query->orderBy('date', $dateOrder)->orderBy('created_at', $dateOrder)->get();
         
         // Gastos del mes: (1) añadidos desde "Añadir gasto" con procedencia en este mes, (2) pagados en efectivo con procedencia TIENDA (no cartera) y fecha en este mes
         // Los pagos en efectivo con procedencia cartera se apuntan en el historial de la cartera, no aquí
@@ -1793,7 +1795,7 @@ class FinancialController extends Controller
         }
 
         $suppliers = Supplier::orderBy('name')->get();
-        return view('financial.cash-control-month', compact('store', 'entries', 'monthLabel', 'monthTotal', 'monthKey', 'period', 'expensesByDay', 'monthExpenses', 'monthExpensesTotal', 'days', 'year', 'month', 'totalCashReal', 'monthBalance', 'cashWithdrawals', 'totalCashCollected', 'totalTraspasosEfectivo', 'suppliers'));
+        return view('financial.cash-control-month', compact('store', 'entries', 'monthLabel', 'monthTotal', 'monthKey', 'period', 'expensesByDay', 'monthExpenses', 'monthExpensesTotal', 'days', 'year', 'month', 'totalCashReal', 'monthBalance', 'cashWithdrawals', 'totalCashCollected', 'totalTraspasosEfectivo', 'suppliers', 'entriesSortDate'));
     }
 
     public function storeCashControlExpense($storeId, $monthKey, Request $request)

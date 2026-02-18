@@ -216,7 +216,21 @@
             <table class="min-w-full text-left text-sm">
                 <thead class="text-xs uppercase text-slate-500">
                     <tr>
-                        <th class="px-3 py-2">Fecha</th>
+                        @php
+                            $entriesSortDate = $entriesSortDate ?? 'desc';
+                            $toggleSortDate = $entriesSortDate === 'asc' ? 'desc' : 'asc';
+                            $sortDateUrl = route('financial.cash-control-month', ['store' => $store->id, 'month' => $monthKey, 'sort_date' => $toggleSortDate] + request()->only(['period', 'date_from', 'date_to']));
+                        @endphp
+                        <th class="px-3 py-2">
+                            <a href="{{ $sortDateUrl }}" class="inline-flex items-center gap-1 font-semibold text-slate-600 hover:text-brand-600" title="{{ $entriesSortDate === 'asc' ? 'Ordenar de reciente a antiguo' : 'Ordenar de antiguo a reciente' }}">
+                                Fecha
+                                @if($entriesSortDate === 'asc')
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+                                @else
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                @endif
+                            </a>
+                        </th>
                         <th class="px-3 py-2 text-right">Efectivo Retirado</th>
                         <th class="px-3 py-2 text-right">Gastos</th>
                         <th class="px-3 py-2 text-right">Efectivo Esperado</th>

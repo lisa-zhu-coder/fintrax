@@ -42,7 +42,7 @@
                 </div>
                 <div>
                     <span class="text-xs font-semibold text-slate-700">Número de factura</span>
-                    <div class="mt-1 text-sm text-slate-900">{{ $order->invoice_number }}</div>
+                    <div class="mt-1 text-sm text-slate-900">{{ $order->invoice_number ?? '—' }}</div>
                 </div>
                 <div>
                     <span class="text-xs font-semibold text-slate-700">Número de pedido</span>

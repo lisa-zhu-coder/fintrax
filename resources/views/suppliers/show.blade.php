@@ -62,7 +62,7 @@
                     <tr class="hover:bg-slate-50">
                         <td class="px-3 py-2">{{ $order->date->format('d/m/Y') }}</td>
                         <td class="px-3 py-2">{{ $order->store?->name ?? '—' }}</td>
-                        <td class="px-3 py-2">{{ $order->invoice_number }}</td>
+                        <td class="px-3 py-2">{{ $order->invoice_number ?? '—' }}</td>
                         <td class="px-3 py-2 text-right font-semibold">{{ number_format($order->amount, 2, ',', '.') }} €</td>
                         <td class="px-3 py-2">
                             <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ $order->status === 'pagado' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">

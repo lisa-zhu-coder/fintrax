@@ -19,7 +19,6 @@
                     <span class="text-slate-700">{{ $monthName }} {{ $year }}</span>
                 </nav>
                 <h1 class="text-lg font-semibold">{{ $store->name }} — {{ $monthName }} {{ $year }}</h1>
-                <p class="text-sm text-slate-500">Porcentajes del mes: Obj. 1 = {{ number_format($pct1, 1) }}%, Obj. 2 = {{ number_format($pct2, 1) }}%. Edita las bases 2025 y guarda el mes.</p>
             </div>
             <div class="flex items-center gap-2">
                 <button type="submit" form="form-bases-mes" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar mes</button>

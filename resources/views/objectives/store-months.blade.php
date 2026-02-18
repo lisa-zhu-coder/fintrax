@@ -13,14 +13,12 @@
                     <span class="text-slate-700">{{ $store->name }} — {{ $year }}</span>
                 </nav>
                 <h1 class="text-lg font-semibold">{{ $store->name }} — {{ $year }}</h1>
-                <p class="text-sm text-slate-500">Valores por mes (suma de los diarios con el porcentaje del mes)</p>
             </div>
             <a href="{{ route('objectives.index', ['year' => $year]) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">← Tiendas</a>
         </div>
     </header>
 
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
-        <p class="text-sm text-slate-500 mb-4">Entra en un mes para introducir la base del año anterior y generar las filas diarias.</p>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead class="text-xs uppercase text-slate-500 bg-slate-50">

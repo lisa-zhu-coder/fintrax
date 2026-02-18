@@ -91,7 +91,7 @@
                             </td>
                             <td class="px-3 py-2">{{ $order->date->format('d/m/Y') }}</td>
                             <td class="px-3 py-2">{{ $order->store->name }}</td>
-                            <td class="px-3 py-2">{{ $order->invoice_number }}</td>
+                            <td class="px-3 py-2">{{ $order->invoice_number ?? '—' }}</td>
                             <td class="px-3 py-2">{{ $order->order_number }}</td>
                             <td class="px-3 py-2">
                                 <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold bg-brand-50 text-brand-700 ring-1 ring-brand-100">

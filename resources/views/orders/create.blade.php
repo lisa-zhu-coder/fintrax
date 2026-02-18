@@ -47,8 +47,8 @@
                 </label>
 
                 <label class="block">
-                    <span class="text-xs font-semibold text-slate-700">Número de factura *</span>
-                    <input type="text" name="invoice_number" value="{{ old('invoice_number') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" placeholder="Ej: FACT-2025-001"/>
+                    <span class="text-xs font-semibold text-slate-700">Número de factura</span>
+                    <input type="text" name="invoice_number" value="{{ old('invoice_number') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" placeholder="Ej: FACT-2025-001"/>
                 </label>
 
                 <label class="block">

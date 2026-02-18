@@ -3,6 +3,17 @@
 @section('title', 'Detalle de Registro Financiero')
 
 @section('content')
+@php
+    $returnTo = request()->get('return_to');
+    $backUrl = $entry->type === 'daily_close' ? route('financial.daily-closes') : route('financial.index');
+    if ($returnTo && is_string($returnTo)) {
+        $host = parse_url($returnTo, PHP_URL_HOST);
+        if ($host === null || $host === request()->getHost()) {
+            $backUrl = $returnTo;
+        }
+    }
+    $editUrl = request('return_to') ? route('financial.edit', $entry->id) . '?return_to=' . urlencode(request('return_to')) : route('financial.edit', $entry->id);
+@endphp
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <div class="flex items-center justify-between">
@@ -12,11 +23,11 @@
             </div>
             <div class="flex items-center gap-2">
                 @if(($entry->type === 'daily_close' && auth()->user()->hasPermission('financial.daily_closes.edit')) || auth()->user()->hasPermission('financial.registros.edit'))
-                <a href="{{ route('financial.edit', $entry->id) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <a href="{{ $editUrl }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Editar
                 </a>
                 @endif
-                <a href="{{ $entry->type === 'daily_close' ? route('financial.daily-closes') : route('financial.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <a href="{{ $backUrl }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     ← Volver
                 </a>
             </div>

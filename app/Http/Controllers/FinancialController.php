@@ -707,6 +707,15 @@ class FinancialController extends Controller
             
             $entry->delete();
 
+            // Si se envió redirect_to (ej. desde control de efectivo), redirigir allí si es URL segura
+            $redirectTo = request()->input('redirect_to');
+            if ($redirectTo && is_string($redirectTo)) {
+                $host = parse_url($redirectTo, PHP_URL_HOST);
+                if ($host === null || $host === request()->getHost()) {
+                    return redirect($redirectTo)->with('success', $entry->type === 'expense' ? 'Gasto eliminado correctamente.' : ($entry->type === 'income' ? 'Ingreso eliminado correctamente.' : 'Registro eliminado correctamente.'));
+                }
+            }
+
             // Redirigir a la lista correspondiente al tipo (mantenerse en la misma sección)
             if ($entry->type === 'daily_close') {
                 return redirect()->route('financial.daily-closes')->with('success', 'Cierre diario eliminado correctamente.');

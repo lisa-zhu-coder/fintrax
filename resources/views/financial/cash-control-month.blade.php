@@ -3,6 +3,9 @@
 @section('title', 'Control de Efectivo - ' . $store->name . ' - ' . $monthLabel)
 
 @section('content')
+@php
+    $cashControlReturnUrl = route('financial.cash-control-month', ['store' => $store->id, 'month' => $monthKey] + request()->only(['period', 'date_from', 'date_to']));
+@endphp
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <div class="flex items-center justify-between">
@@ -113,9 +116,19 @@
                                     {{ number_format($expense['amount'], 2, ',', '.') }} €
                                 </td>
                                 <td class="px-3 py-2 text-right">
-                                    <a href="{{ route('financial.show', $expense['id']) }}" class="text-brand-600 hover:text-brand-700 text-xs">
+                                    <a href="{{ route('financial.show', [$expense['id'], 'return_to' => $cashControlReturnUrl]) }}" class="text-brand-600 hover:text-brand-700 text-xs">
                                         Ver
                                     </a>
+                                    @if(auth()->user()->hasPermission('financial.expenses.delete') || auth()->user()->hasPermission('financial.registros.delete'))
+                                    <form method="POST" action="{{ route('financial.destroy', $expense['id']) }}" class="inline ml-1" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este gasto?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <input type="hidden" name="redirect_to" value="{{ $cashControlReturnUrl }}">
+                                        <button type="submit" class="text-rose-600 hover:text-rose-700 text-xs font-medium">
+                                            Eliminar
+                                        </button>
+                                    </form>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach
@@ -252,7 +265,7 @@
                                 @endif
                             </td>
                             <td class="px-3 py-2 text-right">
-                                <a href="{{ route('financial.show', $entry->id) }}" class="text-brand-600 hover:text-brand-700 text-xs" title="Ver detalles">
+                                <a href="{{ route('financial.show', [$entry->id, 'return_to' => $cashControlReturnUrl]) }}" class="text-brand-600 hover:text-brand-700 text-xs" title="Ver detalles">
                                     Ver
                                 </a>
                             </td>
@@ -275,9 +288,17 @@
                                                         <span class="font-semibold text-rose-700">
                                                             {{ number_format($dayExpense['amount'], 2, ',', '.') }} €
                                                         </span>
-                                                        <a href="{{ route('financial.show', $dayExpense['id']) }}" class="text-brand-600 hover:text-brand-700">
+                                                        <a href="{{ route('financial.show', [$dayExpense['id'], 'return_to' => $cashControlReturnUrl]) }}" class="text-brand-600 hover:text-brand-700">
                                                             Ver
                                                         </a>
+                                                        @if(auth()->user()->hasPermission('financial.expenses.delete') || auth()->user()->hasPermission('financial.registros.delete'))
+                                                        <form method="POST" action="{{ route('financial.destroy', $dayExpense['id']) }}" class="inline ml-1" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este gasto?');">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <input type="hidden" name="redirect_to" value="{{ $cashControlReturnUrl }}">
+                                                            <button type="submit" class="text-rose-600 hover:text-rose-700 text-xs font-medium">Eliminar</button>
+                                                        </form>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             @endforeach
@@ -490,9 +511,10 @@ function updateSummary() {
     }
 }
 
-// Limpiar el 0 cuando se hace focus en campos de efectivo real
+// Limpiar el 0 cuando se hace focus en campos de efectivo real + Enter pasa al siguiente
 document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.cash-real-input').forEach(input => {
+    const cashRealInputs = Array.from(document.querySelectorAll('.cash-real-input'));
+    cashRealInputs.forEach(function(input, index) {
         input.addEventListener('focus', function() {
             if (parseFloat(this.value) === 0) {
                 this.value = '';
@@ -500,6 +522,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const next = cashRealInputs[index + 1];
+                if (next) {
+                    next.focus();
+                }
+            }
             if (parseFloat(this.value) === 0 && /[0-9]/.test(e.key)) {
                 this.value = '';
             }

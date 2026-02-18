@@ -183,7 +183,7 @@
                                 </span>
                             </td>
                             <td class="px-3 py-2 text-right">
-                                <a href="{{ route('financial.show', $expense->id) }}" class="inline-flex items-center gap-1 rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Ver gasto">
+                                <a href="{{ route('financial.show', [$expense->id, 'return_to' => route('invoices.show', $invoice)]) }}" class="inline-flex items-center gap-1 rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Ver gasto">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                         <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>

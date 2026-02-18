@@ -71,21 +71,28 @@
                             $formId = 'form-' . str_replace('-', '_', $row->date_str) . '_' . $row->shift;
                             $rowId = 'row-' . str_replace('-', '_', $row->date_str) . '_' . $row->shift;
                             $isCierre = $row->shift === 'cierre';
+                            $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin();
                         @endphp
                         <tr class="ring-row {{ $isCierre ? 'bg-slate-100 hover:bg-slate-200' : 'hover:bg-slate-50' }}" id="{{ $rowId }}" data-row-key="{{ $row->date_str }}-{{ $row->shift }}">
                             <td class="px-3 py-2 whitespace-nowrap">{{ $row->date->format('d/m/Y') }}</td>
                             <td class="px-3 py-2 whitespace-nowrap">{{ $row->shift_label }}</td>
                             <td class="px-3 py-2 text-right">
-                                @if($isCierre)
-                                    {{-- Cierre: Inicial = Inicial + Reposición del cambio de turno del mismo día (solo lectura) --}}
-                                    <span class="view-val">{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
-                                    <span class="edit-inp hidden text-right text-sm" data-initial-readonly>{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
-                                    <input form="{{ $formId }}" name="initial_quantity" type="hidden" value="{{ $row->display_initial ?? '' }}">
+                                @if($canEditInitial)
+                                    {{-- Admin/Superadmin pueden editar el inicial --}}
+                                    <span class="view-val">{{ $r && $r->initial_quantity !== null ? number_format($r->initial_quantity, 0, ',', '.') : ($row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—') }}</span>
+                                    <input form="{{ $formId }}" name="initial_quantity" type="number" min="0" class="edit-inp hidden w-full rounded border border-slate-200 px-2 py-1 text-right text-sm" value="{{ $r?->initial_quantity ?? $row->display_initial ?? '' }}" placeholder="—">
                                 @else
-                                    {{-- Cambio de turno: Inicial = Final del cierre del día anterior (solo lectura) --}}
-                                    <span class="view-val">{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
-                                    <span class="edit-inp hidden text-right text-sm" data-initial-readonly>{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
-                                    <input form="{{ $formId }}" name="initial_quantity" type="hidden" value="{{ $row->display_initial ?? '' }}">
+                                    @if($isCierre)
+                                        {{-- Cierre: Inicial = Inicial + Reposición del cambio de turno del mismo día (solo lectura) --}}
+                                        <span class="view-val">{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
+                                        <span class="edit-inp hidden text-right text-sm" data-initial-readonly>{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
+                                        <input form="{{ $formId }}" name="initial_quantity" type="hidden" value="{{ $row->display_initial ?? '' }}">
+                                    @else
+                                        {{-- Cambio de turno: Inicial = Final del cierre del día anterior (solo lectura) --}}
+                                        <span class="view-val">{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
+                                        <span class="edit-inp hidden text-right text-sm" data-initial-readonly>{{ $row->display_initial !== null ? number_format($row->display_initial, 0, ',', '.') : '—' }}</span>
+                                        <input form="{{ $formId }}" name="initial_quantity" type="hidden" value="{{ $row->display_initial ?? '' }}">
+                                    @endif
                                 @endif
                             </td>
                             <td class="px-3 py-2 text-right">
@@ -121,7 +128,10 @@
                                         </span>
                                         <div class="comment-popover hidden absolute right-0 top-full z-20 mt-1 min-w-[200px] max-w-[280px] rounded-lg border border-slate-200 bg-white p-3 shadow-lg" data-row-id="{{ $rowId }}">
                                             <div class="comment-popover-view text-sm text-slate-700 whitespace-pre-wrap">{{ $r && $r->comment ? e($r->comment) : 'Sin comentario' }}</div>
-                                            <textarea form="{{ $formId }}" name="comment" class="comment-popover-edit hidden mt-2 w-full rounded border border-slate-200 px-2 py-1 text-sm" rows="2" maxlength="2000" placeholder="Comentario...">{{ $r?->comment ?? '' }}</textarea>
+                                            <div class="comment-popover-edit hidden">
+                                                <textarea form="{{ $formId }}" name="comment" class="comment-popover-textarea w-full rounded border border-slate-200 px-2 py-1 text-sm" rows="2" maxlength="2000" placeholder="Comentario...">{{ $r?->comment ?? '' }}</textarea>
+                                                <button type="button" class="btn-clear-comment mt-2 text-xs text-slate-500 hover:text-rose-600">Borrar comentario</button>
+                                            </div>
                                         </div>
                                     </div>
                                     <span class="edit-inp hidden flex items-center gap-1">
@@ -179,17 +189,22 @@
     }
 
     function updateDiscrepancy(tr) {
+        const finalVal = tr.querySelector('input[name="final_quantity"]')?.value;
+        const cell = tr.querySelector('.discrepancy-calc');
+        if (!cell) return;
+        if (finalVal === '' || finalVal === null || finalVal === undefined) {
+            cell.textContent = '—';
+            cell.classList.remove('text-rose-600');
+            return;
+        }
         const initial = parseNum(tr.querySelector('input[name="initial_quantity"]')?.value);
         const replenishment = parseNum(tr.querySelector('input[name="replenishment_quantity"]')?.value);
         const tara = parseNum(tr.querySelector('input[name="tara_quantity"]')?.value);
         const sold = parseNum(tr.querySelector('input[name="sold_quantity"]')?.value);
-        const final = parseNum(tr.querySelector('input[name="final_quantity"]')?.value);
+        const final = parseNum(finalVal);
         const disc = initial + replenishment + tara + sold - final;
-        const cell = tr.querySelector('.discrepancy-calc');
-        if (cell) {
-            cell.textContent = disc.toLocaleString('es-ES');
-            cell.classList.toggle('text-rose-600', disc !== 0);
-        }
+        cell.textContent = disc.toLocaleString('es-ES');
+        cell.classList.toggle('text-rose-600', disc !== 0);
     }
 
     function setRowEditing(rowId, editing) {
@@ -263,6 +278,15 @@
         if (!table.contains(e.target) && !e.target.closest('.comment-popover')) {
             closeAllCommentPopovers();
         }
+    });
+
+    table.addEventListener('click', function(e) {
+        var btn = e.target.closest('.btn-clear-comment');
+        if (!btn) return;
+        e.preventDefault();
+        var popover = btn.closest('.comment-popover');
+        var ta = popover && popover.querySelector('.comment-popover-textarea');
+        if (ta) ta.value = '';
     });
 
     table.addEventListener('input', function(e) {

@@ -163,14 +163,14 @@ class RingInventoryController extends Controller
                         $displayInitial = $record?->initial_quantity;
                     }
                 }
-                // Discrepancia = inicial + reposición + taras + vendidos - final. Para Cierre usamos display_initial (el inicial puede estar null en BD).
+                // Discrepancia = inicial + reposición + taras + vendidos - final. Solo si hay dato en Final.
                 $displayDiscrepancy = null;
-                if ($record !== null) {
+                if ($record !== null && $record->final_quantity !== null) {
                     $init = $displayInitial ?? 0;
                     $rep = $record->replenishment_quantity ?? 0;
                     $tara = $record->tara_quantity ?? 0;
                     $sold = $record->sold_quantity ?? 0;
-                    $final = $record->final_quantity ?? 0;
+                    $final = $record->final_quantity;
                     $displayDiscrepancy = $init + $rep + $tara + $sold - $final;
                 }
                 $rows[] = (object) [
@@ -248,13 +248,14 @@ class RingInventoryController extends Controller
         if (!$validated['store_id']) {
             return redirect()->back()->withInput()->withErrors(['store_id' => 'Debe seleccionar una tienda.']);
         }
-        if (($validated['shift'] ?? '') === 'cierre') {
+        $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin();
+        if (($validated['shift'] ?? '') === 'cierre' && !$canEditInitial) {
             $validated['initial_quantity'] = $this->computedInitialForCierre(
                 (int) $validated['store_id'],
                 $validated['date']
             );
         }
-        if (($validated['shift'] ?? '') === 'cambio_turno') {
+        if (($validated['shift'] ?? '') === 'cambio_turno' && !$canEditInitial) {
             $validated['initial_quantity'] = $this->initialForCambioTurno(
                 (int) $validated['store_id'],
                 $validated['date']
@@ -291,13 +292,14 @@ class RingInventoryController extends Controller
             'comment' => 'nullable|string|max:2000',
         ]);
         $validated['store_id'] = $this->enforcedStoreIdForCreate((int) ($validated['store_id'] ?? 0) ?: null) ?? (int) $validated['store_id'];
-        if (($validated['shift'] ?? '') === 'cierre') {
+        $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin();
+        if (($validated['shift'] ?? '') === 'cierre' && !$canEditInitial) {
             $validated['initial_quantity'] = $this->computedInitialForCierre(
                 (int) $validated['store_id'],
                 $validated['date']
             );
         }
-        if (($validated['shift'] ?? '') === 'cambio_turno') {
+        if (($validated['shift'] ?? '') === 'cambio_turno' && !$canEditInitial) {
             $validated['initial_quantity'] = $this->initialForCambioTurno(
                 (int) $validated['store_id'],
                 $validated['date']

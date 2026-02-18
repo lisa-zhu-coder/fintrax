@@ -141,7 +141,7 @@
                                     </svg>
                                     <span class="text-sm font-semibold text-brand-700">Gasto actual asociado</span>
                                 </div>
-                                <a href="{{ route('financial.show', $currentExpense->id) }}" target="_blank" class="text-xs text-brand-600 hover:text-brand-700">Ver gasto</a>
+                                <a href="{{ route('financial.show', [$currentExpense->id, 'return_to' => url()->current()]) }}" target="_blank" class="text-xs text-brand-600 hover:text-brand-700">Ver gasto</a>
                             </div>
                             <p class="mt-1 ml-6 text-xs text-slate-600">
                                 {{ $currentExpense->concept ?? $currentExpense->expense_concept ?? 'Sin concepto' }} - 

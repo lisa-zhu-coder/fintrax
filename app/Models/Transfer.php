@@ -374,11 +374,9 @@ class Transfer extends Model
                     ->delete();
             }
         } elseif ($this->origin_type === 'wallet') {
-            CashWalletExpense::where('cash_wallet_id', $this->origin_id)
-                ->where('concept', 'like', '%Transferencia a%')
-                ->where('date', $this->date)
-                ->where('amount', $this->amount)
-                ->delete();
+            // cash_wallet_expenses no tiene 'concept' ni 'date'; solo se borra por ID vía applied_records.
+            // Para ingreso a banco (wallet→store bank manual) no se crea CashWalletExpense, sino CashWalletTransfer,
+            // por lo que no hay nada que revertir aquí (el CashWalletTransfer se elimina al borrar desde historial o al borrar el Transfer en el controlador).
         }
     }
 

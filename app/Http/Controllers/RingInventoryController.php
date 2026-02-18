@@ -207,7 +207,8 @@ class RingInventoryController extends Controller
         $stores = $this->storesForCurrentUser();
         $storeId = $request->get('store_id');
         $date = $request->get('date', now()->format('Y-m-d'));
-        return view('inventory.ring-inventories.create', compact('stores', 'storeId', 'date'));
+        $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->hasPermission('inventory.rings.edit_initial');
+        return view('inventory.ring-inventories.create', compact('stores', 'storeId', 'date', 'canEditInitial'));
     }
 
     /**
@@ -248,7 +249,7 @@ class RingInventoryController extends Controller
         if (!$validated['store_id']) {
             return redirect()->back()->withInput()->withErrors(['store_id' => 'Debe seleccionar una tienda.']);
         }
-        $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin();
+        $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->hasPermission('inventory.rings.edit_initial');
         if (($validated['shift'] ?? '') === 'cierre' && !$canEditInitial) {
             $validated['initial_quantity'] = $this->computedInitialForCierre(
                 (int) $validated['store_id'],
@@ -274,7 +275,8 @@ class RingInventoryController extends Controller
     {
         $ringInventory->load('store');
         $stores = Store::orderBy('name')->get();
-        return view('inventory.ring-inventories.edit', compact('ringInventory', 'stores'));
+        $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->hasPermission('inventory.rings.edit_initial');
+        return view('inventory.ring-inventories.edit', compact('ringInventory', 'stores', 'canEditInitial'));
     }
 
     public function update(Request $request, RingInventory $ringInventory)
@@ -292,7 +294,7 @@ class RingInventoryController extends Controller
             'comment' => 'nullable|string|max:2000',
         ]);
         $validated['store_id'] = $this->enforcedStoreIdForCreate((int) ($validated['store_id'] ?? 0) ?: null) ?? (int) $validated['store_id'];
-        $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin();
+        $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->hasPermission('inventory.rings.edit_initial');
         if (($validated['shift'] ?? '') === 'cierre' && !$canEditInitial) {
             $validated['initial_quantity'] = $this->computedInitialForCierre(
                 (int) $validated['store_id'],

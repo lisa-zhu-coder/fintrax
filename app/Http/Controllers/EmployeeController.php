@@ -60,13 +60,29 @@ class EmployeeController extends Controller
         return view('employees.index', compact('employees', 'totalStores'));
     }
 
+    /**
+     * Roles que el usuario actual puede asignar al crear una cuenta (solo roles de su mismo nivel o inferior).
+     */
+    private function rolesAllowedForNewUser()
+    {
+        $user = Auth::user();
+        if ($user->isSuperAdmin()) {
+            return Role::orderBy('level')->get();
+        }
+        $effectiveRole = $user->getEffectiveRole();
+        if (!$effectiveRole) {
+            return Role::orderBy('level')->get();
+        }
+        return Role::where('level', '>=', $effectiveRole->level)->orderBy('level')->get();
+    }
+
     public function create()
     {
         $this->syncStoresFromBusinesses();
 
         $stores = $this->storesForCurrentUser();
         $users = User::with('role')->get();
-        $roles = Role::all();
+        $roles = $this->rolesAllowedForNewUser();
         return view('employees.create', compact('stores', 'users', 'roles'));
     }
 
@@ -172,7 +188,7 @@ class EmployeeController extends Controller
             $this->syncStoresFromBusinesses();
             $stores = $this->storesForCurrentUser();
             $users = User::with('role')->get();
-            $roles = Role::all();
+            $roles = $this->rolesAllowedForNewUser();
             $oldInput = $request->except('password', '_token');
             return view('employees.create', compact('stores', 'users', 'roles', 'oldInput'))
                 ->withErrors($e->errors());
@@ -184,7 +200,7 @@ class EmployeeController extends Controller
             $this->syncStoresFromBusinesses();
             $stores = $this->storesForCurrentUser();
             $users = User::with('role')->get();
-            $roles = Role::all();
+            $roles = $this->rolesAllowedForNewUser();
             $oldInput = $request->except('password', '_token');
             return view('employees.create', compact('stores', 'users', 'roles', 'oldInput'))
                 ->withErrors(['error' => 'Error al crear el empleado: ' . $e->getMessage()]);
@@ -235,7 +251,7 @@ class EmployeeController extends Controller
         $this->syncStoresFromBusinesses();
         $stores = $this->storesForCurrentUser();
         $users = User::with('role')->get();
-        $roles = Role::all();
+        $roles = $this->rolesAllowedForNewUser();
         $employee->load('stores');
         return view('employees.edit', compact('employee', 'stores', 'users', 'roles'));
     }
@@ -352,6 +368,16 @@ class EmployeeController extends Controller
                 'role_id' => 'required|exists:roles,id',
                 'store_id' => 'nullable|exists:stores,id',
             ]);
+
+            $effectiveRole = Auth::user()->getEffectiveRole();
+            if (!Auth::user()->isSuperAdmin() && $effectiveRole) {
+                $selectedRole = Role::find($validated['role_id']);
+                if ($selectedRole && $selectedRole->level < $effectiveRole->level) {
+                    return response()->json([
+                        'message' => 'No puedes asignar un rol de mayor nivel que el tuyo.',
+                    ], 422);
+                }
+            }
 
             if (!empty($validated['store_id']) && $companyId) {
                 $store = Store::withoutGlobalScopes()->find($validated['store_id']);

@@ -58,7 +58,12 @@
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Cantidad inicial</span>
-                    <input type="number" name="initial_quantity" min="0" value="{{ old('initial_quantity') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    @if($canEditInitial ?? false)
+                        <input type="number" name="initial_quantity" min="0" value="{{ old('initial_quantity') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    @else
+                        <input type="number" min="0" value="{{ old('initial_quantity') }}" readonly class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500" title="Se calcula automáticamente según el turno. Sin permiso para editar inicial."/>
+                        <p class="mt-0.5 text-xs text-slate-500">Se calcula automáticamente</p>
+                    @endif
                 </label>
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Reposición</span>

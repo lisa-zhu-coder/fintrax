@@ -15,6 +15,7 @@ return [
         'configure' => 'Configurar',
         'view_own' => 'Solo su ficha',
         'view_store' => 'Todas las fichas de la tienda',
+        'edit_initial' => 'Editar inicial',
     ],
 
     'modules' => [
@@ -94,7 +95,7 @@ return [
             'key' => 'inventory',
             'label' => 'Inventario',
             'items' => [
-                ['key' => 'rings', 'label' => 'Inventario de anillos', 'actions' => ['view', 'create', 'edit', 'delete']],
+                ['key' => 'rings', 'label' => 'Inventario de anillos', 'actions' => ['view', 'create', 'edit', 'delete', 'edit_initial']],
                 ['key' => 'generic', 'label' => 'Inventarios genéricos', 'actions' => ['view', 'create', 'edit', 'delete']],
                 ['key' => 'products', 'label' => 'Inventario de productos', 'actions' => ['view', 'create', 'edit', 'delete']],
             ],

@@ -1615,8 +1615,8 @@ class FinancialController extends Controller
             }
         }
 
-        $entriesSortDate = $request->get('sort_date', 'desc');
-        $dateOrder = ($entriesSortDate === 'asc') ? 'asc' : 'desc';
+        $entriesSortDate = $request->get('sort_date', 'asc');
+        $dateOrder = ($entriesSortDate === 'desc') ? 'desc' : 'asc';
         $entries = $query->orderBy('date', $dateOrder)->orderBy('created_at', $dateOrder)->get();
         
         // Gastos del mes: (1) añadidos desde "Añadir gasto" con procedencia en este mes, (2) pagados en efectivo con procedencia TIENDA (no cartera) y fecha en este mes

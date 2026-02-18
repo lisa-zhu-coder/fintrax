@@ -217,7 +217,7 @@
                 <thead class="text-xs uppercase text-slate-500">
                     <tr>
                         @php
-                            $entriesSortDate = $entriesSortDate ?? 'desc';
+                            $entriesSortDate = $entriesSortDate ?? 'asc';
                             $toggleSortDate = $entriesSortDate === 'asc' ? 'desc' : 'asc';
                             $sortDateUrl = route('financial.cash-control-month', ['store' => $store->id, 'month' => $monthKey, 'sort_date' => $toggleSortDate] + request()->only(['period', 'date_from', 'date_to']));
                         @endphp

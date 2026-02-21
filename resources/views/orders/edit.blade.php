@@ -462,8 +462,6 @@ function addPaymentRow(payment = null) {
                 </button>
             </div>
         </div>
-    `;
-    
         <div class="payment-cash-source mt-3 hidden" data-payment-index="${index}">
             <span class="text-xs font-semibold text-slate-700">Procedencia del efectivo *</span>
             <div class="mt-1 flex flex-wrap gap-4">
@@ -488,7 +486,7 @@ function addPaymentRow(payment = null) {
             </div>
         </div>
     `;
-    
+
     container.appendChild(row);
     
     const methodSelect = row.querySelector('.payment-method');
@@ -554,6 +552,8 @@ function initPaymentCashSourceToggles() {
     });
 }
 initPaymentCashSourceToggles();
+
+function updatePaymentTotals() {
     const orderAmount = parseFloat(document.getElementById('orderAmount').value) || 0;
     const container = document.getElementById('paymentsContainer');
     let totalPaid = 0;

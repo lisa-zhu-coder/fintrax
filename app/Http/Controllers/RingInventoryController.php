@@ -156,9 +156,11 @@ class RingInventoryController extends Controller
                 if ($shift['value'] === 'cambio_turno') {
                     $displayInitial = $cierrePrevDay?->final_quantity ?? $record?->initial_quantity;
                 } else {
-                    // Cierre: Inicial = Inicial + Reposición del cambio de turno del mismo día
+                    // Cierre: Inicial = Inicial + Reposición del cambio de turno del mismo día.
+                    // Si el cambio de turno tiene initial null, usar el final del cierre del día anterior (mismo valor que debería tener).
                     if ($cambioTurnoRecord !== null) {
-                        $displayInitial = ($cambioTurnoRecord->initial_quantity ?? 0) + ($cambioTurnoRecord->replenishment_quantity ?? 0);
+                        $ctInitial = $cambioTurnoRecord->initial_quantity ?? $cierrePrevDay?->final_quantity ?? 0;
+                        $displayInitial = $ctInitial + ($cambioTurnoRecord->replenishment_quantity ?? 0);
                     } else {
                         $displayInitial = $record?->initial_quantity;
                     }

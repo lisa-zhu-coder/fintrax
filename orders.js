@@ -1065,28 +1065,30 @@ class OrderManager {
     // Inicializar pagos existentes o crear uno vacío
     this.initializePayments(order);
 
-    // Event listeners
-    document.getElementById('closeOrderModalBtn').addEventListener('click', () => {
-      modal.remove();
-    });
+    // Event listeners (usar modal como contexto para evitar conflictos con otros id en la página)
+    const closeBtn = modal.querySelector('#closeOrderModalBtn');
+    if (closeBtn) closeBtn.addEventListener('click', () => modal.remove());
 
-    document.getElementById('cancelOrderBtn').addEventListener('click', () => {
-      modal.remove();
-    });
+    const cancelBtn = modal.querySelector('#cancelOrderBtn');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => modal.remove());
 
-    document.getElementById('addPaymentBtn').addEventListener('click', () => {
-      this.addPaymentRow();
-    });
+    const addPaymentBtn = modal.querySelector('#addPaymentBtn');
+    if (addPaymentBtn) {
+      addPaymentBtn.addEventListener('click', () => this.addPaymentRow());
+    }
 
-    // Actualizar totales cuando cambia el importe del pedido
-    document.getElementById('orderAmount').addEventListener('input', () => {
-      this.updatePaymentTotals();
-    });
+    const orderAmountInput = modal.querySelector('#orderAmount');
+    if (orderAmountInput) {
+      orderAmountInput.addEventListener('input', () => this.updatePaymentTotals());
+    }
 
-    document.getElementById('orderForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      this.handleFormSubmit(order?.id);
-    });
+    const orderForm = modal.querySelector('#orderForm');
+    if (orderForm) {
+      orderForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleFormSubmit(order?.id);
+      });
+    }
   }
 
   initializePayments(order) {

@@ -126,6 +126,7 @@ return [
                 ['key' => 'inventories', 'label' => 'Inventario (toggle anillos)', 'actions' => ['view']],
                 ['key' => 'products', 'label' => 'Productos', 'actions' => ['view', 'create', 'edit', 'delete']],
                 ['key' => 'daily_close', 'label' => 'Cierre de caja', 'actions' => ['view', 'edit']],
+                ['key' => 'expense_categories', 'label' => 'Categorías de gastos', 'actions' => ['view', 'create', 'edit', 'delete']],
             ],
         ],
         [

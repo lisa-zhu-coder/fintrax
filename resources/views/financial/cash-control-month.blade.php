@@ -379,16 +379,12 @@
                         <span class="text-xs font-semibold text-slate-700">Categoría *</span>
                         <select name="expense_category" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                             <option value="">Selecciona...</option>
-                            <option value="alquiler">Alquiler</option>
-                            <option value="impuestos">Impuestos</option>
-                            <option value="seguridad_social">Seguridad Social</option>
-                            <option value="suministros">Suministros</option>
-                            <option value="servicios_profesionales">Servicios profesionales</option>
-                            <option value="sueldos">Sueldos</option>
-                            <option value="miramira">Miramira</option>
-                            <option value="mercaderia">Mercadería</option>
-                            <option value="equipamiento">Equipamiento</option>
-                            <option value="otros">Otros</option>
+                            @foreach($expenseCategories ?? [] as $cat)
+                                <option value="{{ e($cat->name) }}">{{ $cat->name }}</option>
+                            @endforeach
+                            @if(($expenseCategories ?? collect())->isEmpty())
+                                <option value="" disabled>Configura categorías en Ajustes → Categorías de gastos</option>
+                            @endif
                         </select>
                     </label>
                     
@@ -399,7 +395,7 @@
                     
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Importe (€) *</span>
-                        <input type="number" name="expense_amount" step="0.01" min="0" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <input type="number" name="expense_amount" step="0.01" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" placeholder="Puede ser negativo"/>
                     </label>
                 </div>
                 

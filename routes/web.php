@@ -263,7 +263,13 @@ Route::middleware(['auth', 'company'])->group(function () {
     // Ajustes - Inventarios (solo toggle anillos)
     Route::get('/settings/inventories', [\App\Http\Controllers\InventorySettingsController::class, 'index'])->name('inventory-settings.index');
     Route::post('/settings/inventories/toggle-rings', [\App\Http\Controllers\InventorySettingsController::class, 'toggleRings'])->name('inventory-settings.toggle-rings');
-    
+
+    // Ajustes - Categorías de gastos (por empresa)
+    Route::get('/settings/expense-categories', [\App\Http\Controllers\ExpenseCategorySettingsController::class, 'index'])->name('expense-categories-settings.index');
+    Route::post('/settings/expense-categories', [\App\Http\Controllers\ExpenseCategorySettingsController::class, 'store'])->name('expense-categories-settings.store');
+    Route::put('/settings/expense-categories/{expenseCategory}', [\App\Http\Controllers\ExpenseCategorySettingsController::class, 'update'])->name('expense-categories-settings.update');
+    Route::delete('/settings/expense-categories/{expenseCategory}', [\App\Http\Controllers\ExpenseCategorySettingsController::class, 'destroy'])->name('expense-categories-settings.destroy');
+
     // Carteras de Efectivo
     Route::get('/cash-wallets', [CashWalletController::class, 'index'])->name('cash-wallets.index');
     Route::get('/cash-wallets/create', [CashWalletController::class, 'create'])->name('cash-wallets.create');

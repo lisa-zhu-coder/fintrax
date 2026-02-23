@@ -658,7 +658,7 @@
                         @endif
                         @if($invShowSalesProducts)
                         <a href="{{ route('inventory.sales.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('inventory.sales.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
-                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.3 2.7c-.3.4-.9 1-1.6 1H2M17 13l2.3 2.7c.3.4.9 1 1.6 1H22M9 21a1 1 0 11-2 1 1 0 010 2zm8 0a1 1 0 11-2 1 1 0 010 2z"/></svg>
+                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.3 2.7c-.3.4-.9 1-1.6 1H2M17 13l2.3 2.7c.3.4.9 1 1.6 1H22M9 21a1 1 0 1 1 -2 0a1 1 0 0 1 2 0zm8 0a1 1 0 1 1 -2 0a1 1 0 0 1 2 0z"/></svg>
                             <span class="sidebar-submenu-text">Ventas de productos</span></a>
                         @endif
                     </div>
@@ -710,7 +710,7 @@
                 </a>
                 @endif
 
-                @if(auth()->user()->isSuperAdmin() || auth()->user()->hasAnyPermission(['settings.cash_reduction.view', 'settings.objectives.view', 'settings.overtime.view', 'settings.products.view', 'settings.daily_close.view']))
+                @if(auth()->user()->isSuperAdmin() || auth()->user()->hasAnyPermission(['settings.cash_reduction.view', 'settings.objectives.view', 'settings.overtime.view', 'settings.products.view', 'settings.daily_close.view', 'settings.expense_categories.view']))
                 <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <button type="button" id="settingsMenuToggle" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors">
                         <div class="flex items-center gap-3">
@@ -754,6 +754,12 @@
                         <a href="{{ route('daily-close-settings.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('daily-close-settings.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
                             <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                             <span class="sidebar-submenu-text">Cierre de caja</span>
+                        </a>
+                        @endif
+                        @if(auth()->user()->hasPermission('settings.expense_categories.view'))
+                        <a href="{{ route('expense-categories-settings.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('expense-categories-settings.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
+                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/><path d="M5 6V4a1 1 0 011-1h3v2M5 18v2a1 1 0 001 1h3v-2"/></svg>
+                            <span class="sidebar-submenu-text">Categorías de gastos</span>
                         </a>
                         @endif
                         @if(auth()->user()->isSuperAdmin())

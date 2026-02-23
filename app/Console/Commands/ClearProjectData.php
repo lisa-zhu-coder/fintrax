@@ -52,6 +52,7 @@ class ClearProjectData extends Command
         'declared_sales',
         'store_cash_reductions',
         'cash_wallets',
+        'expense_categories',
         'bank_accounts',
         'payrolls',
         'suppliers',

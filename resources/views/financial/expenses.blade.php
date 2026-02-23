@@ -54,16 +54,9 @@
                     <span class="text-xs font-semibold text-slate-700">Categoría</span>
                     <select name="category" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                         <option value="">Todas</option>
-                        <option value="alquiler" {{ request('category') === 'alquiler' ? 'selected' : '' }}>Alquiler</option>
-                        <option value="impuestos" {{ request('category') === 'impuestos' ? 'selected' : '' }}>Impuestos</option>
-                        <option value="seguridad_social" {{ request('category') === 'seguridad_social' ? 'selected' : '' }}>Seguridad Social</option>
-                        <option value="suministros" {{ request('category') === 'suministros' ? 'selected' : '' }}>Suministros</option>
-                        <option value="servicios_profesionales" {{ request('category') === 'servicios_profesionales' ? 'selected' : '' }}>Servicios profesionales</option>
-                        <option value="sueldos" {{ request('category') === 'sueldos' ? 'selected' : '' }}>Sueldos</option>
-                        <option value="miramira" {{ request('category') === 'miramira' ? 'selected' : '' }}>Miramira</option>
-                        <option value="mercaderia" {{ request('category') === 'mercaderia' ? 'selected' : '' }}>Mercadería</option>
-                        <option value="equipamiento" {{ request('category') === 'equipamiento' ? 'selected' : '' }}>Equipamiento</option>
-                        <option value="otros" {{ request('category') === 'otros' ? 'selected' : '' }}>Otros</option>
+                        @foreach($expenseCategories ?? [] as $cat)
+                            <option value="{{ e($cat->name) }}" {{ request('category') === $cat->name ? 'selected' : '' }}>{{ $cat->name }}</option>
+                        @endforeach
                     </select>
                 </label>
                 

@@ -294,16 +294,12 @@
                             <span class="text-xs font-semibold text-slate-700">Categoría del gasto</span>
                             <select name="expense_category" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                                 <option value="">Selecciona…</option>
-                                <option value="alquiler" {{ old('expense_category') === 'alquiler' ? 'selected' : '' }}>Alquiler</option>
-                                <option value="impuestos" {{ old('expense_category') === 'impuestos' ? 'selected' : '' }}>Impuestos</option>
-                                <option value="seguridad_social" {{ old('expense_category') === 'seguridad_social' ? 'selected' : '' }}>Seguridad Social</option>
-                                <option value="suministros" {{ old('expense_category') === 'suministros' ? 'selected' : '' }}>Suministros</option>
-                                <option value="servicios_profesionales" {{ old('expense_category') === 'servicios_profesionales' ? 'selected' : '' }}>Servicios profesionales</option>
-                                <option value="sueldos" {{ old('expense_category') === 'sueldos' ? 'selected' : '' }}>Sueldos</option>
-                                <option value="miramira" {{ old('expense_category') === 'miramira' ? 'selected' : '' }}>Miramira</option>
-                                <option value="mercaderia" {{ old('expense_category') === 'mercaderia' ? 'selected' : '' }}>Mercadería</option>
-                                <option value="equipamiento" {{ old('expense_category') === 'equipamiento' ? 'selected' : '' }}>Equipamiento</option>
-                                <option value="otros" {{ old('expense_category') === 'otros' ? 'selected' : '' }}>Otros</option>
+                                @foreach($expenseCategories ?? [] as $cat)
+                                    <option value="{{ e($cat->name) }}" {{ old('expense_category') === $cat->name ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                @endforeach
+                                @if(($expenseCategories ?? collect())->isEmpty())
+                                    <option value="" disabled>Configura categorías en Ajustes → Categorías de gastos</option>
+                                @endif
                             </select>
                         </label>
                         <label class="block">
@@ -321,7 +317,7 @@
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold text-slate-700">Importe total (€) *</span>
-                            <input type="number" name="total_amount" id="totalAmount" step="0.01" min="0" value="{{ old('total_amount', old('expense_amount')) }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                            <input type="number" name="total_amount" id="totalAmount" step="0.01" value="{{ old('total_amount', old('expense_amount')) }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" placeholder="Puede ser negativo en gastos"/>
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold text-slate-700">Estado</span>

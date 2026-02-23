@@ -104,9 +104,10 @@ class FinancialController extends Controller
         $stores = $this->getAvailableStores();
         $suppliers = Supplier::orderBy('name')->get();
         $dailyCloseSettings = $this->getDailyCloseSettings();
+        $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
         
         try {
-            return view('financial.create', compact('stores', 'suppliers', 'type', 'allowedTypes', 'dailyCloseSettings'));
+            return view('financial.create', compact('stores', 'suppliers', 'type', 'allowedTypes', 'dailyCloseSettings', 'expenseCategories'));
         } catch (\Exception $e) {
             Log::error('Error en FinancialController@create: ' . $e->getMessage());
             return redirect()->route('financial.index')->with('error', 'Error al cargar el formulario');
@@ -115,17 +116,17 @@ class FinancialController extends Controller
 
     public function store(Request $request)
     {
-        // Validación base
+        // Validación base (gastos permiten importe negativo)
         $rules = [
             'date' => 'required|date',
             'store_id' => 'required|exists:stores,id',
             'type' => 'required|in:income,expense,daily_close',
-            'total_amount' => 'nullable|numeric|min:0',
+            'total_amount' => 'nullable|numeric',
             'status' => 'nullable|in:pendiente,pagado',
             'expense_payments' => 'nullable|array',
             'expense_payments.*.date' => 'required|date',
             'expense_payments.*.method' => 'required|in:cash,bank',
-            'expense_payments.*.amount' => 'required|numeric|min:0',
+            'expense_payments.*.amount' => 'required|numeric',
             'notes' => 'nullable|string',
             'expense_category' => 'nullable|string',
             'expense_concept' => 'nullable|string',
@@ -420,7 +421,8 @@ class FinancialController extends Controller
         
         $stores = $this->getAvailableStores();
         $dailyCloseSettings = $this->getDailyCloseSettings();
-        return view('financial.edit', compact('entry', 'stores', 'dailyCloseSettings'));
+        $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
+        return view('financial.edit', compact('entry', 'stores', 'dailyCloseSettings', 'expenseCategories'));
     }
 
     public function update(Request $request, $id)
@@ -449,12 +451,13 @@ class FinancialController extends Controller
             $rules['total_amount'] = 'nullable|numeric';
             $rules['income_amount'] = 'nullable|numeric';
         } else {
-            $rules['total_amount'] = 'nullable|numeric|min:0';
+            // Gastos permiten importe negativo; ingresos mantienen min:0
+            $rules['total_amount'] = 'nullable|numeric';
             $rules['income_amount'] = 'nullable|numeric|min:0';
             $rules['expense_payments'] = 'nullable|array';
             $rules['expense_payments.*.date'] = 'required|date';
             $rules['expense_payments.*.method'] = 'required|in:cash,bank';
-            $rules['expense_payments.*.amount'] = 'required|numeric|min:0';
+            $rules['expense_payments.*.amount'] = 'required|numeric';
         }
         $validated = $request->validate($rules);
 
@@ -800,8 +803,9 @@ class FinancialController extends Controller
 
         $entries = $query->orderBy('date', 'desc')->get();
         $stores = $this->getAvailableStores();
+        $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
 
-        return view('financial.expenses', compact('entries', 'stores', 'period'));
+        return view('financial.expenses', compact('entries', 'stores', 'period', 'expenseCategories'));
     }
 
     public function dailyCloses(Request $request)
@@ -1795,7 +1799,8 @@ class FinancialController extends Controller
         }
 
         $suppliers = Supplier::orderBy('name')->get();
-        return view('financial.cash-control-month', compact('store', 'entries', 'monthLabel', 'monthTotal', 'monthKey', 'period', 'expensesByDay', 'monthExpenses', 'monthExpensesTotal', 'days', 'year', 'month', 'totalCashReal', 'monthBalance', 'cashWithdrawals', 'totalCashCollected', 'totalTraspasosEfectivo', 'suppliers', 'entriesSortDate'));
+        $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
+        return view('financial.cash-control-month', compact('store', 'entries', 'monthLabel', 'monthTotal', 'monthKey', 'period', 'expensesByDay', 'monthExpenses', 'monthExpensesTotal', 'days', 'year', 'month', 'totalCashReal', 'monthBalance', 'cashWithdrawals', 'totalCashCollected', 'totalTraspasosEfectivo', 'suppliers', 'entriesSortDate', 'expenseCategories'));
     }
 
     public function storeCashControlExpense($storeId, $monthKey, Request $request)
@@ -1806,7 +1811,7 @@ class FinancialController extends Controller
             'supplier_id' => 'nullable|exists:suppliers,id',
             'expense_category' => 'required|string',
             'expense_concept' => 'required|string',
-            'expense_amount' => 'required|numeric|min:0',
+            'expense_amount' => 'required|numeric',
         ]);
 
         $notes = json_encode([
@@ -2099,7 +2104,8 @@ class FinancialController extends Controller
             }
         }
         
-        return view('financial.bank-conciliation', compact('movements', 'bankAccounts', 'stores', 'relatedTransfers', 'movementToTransferMap'));
+        $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
+        return view('financial.bank-conciliation', compact('movements', 'bankAccounts', 'stores', 'relatedTransfers', 'movementToTransferMap', 'expenseCategories'));
     }
 
     /**
@@ -2138,7 +2144,7 @@ class FinancialController extends Controller
             'store_id' => 'required|exists:stores,id',
             'expense_category' => 'nullable|string|max:255',
             'expense_concept' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric',
         ]);
         
         try {
@@ -2559,7 +2565,7 @@ class FinancialController extends Controller
             if ($request->has('action') && $request->action === 'create') {
                 $validated = $request->validate([
                     'store_id' => 'required|exists:stores,id',
-                    'amount' => 'required|numeric|min:0.01',
+                    'amount' => 'required|numeric',
                 ]);
                 
                 $entryData = [
@@ -2578,7 +2584,7 @@ class FinancialController extends Controller
                         'store_id' => 'required|exists:stores,id',
                         'supplier_id' => 'nullable|exists:suppliers,id',
                         'expense_concept' => 'required|string|max:255',
-                        'amount' => 'required|numeric|min:0.01',
+                        'amount' => 'required|numeric',
                         'expense_category' => 'nullable|string|max:255',
                     ]);
                     
@@ -2735,7 +2741,7 @@ class FinancialController extends Controller
             'supplier_id' => 'nullable|exists:suppliers,id',
             'expense_category' => 'nullable|string|max:255',
             'expense_concept' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric',
         ]);
         
         try {

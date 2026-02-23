@@ -34,7 +34,7 @@
                 @endforeach
             </div>
         @endif
-        <form method="POST" action="{{ route('financial.update', $entry->id) }}" class="space-y-6" id="financialForm">
+        <form method="POST" action="{{ route('financial.update', $entry->id) }}" class="space-y-6" id="financialForm" novalidate>
             @csrf
             @method('PUT')
             
@@ -73,7 +73,7 @@
 
                 <label class="block" id="amountLabel" style="display: {{ ($entry->type === 'daily_close' || $entry->type === 'expense') ? 'none' : 'block' }};">
                     <span class="text-xs font-semibold text-slate-700">Importe (€) *</span>
-                    <input type="number" name="amount" id="amount" step="0.01" min="0" value="{{ old('amount', $entry->amount) }}" {{ ($entry->type !== 'daily_close' && $entry->type !== 'expense') ? 'required' : '' }} class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <input type="number" name="amount" id="amount" step="0.01" value="{{ old('amount', $entry->amount) }}" {{ ($entry->type !== 'daily_close' && $entry->type !== 'expense') ? 'required' : '' }} class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" placeholder="Puede ser negativo en gastos"/>
                 </label>
             </div>
 
@@ -325,16 +325,16 @@
                             <span class="text-xs font-semibold text-slate-700">Categoría del gasto</span>
                             <select name="expense_category" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                                 <option value="">Selecciona…</option>
-                                <option value="alquiler" {{ old('expense_category', $entry->expense_category) === 'alquiler' ? 'selected' : '' }}>Alquiler</option>
-                                <option value="impuestos" {{ old('expense_category', $entry->expense_category) === 'impuestos' ? 'selected' : '' }}>Impuestos</option>
-                                <option value="seguridad_social" {{ old('expense_category', $entry->expense_category) === 'seguridad_social' ? 'selected' : '' }}>Seguridad Social</option>
-                                <option value="suministros" {{ old('expense_category', $entry->expense_category) === 'suministros' ? 'selected' : '' }}>Suministros</option>
-                                <option value="servicios_profesionales" {{ old('expense_category', $entry->expense_category) === 'servicios_profesionales' ? 'selected' : '' }}>Servicios profesionales</option>
-                                <option value="sueldos" {{ old('expense_category', $entry->expense_category) === 'sueldos' ? 'selected' : '' }}>Sueldos</option>
-                                <option value="miramira" {{ old('expense_category', $entry->expense_category) === 'miramira' ? 'selected' : '' }}>Miramira</option>
-                                <option value="mercaderia" {{ old('expense_category', $entry->expense_category) === 'mercaderia' ? 'selected' : '' }}>Mercadería</option>
-                                <option value="equipamiento" {{ old('expense_category', $entry->expense_category) === 'equipamiento' ? 'selected' : '' }}>Equipamiento</option>
-                                <option value="otros" {{ old('expense_category', $entry->expense_category) === 'otros' ? 'selected' : '' }}>Otros</option>
+                                @php $currentExpenseCat = old('expense_category', $entry->expense_category); @endphp
+                                @if($currentExpenseCat && ($expenseCategories ?? collect())->where('name', $currentExpenseCat)->isEmpty())
+                                    <option value="{{ e($currentExpenseCat) }}" selected>{{ $currentExpenseCat }}</option>
+                                @endif
+                                @foreach($expenseCategories ?? [] as $cat)
+                                    <option value="{{ e($cat->name) }}" {{ $currentExpenseCat === $cat->name ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                @endforeach
+                                @if(($expenseCategories ?? collect())->isEmpty() && !$currentExpenseCat)
+                                    <option value="" disabled>Configura categorías en Ajustes → Categorías de gastos</option>
+                                @endif
                             </select>
                         </label>
                         <label class="block">
@@ -352,7 +352,7 @@
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold text-slate-700">Importe total (€) *</span>
-                            <input type="number" name="total_amount" id="totalAmount" step="0.01" min="0" value="{{ old('total_amount', $entry->total_amount ?? $entry->expense_amount ?? $entry->amount) }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                            <input type="number" name="total_amount" id="totalAmount" step="0.01" value="{{ old('total_amount', $entry->total_amount ?? $entry->expense_amount ?? $entry->amount) }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" placeholder="Puede ser negativo en gastos"/>
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold text-slate-700">Estado</span>
@@ -1169,11 +1169,8 @@ if (financialForm) {
 
     // Prevenir que Enter envíe el formulario y mover al siguiente campo
     financialForm.addEventListener('keydown', function(e) {
-        // Si se presiona Enter en un campo de entrada (no en textarea o botones)
         if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.type !== 'submit' && e.target.type !== 'button') {
             e.preventDefault();
-            
-            // Obtener todos los campos editables del formulario
             const allFields = Array.from(
                 financialForm.querySelectorAll(
                     'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([readonly]):not([disabled]), ' +
@@ -1181,35 +1178,16 @@ if (financialForm) {
                     'textarea:not([readonly]):not([disabled])'
                 )
             );
-            
-            // Filtrar campos visibles
             const visibleFields = allFields.filter((field) => {
                 const style = window.getComputedStyle(field);
                 const parent = field.closest('.hidden');
                 return style.display !== 'none' && style.visibility !== 'hidden' && !parent && !field.disabled && !field.readOnly;
             });
-            
-            // Encontrar el índice del campo actual
             const currentIndex = visibleFields.indexOf(e.target);
             if (currentIndex >= 0 && currentIndex < visibleFields.length - 1) {
-                // Mover al siguiente campo
                 visibleFields[currentIndex + 1].focus();
                 visibleFields[currentIndex + 1].select();
             }
-        }
-    });
-    
-    // Prevenir que el formulario se envíe accidentalmente con Enter
-    // El formulario solo se enviará cuando se haga clic explícitamente en el botón de guardar
-    financialForm.addEventListener('submit', function(e) {
-        const submitButton = document.querySelector('button[type="submit"]');
-        const focusedElement = document.activeElement;
-        
-        // Si el elemento con foco no es el botón de submit, prevenir el envío
-        // Esto evita que Enter envíe el formulario accidentalmente
-        if (focusedElement && focusedElement !== submitButton && focusedElement.type !== 'submit') {
-            e.preventDefault();
-            return false;
         }
     });
 }

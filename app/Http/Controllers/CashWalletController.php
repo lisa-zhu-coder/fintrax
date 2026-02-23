@@ -326,7 +326,7 @@ class CashWalletController extends Controller
             'supplier_id' => 'nullable|exists:suppliers,id',
             'expense_category' => 'nullable|string|max:255',
             'concept' => 'nullable|string|max:255',
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric',
         ]);
 
         try {
@@ -577,7 +577,7 @@ class CashWalletController extends Controller
             'store_id' => 'required|exists:stores,id',
             'supplier_id' => 'nullable|exists:suppliers,id',
             'concept' => 'nullable|string|max:255',
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric',
         ]);
 
         try {

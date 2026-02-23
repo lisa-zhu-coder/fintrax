@@ -600,16 +600,22 @@ document.addEventListener('DOMContentLoaded', function() {
     function positionPopoverFixed(pop, btn) {
         const rect = btn.getBoundingClientRect();
         const popWidth = 280;
+        const margin = 8;
         pop.style.position = 'fixed';
-        pop.style.top = (rect.bottom + 4) + 'px';
-        const left = rect.right - popWidth;
-        if (left < 8) {
-            pop.style.left = '8px';
-        } else {
-            pop.style.left = left + 'px';
-        }
+        pop.style.left = '';
         pop.style.right = 'auto';
         pop.style.zIndex = '9999';
+
+        const left = Math.max(margin, Math.min(rect.right - popWidth, window.innerWidth - popWidth - margin));
+        pop.style.left = left + 'px';
+
+        const spaceBelow = window.innerHeight - rect.bottom - margin;
+        const popHeight = pop.offsetHeight || 220;
+        if (spaceBelow < popHeight && rect.top > popHeight + margin) {
+            pop.style.top = (rect.top - popHeight - 4) + 'px';
+        } else {
+            pop.style.top = (rect.bottom + 4) + 'px';
+        }
     }
 
     document.addEventListener('click', function(e) {

@@ -236,11 +236,17 @@
                         <th class="px-3 py-2 text-right">Efectivo Esperado</th>
                         <th class="px-3 py-2 text-right">Efectivo Real</th>
                         <th class="px-3 py-2 text-right">Discrepancia</th>
-                        <th class="px-3 py-2 text-right"></th>
+                        <th class="px-3 py-2 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse($entries as $entry)
+                        @php
+                            $dateKey = $entry->date->format('Y-m-d');
+                            $dayComment = $dayComments[$dateKey] ?? null;
+                            $commentText = $dayComment->comment ?? null;
+                            $rowId = 'cc-row-' . str_replace('-', '_', $dateKey);
+                        @endphp
                         <tr class="hover:bg-slate-50" data-entry-id="{{ $entry->id }}">
                             <td class="px-3 py-2">{{ $entry->date->format('d/m/Y') }}</td>
                             <td class="px-3 py-2 text-right font-semibold {{ $entry->cash_withdrawn >= 0 ? 'text-emerald-700' : 'text-rose-700' }}">
@@ -278,10 +284,40 @@
                                     <span class="text-slate-400">-</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2 text-right">
-                                <a href="{{ route('financial.show', [$entry->id, 'return_to' => $cashControlReturnUrl]) }}" class="text-brand-600 hover:text-brand-700 text-xs" title="Ver detalles">
-                                    Ver
-                                </a>
+                            <td class="px-3 py-2">
+                                <div class="flex items-center justify-center gap-1">
+                                    @if(auth()->user()->hasPermission('treasury.cash_control.edit'))
+                                    <div class="relative inline-flex">
+                                        <button type="button" class="btn-cc-comment rounded-lg p-1.5 {{ $commentText ? 'text-amber-600 hover:bg-amber-50' : 'text-slate-500 hover:bg-slate-100' }}" data-row-id="{{ $rowId }}" data-date="{{ $dateKey }}" title="{{ $commentText ? 'Ver comentario' : 'Añadir comentario' }}">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                        </button>
+                                        <div class="comment-cc-popover hidden absolute right-0 top-full z-[100] mt-1 min-w-[200px] max-w-[280px] rounded-lg border border-slate-200 bg-white p-3 shadow-lg ring-1 ring-slate-200" data-row-id="{{ $rowId }}" data-date="{{ $dateKey }}">
+                                            <div class="comment-cc-view text-sm text-slate-700">
+                                                <span class="comment-cc-text whitespace-pre-wrap">{{ $commentText ? e($commentText) : 'Sin comentario' }}</span>
+                                                <button type="button" class="btn-cc-edit-link mt-2 block text-xs text-brand-600 hover:text-brand-700">{{ $commentText ? 'Editar' : 'Añadir comentario' }}</button>
+                                            </div>
+                                            <div class="comment-cc-edit hidden">
+                                                <textarea class="comment-cc-textarea w-full rounded border border-slate-200 px-2 py-1 text-sm" rows="3" maxlength="2000" placeholder="Comentario...">{{ $commentText ?? '' }}</textarea>
+                                                <div class="mt-2 flex items-center gap-2">
+                                                    <button type="button" class="btn-cc-save-comment rounded bg-brand-600 px-2 py-1 text-xs font-semibold text-white hover:bg-brand-700">Guardar</button>
+                                                    <button type="button" class="btn-cc-clear-comment text-xs text-slate-500 hover:text-rose-600">Borrar comentario</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    @else
+                                    @if($commentText)
+                                    <span class="inline-flex rounded-lg p-1.5 text-amber-600" title="Comentario">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                    </span>
+                                    @else
+                                    <span class="text-slate-300">—</span>
+                                    @endif
+                                    @endif
+                                    <a href="{{ route('financial.show', [$entry->id, 'return_to' => $cashControlReturnUrl]) }}" class="inline-flex rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-brand-600" title="Ver detalles">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7Z"/></svg>
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                         @if(isset($expensesByDay[$entry->date->format('Y-m-d')]) && !empty($expensesByDay[$entry->date->format('Y-m-d')]))
@@ -543,6 +579,121 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.value = '';
             }
         });
+    });
+
+    // Comentarios por día (control de efectivo)
+    const storeId = {{ $store->id }};
+    const dayCommentUrl = '{{ route("financial.cash-control-day-comment", ["store" => $store->id]) }}';
+
+    function closeAllCcPopovers() {
+        document.querySelectorAll('.comment-cc-popover').forEach(p => {
+            p.classList.add('hidden');
+            p.style.position = '';
+            p.style.top = '';
+            p.style.left = '';
+            p.style.right = '';
+        });
+        document.querySelectorAll('.comment-cc-view').forEach(v => v.classList.remove('hidden'));
+        document.querySelectorAll('.comment-cc-edit').forEach(e => e.classList.add('hidden'));
+    }
+
+    function positionPopoverFixed(pop, btn) {
+        const rect = btn.getBoundingClientRect();
+        const popWidth = 280;
+        pop.style.position = 'fixed';
+        pop.style.top = (rect.bottom + 4) + 'px';
+        const left = rect.right - popWidth;
+        if (left < 8) {
+            pop.style.left = '8px';
+        } else {
+            pop.style.left = left + 'px';
+        }
+        pop.style.right = 'auto';
+        pop.style.zIndex = '9999';
+    }
+
+    document.addEventListener('click', function(e) {
+        const btnComment = e.target.closest('.btn-cc-comment');
+        const popover = e.target.closest('.comment-cc-popover');
+        if (e.target.closest('.btn-cc-edit-link')) {
+            e.preventDefault();
+            const p = e.target.closest('.comment-cc-popover');
+            if (p) {
+                p.querySelector('.comment-cc-view').classList.add('hidden');
+                const editDiv = p.querySelector('.comment-cc-edit');
+                editDiv.classList.remove('hidden');
+                const ta = editDiv.querySelector('.comment-cc-textarea');
+                if (ta) ta.focus();
+            }
+            return;
+        }
+        if (e.target.closest('.btn-cc-clear-comment')) {
+            e.preventDefault();
+            const p = e.target.closest('.comment-cc-popover');
+            if (p) {
+                const ta = p.querySelector('.comment-cc-textarea');
+                if (ta) ta.value = '';
+            }
+            return;
+        }
+        if (e.target.closest('.btn-cc-save-comment')) {
+            e.preventDefault();
+            const btn = e.target.closest('.btn-cc-save-comment');
+            const p = btn.closest('.comment-cc-popover');
+            if (!p) return;
+            const date = p.getAttribute('data-date');
+            const ta = p.querySelector('.comment-cc-textarea');
+            const comment = ta ? ta.value.trim() : '';
+            const formData = new FormData();
+            formData.append('_token', '{{ csrf_token() }}');
+            formData.append('date', date);
+            formData.append('comment', comment);
+            fetch(dayCommentUrl, { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const viewDiv = p.querySelector('.comment-cc-view');
+                        const textSpan = viewDiv && viewDiv.querySelector('.comment-cc-text');
+                        if (textSpan) textSpan.textContent = data.comment || 'Sin comentario';
+                        const editLink = viewDiv && viewDiv.querySelector('.btn-cc-edit-link');
+                        if (editLink) editLink.textContent = data.comment ? 'Editar' : 'Añadir comentario';
+                        viewDiv.classList.remove('hidden');
+                        p.querySelector('.comment-cc-edit').classList.add('hidden');
+                        const iconBtn = document.querySelector('.btn-cc-comment[data-date="' + date + '"]');
+                        if (iconBtn) {
+                            iconBtn.classList.remove('text-slate-500', 'hover:bg-slate-100');
+                            iconBtn.classList.add('text-amber-600', 'hover:bg-amber-50');
+                            iconBtn.setAttribute('title', data.comment ? 'Ver comentario' : 'Añadir comentario');
+                        }
+                        if (!data.comment) {
+                            iconBtn.classList.remove('text-amber-600', 'hover:bg-amber-50');
+                            iconBtn.classList.add('text-slate-500', 'hover:bg-slate-100');
+                        }
+                        closeAllCcPopovers();
+                    }
+                })
+                .catch(err => alert('Error al guardar el comentario'));
+            return;
+        }
+        if (btnComment) {
+            e.preventDefault();
+            const rowId = btnComment.getAttribute('data-row-id');
+            const date = btnComment.getAttribute('data-date');
+            const pop = document.querySelector('.comment-cc-popover[data-date="' + date + '"]');
+            if (!pop) return;
+            const isOpen = !pop.classList.contains('hidden');
+            closeAllCcPopovers();
+            if (!isOpen) {
+                pop.classList.remove('hidden');
+                pop.querySelector('.comment-cc-view').classList.remove('hidden');
+                pop.querySelector('.comment-cc-edit').classList.add('hidden');
+                positionPopoverFixed(pop, btnComment);
+            }
+            return;
+        }
+        if (!popover && !e.target.closest('.btn-cc-comment')) {
+            closeAllCcPopovers();
+        }
     });
 });
 </script>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
 use App\Models\BankAccount;
 use App\Models\BankMovement;
+use App\Models\CashControlDayComment;
 use App\Models\Company;
 use App\Models\CashWallet;
 use App\Models\CashWalletExpense;
@@ -41,7 +42,7 @@ class FinancialController extends Controller
         $this->middleware('permission:financial.registros.export')->only('export');
         $this->middleware('permission:treasury.cash_control.view')->only(['cashControl', 'cashControlStore', 'cashControlMonth']);
         $this->middleware('permission:treasury.cash_control.create')->only(['storeCashControlExpense']);
-        $this->middleware('permission:treasury.cash_control.edit')->only(['updateCashReal']);
+        $this->middleware('permission:treasury.cash_control.edit')->only(['updateCashReal', 'storeCashControlDayComment']);
         $this->middleware('permission:treasury.bank_control.view')->only(['bankControl', 'bankImportForm', 'downloadBankImportTemplate', 'bankImportStore']);
         $this->middleware('permission:treasury.bank_conciliation.view')->only(['bankConciliation', 'getAvailableExpenses', 'getAvailableIncomes']);
         $this->middleware('permission:treasury.bank_conciliation.edit')->only(['editBankMovement', 'updateBankMovement', 'conciliateBankMovement', 'linkBankMovement', 'createExpenseFromBankMovement', 'createExpenseFromBankMovementRoute', 'linkBankMovementToExpense', 'conciliateAsTransfer', 'ignoreBankMovement', 'ignoreBankMovementRoute', 'confirmTransfer', 'linkExpenseFromBankMovement']);
@@ -1800,7 +1801,15 @@ class FinancialController extends Controller
 
         $suppliers = Supplier::orderBy('name')->get();
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
-        return view('financial.cash-control-month', compact('store', 'entries', 'monthLabel', 'monthTotal', 'monthKey', 'period', 'expensesByDay', 'monthExpenses', 'monthExpensesTotal', 'days', 'year', 'month', 'totalCashReal', 'monthBalance', 'cashWithdrawals', 'totalCashCollected', 'totalTraspasosEfectivo', 'suppliers', 'entriesSortDate', 'expenseCategories'));
+
+        $firstDay = \Carbon\Carbon::create($year, $month, 1)->startOfDay();
+        $lastDay = \Carbon\Carbon::create($year, $month, 1)->endOfMonth()->endOfDay();
+        $dayComments = CashControlDayComment::where('store_id', $storeId)
+            ->whereBetween('date', [$firstDay, $lastDay])
+            ->get()
+            ->keyBy(fn ($c) => $c->date->format('Y-m-d'));
+
+        return view('financial.cash-control-month', compact('store', 'entries', 'monthLabel', 'monthTotal', 'monthKey', 'period', 'expensesByDay', 'monthExpenses', 'monthExpensesTotal', 'days', 'year', 'month', 'totalCashReal', 'monthBalance', 'cashWithdrawals', 'totalCashCollected', 'totalTraspasosEfectivo', 'suppliers', 'entriesSortDate', 'expenseCategories', 'dayComments'));
     }
 
     public function storeCashControlExpense($storeId, $monthKey, Request $request)
@@ -1838,6 +1847,36 @@ class FinancialController extends Controller
             'store' => $storeId,
             'month' => $monthKey
         ])->with('success', 'Gasto añadido correctamente');
+    }
+
+    public function storeCashControlDayComment(Store $store, Request $request)
+    {
+        $this->authorizeStoreAccess($store->id);
+
+        $request->validate([
+            'date' => 'required|date',
+            'comment' => 'nullable|string|max:2000',
+        ]);
+
+        $date = $request->date;
+        $comment = $request->filled('comment') ? trim($request->comment) : null;
+
+        $record = CashControlDayComment::withoutGlobalScope(\App\Models\Scopes\BelongsToCompanyScope::class)
+            ->updateOrCreate(
+                [
+                    'store_id' => $store->id,
+                    'date' => $date,
+                ],
+                [
+                    'company_id' => $store->company_id,
+                    'comment' => $comment,
+                ]
+            );
+
+        return response()->json([
+            'success' => true,
+            'comment' => $record->comment,
+        ]);
     }
 
     public function updateCashReal($entryId, Request $request)

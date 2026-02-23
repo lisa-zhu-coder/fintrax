@@ -76,4 +76,9 @@ class Store extends Model
     {
         return $this->hasMany(CustomerRepair::class);
     }
+
+    public function cashControlDayComments(): HasMany
+    {
+        return $this->hasMany(CashControlDayComment::class);
+    }
 }

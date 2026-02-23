@@ -149,6 +149,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::get('/financial/cash-control/{store}', [FinancialController::class, 'cashControlStore'])->name('financial.cash-control-store');
     Route::get('/financial/cash-control/{store}/{month}', [FinancialController::class, 'cashControlMonth'])->name('financial.cash-control-month');
     Route::post('/financial/cash-control/{store}/{month}/expense', [FinancialController::class, 'storeCashControlExpense'])->name('financial.cash-control-expense');
+    Route::post('/financial/cash-control/{store}/day-comment', [FinancialController::class, 'storeCashControlDayComment'])->name('financial.cash-control-day-comment');
     Route::post('/financial/entry/{entry}/cash-real', [FinancialController::class, 'updateCashReal'])->name('financial.update-cash-real');
     Route::get('/financial/add-cash-real-column', function() {
         try {

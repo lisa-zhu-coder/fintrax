@@ -85,19 +85,16 @@ class OrderController extends Controller
             $this->scopeStoreForCurrentUser($query);
         }
 
-        if ($request->filled('date_from')) {
-            $query->whereDate('date', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('date', '<=', $request->date_to);
-        }
-        if (!$request->filled('date_from') && !$request->filled('date_to')) {
-            $period = $request->get('period', 'last_30');
-            $this->applyPeriodFilter($query, $period, $request);
-        }
-
         if ($request->filled('payment_method') && in_array($request->payment_method, ['cash', 'transfer', 'card'], true)) {
             $query->whereHas('payments', fn ($q) => $q->where('method', $request->payment_method));
+        }
+
+        if ($request->filled('search')) {
+            $term = '%' . trim($request->search) . '%';
+            $query->where(function ($q) use ($term) {
+                $q->where('invoice_number', 'like', $term)
+                    ->orWhere('order_number', 'like', $term);
+            });
         }
 
         $period = $request->get('period', 'last_30');
@@ -117,6 +114,7 @@ class OrderController extends Controller
             'date_to' => $request->get('date_to'),
             'payment_method' => $request->get('payment_method'),
             'period' => $request->filled('date_from') && $request->filled('date_to') ? 'custom' : $request->get('period', 'last_30'),
+            'search' => $request->get('search'),
         ];
 
         return view('orders.supplier', compact('supplier', 'orders', 'summary', 'summaryByStore', 'stores', 'filters'));

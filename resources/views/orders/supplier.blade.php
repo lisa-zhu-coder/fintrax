@@ -3,7 +3,7 @@
 @section('title', 'Pedidos - ' . $supplier->name)
 
 @section('content')
-<div class="space-y-6">
+<div class="flex flex-col">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <div class="flex items-center justify-between">
             <div>
@@ -31,11 +31,48 @@
         </div>
     </header>
 
-    <!-- Filtros -->
-    <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+    <!-- Resumen por tienda (primero, según especificación) -->
+    @if(!empty($summaryByStore))
+    <div class="mt-10 rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+        <h2 class="mb-4 text-base font-semibold">Resumen por tienda</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-left text-sm">
+                <thead class="text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-3 py-2">Tienda</th>
+                        <th class="px-3 py-2 text-right">Pedidos</th>
+                        <th class="px-3 py-2 text-right">Total</th>
+                        <th class="px-3 py-2 text-right">Pagado</th>
+                        <th class="px-3 py-2 text-right">Pendiente</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @foreach($summaryByStore as $storeSummary)
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-3 py-2 font-semibold">{{ $storeSummary['store_name'] }}</td>
+                            <td class="px-3 py-2 text-right">{{ $storeSummary['total_orders'] }}</td>
+                            <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($storeSummary['total_amount'], 2, ',', '.') }} €</td>
+                            <td class="px-3 py-2 text-right text-emerald-700 whitespace-nowrap">{{ number_format($storeSummary['total_paid'], 2, ',', '.') }} €</td>
+                            <td class="px-3 py-2 text-right font-semibold {{ $storeSummary['total_pending'] > 0 ? 'text-amber-700' : 'text-emerald-700' }} whitespace-nowrap">
+                                {{ number_format($storeSummary['total_pending'], 2, ',', '.') }} €
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
+
+    <!-- Filtros (encima del listado de pedidos) -->
+    <div class="mt-10 rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <h2 class="mb-3 text-base font-semibold">Filtros</h2>
         <form method="GET" action="{{ route('orders.supplier', $supplier) }}" class="space-y-4">
             <div class="flex flex-wrap items-end gap-4">
+                <label class="block min-w-[200px]">
+                    <span class="text-xs font-semibold text-slate-700">Buscar</span>
+                    <input type="text" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Nº factura o Nº pedido" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                </label>
                 <label class="block min-w-[140px]">
                     <span class="text-xs font-semibold text-slate-700">Tienda</span>
                     <select name="store_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
@@ -84,41 +121,8 @@
         </form>
     </div>
 
-    <!-- Resumen por tienda (primero, según especificación) -->
-    @if(!empty($summaryByStore))
-    <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100 mt-10">
-        <h2 class="mb-4 text-base font-semibold">Resumen por tienda</h2>
-        <div class="overflow-x-auto">
-            <table class="min-w-full text-left text-sm">
-                <thead class="text-xs uppercase text-slate-500">
-                    <tr>
-                        <th class="px-3 py-2">Tienda</th>
-                        <th class="px-3 py-2 text-right">Pedidos</th>
-                        <th class="px-3 py-2 text-right">Total</th>
-                        <th class="px-3 py-2 text-right">Pagado</th>
-                        <th class="px-3 py-2 text-right">Pendiente</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @foreach($summaryByStore as $storeSummary)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-3 py-2 font-semibold">{{ $storeSummary['store_name'] }}</td>
-                            <td class="px-3 py-2 text-right">{{ $storeSummary['total_orders'] }}</td>
-                            <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($storeSummary['total_amount'], 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right text-emerald-700 whitespace-nowrap">{{ number_format($storeSummary['total_paid'], 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-semibold {{ $storeSummary['total_pending'] > 0 ? 'text-amber-700' : 'text-emerald-700' }} whitespace-nowrap">
-                                {{ number_format($storeSummary['total_pending'], 2, ',', '.') }} €
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    </div>
-    @endif
-
     <!-- Listado de pedidos -->
-    <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100 mt-10">
+    <div class="mt-10 rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <h2 class="mb-4 text-base font-semibold">Pedidos</h2>
         <div class="overflow-x-auto">
             <table class="min-w-full text-left text-sm">

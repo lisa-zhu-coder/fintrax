@@ -132,8 +132,7 @@
                         <th class="px-3 py-2">Concepto</th>
                         <th class="px-3 py-2 text-right">Importe</th>
                         <th class="px-3 py-2 text-right">Pendiente</th>
-                        <th class="px-3 py-2">Factura</th>
-                        <th class="px-3 py-2"></th>
+                        <th class="px-3 py-2 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -157,37 +156,38 @@
                             <td class="px-3 py-2 text-right font-semibold {{ ($order->amount - $order->total_paid) > 0 ? 'text-amber-700' : 'text-emerald-700' }} whitespace-nowrap">
                                 {{ number_format(max(0, $order->amount - $order->total_paid), 2, ',', '.') }} €
                             </td>
-                            <td class="px-3 py-2 text-center">
-                                @php $invoice = $order->invoice(); @endphp
-                                @if($invoice)
-                                    @php $mimeType = \Illuminate\Support\Facades\Storage::disk('local')->exists($invoice->file_path) ? \Illuminate\Support\Facades\Storage::disk('local')->mimeType($invoice->file_path) : 'application/octet-stream'; @endphp
-                                    <a href="#" data-invoice-preview data-invoice-id="{{ $invoice->id }}"
-                                       data-invoice-title="Previsualizar Factura"
-                                       data-invoice-subtitle="{{ $invoice->supplier_name ?: 'Sin proveedor' }} - {{ $invoice->invoice_number ?: 'Sin número' }}"
-                                       data-invoice-serve="{{ route('invoices.serve', $invoice->id) }}"
-                                       data-invoice-download="{{ route('invoices.download', $invoice->id) }}"
-                                       data-invoice-mime="{{ $mimeType }}"
-                                       class="inline-flex items-center justify-center rounded-lg p-1.5 text-brand-600 hover:bg-brand-50" title="Ver factura">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
+                            <td class="px-3 py-2">
+                                <div class="flex items-center justify-center gap-1">
+                                    @php $invoice = $order->invoice(); @endphp
+                                    @if($invoice)
+                                        @php $mimeType = \Illuminate\Support\Facades\Storage::disk('local')->exists($invoice->file_path) ? \Illuminate\Support\Facades\Storage::disk('local')->mimeType($invoice->file_path) : 'application/octet-stream'; @endphp
+                                        <a href="#" data-invoice-preview data-invoice-id="{{ $invoice->id }}"
+                                           data-invoice-title="Previsualizar Factura"
+                                           data-invoice-subtitle="{{ $invoice->supplier_name ?: 'Sin proveedor' }} - {{ $invoice->invoice_number ?: 'Sin número' }}"
+                                           data-invoice-serve="{{ route('invoices.serve', $invoice->id) }}"
+                                           data-invoice-download="{{ route('invoices.download', $invoice->id) }}"
+                                           data-invoice-mime="{{ $mimeType }}"
+                                           class="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-brand-600" title="Ver factura">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </a>
+                                    @else
+                                        <span class="inline-flex w-8 justify-center text-slate-300">—</span>
+                                    @endif
+                                    <a href="{{ route('orders.show', $order) }}" class="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-brand-600" title="Ver">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     </a>
-                                @else
-                                    <span class="text-slate-400">—</span>
-                                @endif
-                            </td>
-                            <td class="px-3 py-2 text-right">
-                                <div class="flex items-center gap-2 justify-end">
-                                    <a href="{{ route('orders.show', $order) }}" class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">Ver</a>
                                     @if(auth()->user()->hasPermission('orders.main.edit'))
-                                    <a href="{{ route('orders.edit', $order) }}" class="rounded-lg px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50">Editar</a>
+                                    <a href="{{ route('orders.edit', $order) }}" class="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-brand-50 hover:text-brand-600" title="Editar">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke-linecap="round" stroke-linejoin="round"/><path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </a>
                                     @endif
                                     @if(auth()->user()->hasPermission('orders.main.delete'))
                                     <form method="POST" action="{{ route('orders.destroy', $order) }}" class="inline" onsubmit="return confirm('¿Estás seguro?')">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">Eliminar</button>
+                                        <button type="submit" class="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600" title="Eliminar">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke-linecap="round" stroke-linejoin="round"/><path d="m10 11 6 6m0-6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </button>
                                     </form>
                                     @endif
                                 </div>
@@ -195,7 +195,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="px-3 py-6 text-center text-slate-500">No hay pedidos para este proveedor</td>
+                            <td colspan="9" class="px-3 py-6 text-center text-slate-500">No hay pedidos para este proveedor</td>
                         </tr>
                     @endforelse
                 </tbody>

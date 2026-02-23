@@ -61,10 +61,16 @@
                                     {{ $row->period_end ? \Carbon\Carbon::parse($row->period_end)->format('d/m/Y') : '—' }}
                                     @endif
                                 </td>
-                                <td class="px-3 py-2 text-right">{{ $row->days_worked }}</td>
-                                <td class="px-3 py-2 text-right">{{ number_format($row->vacation_generated, 2, ',', '.') }}</td>
-                                <td class="px-3 py-2 text-right">{{ $row->vacation_taken }}</td>
-                                <td class="px-3 py-2 text-right font-semibold">{{ number_format($row->vacation_remaining, 2, ',', '.') }}</td>
+                                <td class="px-3 py-2 text-right">{{ (int) round($row->days_worked) }}</td>
+                                <td class="px-3 py-2 text-right">
+                                    @php $vg = round($row->vacation_generated, 2); @endphp
+                                    {{ $vg == (int) $vg ? (int) $vg : number_format($row->vacation_generated, 2, ',', '.') }}
+                                </td>
+                                <td class="px-3 py-2 text-right">{{ (int) round($row->vacation_taken) }}</td>
+                                <td class="px-3 py-2 text-right font-semibold">
+                                    @php $vr = round($row->vacation_remaining, 2); @endphp
+                                    {{ $vr == (int) $vr ? (int) $vr : number_format($row->vacation_remaining, 2, ',', '.') }}
+                                </td>
                             </tr>
                         @endforeach
                         @if(empty($employeesData))

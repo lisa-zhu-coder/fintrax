@@ -468,8 +468,8 @@ class CashWalletController extends Controller
         }
 
         $withdrawal->load('store');
-        $stores = $this->getAvailableStores();
-        
+        $stores = $this->storesForCurrentUser();
+
         return view('cash-wallets.withdrawals.edit', compact('cashWallet', 'withdrawal', 'stores'));
     }
 
@@ -556,7 +556,7 @@ class CashWalletController extends Controller
                 ->with('error', 'El gasto no tiene un registro financiero asociado.');
         }
         
-        $stores = $this->getAvailableStores();
+        $stores = $this->storesForCurrentUser();
         $suppliers = Supplier::orderBy('name')->get();
 
         return view('cash-wallets.expenses.edit', compact('cashWallet', 'expense', 'stores', 'suppliers'));
@@ -645,8 +645,8 @@ class CashWalletController extends Controller
         }
 
         $transfer->load('store');
-        $stores = $this->getAvailableStores();
-        
+        $stores = $this->storesForCurrentUser();
+
         return view('cash-wallets.transfers.edit', compact('cashWallet', 'transfer', 'stores'));
     }
 

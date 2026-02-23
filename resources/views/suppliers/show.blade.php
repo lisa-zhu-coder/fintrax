@@ -24,6 +24,10 @@
         <h2 class="mb-4 text-base font-semibold">Datos del proveedor</h2>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div class="rounded-xl bg-slate-50 px-3 py-2">
+                <span class="text-xs font-semibold text-slate-500">Categoría de gasto</span>
+                <p class="text-sm font-medium text-slate-800">{{ $supplier->expenseCategory?->name ?? $supplier->type ?? '—' }}</p>
+            </div>
+            <div class="rounded-xl bg-slate-50 px-3 py-2">
                 <span class="text-xs font-semibold text-slate-500">CIF</span>
                 <p class="text-sm font-medium text-slate-800">{{ $supplier->cif ?? '—' }}</p>
             </div>

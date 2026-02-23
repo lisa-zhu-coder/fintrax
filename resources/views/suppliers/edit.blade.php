@@ -25,13 +25,15 @@
                     @error('name')<p class="mt-1 text-xs text-rose-600">{{ $message }}</p>@enderror
                 </label>
                 <label class="block">
-                    <span class="text-xs font-semibold text-slate-700">Tipo</span>
-                    <select name="type" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                        <option value="">Selecciona un tipo</option>
-                        @foreach(\App\Models\Supplier::TYPES as $value => $label)
-                            <option value="{{ $value }}" {{ old('type', $supplier->type) === $value ? 'selected' : '' }}>{{ $label }}</option>
+                    <span class="text-xs font-semibold text-slate-700">Tipo / Categoría de gasto *</span>
+                    <select name="expense_category_id" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Selecciona una categoría</option>
+                        @foreach($expenseCategories as $cat)
+                            <option value="{{ $cat->id }}" {{ old('expense_category_id', $supplier->expense_category_id) == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
                         @endforeach
                     </select>
+                    <p class="mt-1 text-xs text-slate-500">Los gastos de los pedidos de este proveedor se asignarán a esta categoría.</p>
+                    @error('expense_category_id')<p class="mt-1 text-xs text-rose-600">{{ $message }}</p>@enderror
                 </label>
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">CIF</span>

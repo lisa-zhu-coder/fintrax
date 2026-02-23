@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Supplier;
+use App\Models\ExpenseCategory;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class SupplierController extends Controller
 {
@@ -27,21 +29,23 @@ class SupplierController extends Controller
 
     public function index()
     {
-        $suppliers = Supplier::withCount('orders')->orderBy('name')->get();
+        $suppliers = Supplier::with('expenseCategory')->withCount('orders')->orderBy('name')->get();
         return view('suppliers.index', compact('suppliers'));
     }
 
     public function create()
     {
         $supplier = new Supplier();
-        return view('suppliers.create', compact('supplier'));
+        $expenseCategories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
+        return view('suppliers.create', compact('supplier', 'expenseCategories'));
     }
 
     public function store(Request $request)
     {
+        $companyId = session('company_id');
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'type' => 'nullable|string|in:' . implode(',', array_keys(Supplier::TYPES)),
+            'expense_category_id' => ['required', Rule::exists('expense_categories', 'id')->where('company_id', $companyId)],
             'cif' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:500',
             'email' => 'nullable|email|max:255',
@@ -60,14 +64,16 @@ class SupplierController extends Controller
 
     public function edit(Supplier $supplier)
     {
-        return view('suppliers.edit', compact('supplier'));
+        $expenseCategories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
+        return view('suppliers.edit', compact('supplier', 'expenseCategories'));
     }
 
     public function update(Request $request, Supplier $supplier)
     {
+        $companyId = session('company_id');
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'type' => 'nullable|string|in:' . implode(',', array_keys(Supplier::TYPES)),
+            'expense_category_id' => ['required', Rule::exists('expense_categories', 'id')->where('company_id', $companyId)],
             'cif' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:500',
             'email' => 'nullable|email|max:255',

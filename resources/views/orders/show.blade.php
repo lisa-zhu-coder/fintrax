@@ -150,7 +150,7 @@
                                     <td class="px-3 py-2 text-sm text-slate-600">{{ $payment->date->format('d/m/Y') }}</td>
                                     <td class="px-3 py-2 text-sm text-slate-600">
                                         @php
-                                            $methods = ['cash' => 'Efectivo', 'bank' => 'Banco', 'transfer' => 'Transferencia', 'card' => 'Tarjeta'];
+                                            $methods = ['cash' => 'Efectivo', 'transfer' => 'Transferencia', 'card' => 'Tarjeta', 'bank' => 'Transferencia'];
                                         @endphp
                                         {{ $methods[$payment->method] ?? $payment->method }}
                                     </td>
@@ -201,7 +201,7 @@
                             'deleted' => 'Eliminado'
                         ];
                         $conceptLabels = ['pedido' => 'Pedido', 'royalty' => 'Royalty', 'rectificacion' => 'Rectificación', 'tara' => 'Tara'];
-                        $paymentMethods = ['cash' => 'Efectivo', 'bank' => 'Banco', 'transfer' => 'Transferencia', 'card' => 'Tarjeta'];
+                        $paymentMethods = ['cash' => 'Efectivo', 'transfer' => 'Transferencia', 'card' => 'Tarjeta', 'bank' => 'Transferencia'];
                         $sortedHistory = collect($order->history)->sortByDesc(function($item) {
                             return is_string($item['timestamp']) ? strtotime($item['timestamp']) : $item['timestamp'];
                         });

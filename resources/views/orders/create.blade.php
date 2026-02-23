@@ -340,8 +340,7 @@ function addPaymentRow(payment = null) {
                 <select name="payments[${index}][method]" required class="payment-method mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                     <option value="">Selecciona...</option>
                     <option value="cash" ${payment?.method === 'cash' ? 'selected' : ''}>Efectivo</option>
-                    <option value="bank" ${payment?.method === 'bank' ? 'selected' : ''}>Banco</option>
-                    <option value="transfer" ${payment?.method === 'transfer' ? 'selected' : ''}>Transferencia</option>
+                    <option value="transfer" ${(payment?.method === 'transfer' || payment?.method === 'bank') ? 'selected' : ''}>Transferencia</option>
                     <option value="card" ${payment?.method === 'card' ? 'selected' : ''}>Tarjeta</option>
                 </select>
             </label>

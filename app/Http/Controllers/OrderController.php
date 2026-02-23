@@ -37,7 +37,7 @@ class OrderController extends Controller
         $ordersQuery = Order::with(['store', 'supplier', 'payments']);
         $this->scopeStoreForCurrentUser($ordersQuery);
         if ($request->has('period')) {
-            $this->applyPeriodFilter($ordersQuery, $request->period);
+            $this->applyPeriodFilter($ordersQuery, $request->period, $request);
         }
         $orders = $ordersQuery->get();
 
@@ -68,24 +68,58 @@ class OrderController extends Controller
 
     /**
      * Vista de segundo nivel: pedidos de un proveedor concreto.
+     * Filtros: tienda (store_id), fecha (date_from, date_to), forma de pago (payment_method).
      */
     public function supplierOrders(Request $request, Supplier $supplier)
     {
         $this->syncStoresFromBusinesses();
 
+        $supplier->load('expenseCategory');
+
         $query = Order::with(['store', 'supplier', 'payments'])
             ->where('supplier_id', $supplier->id);
-        $this->scopeStoreForCurrentUser($query);
 
-        if ($request->has('period')) {
-            $this->applyPeriodFilter($query, $request->period);
+        if ($request->filled('store_id')) {
+            $this->scopeStoreForCurrentUser($query, 'store_id', (int) $request->store_id);
+        } else {
+            $this->scopeStoreForCurrentUser($query);
         }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('date', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('date', '<=', $request->date_to);
+        }
+        if (!$request->filled('date_from') && !$request->filled('date_to')) {
+            $period = $request->get('period', 'last_30');
+            $this->applyPeriodFilter($query, $period, $request);
+        }
+
+        if ($request->filled('payment_method') && in_array($request->payment_method, ['cash', 'transfer', 'card'], true)) {
+            $query->whereHas('payments', fn ($q) => $q->where('method', $request->payment_method));
+        }
+
+        $period = $request->get('period', 'last_30');
+        if ($request->filled('date_from') && $request->filled('date_to')) {
+            $period = 'custom';
+        }
+        $this->applyPeriodFilter($query, $period, $request);
 
         $orders = $query->orderBy('date', 'desc')->get();
         $summary = $this->calculateSummary($orders);
         $summaryByStore = $this->calculateSummaryByStore($orders);
+        $stores = $this->storesForCurrentUser();
 
-        return view('orders.supplier', compact('supplier', 'orders', 'summary', 'summaryByStore'));
+        $filters = [
+            'store_id' => $request->get('store_id'),
+            'date_from' => $request->get('date_from'),
+            'date_to' => $request->get('date_to'),
+            'payment_method' => $request->get('payment_method'),
+            'period' => $request->filled('date_from') && $request->filled('date_to') ? 'custom' : $request->get('period', 'last_30'),
+        ];
+
+        return view('orders.supplier', compact('supplier', 'orders', 'summary', 'summaryByStore', 'stores', 'filters'));
     }
 
     public function create()
@@ -110,7 +144,7 @@ class OrderController extends Controller
             'amount' => 'required|numeric|min:0',
             'payments' => 'nullable|array',
             'payments.*.date' => 'required|date',
-            'payments.*.method' => 'required|in:cash,bank,transfer,card',
+            'payments.*.method' => 'required|in:cash,transfer,card',
             'payments.*.amount' => 'required|numeric|min:0',
             'payments.*.cash_source' => 'nullable|in:wallet,store',
             'payments.*.cash_wallet_id' => 'nullable|exists:cash_wallets,id',
@@ -232,7 +266,7 @@ class OrderController extends Controller
             'amount' => 'required|numeric|min:0',
             'payments' => 'nullable|array',
             'payments.*.date' => 'required|date',
-            'payments.*.method' => 'required|in:cash,bank,transfer,card',
+            'payments.*.method' => 'required|in:cash,transfer,card',
             'payments.*.amount' => 'required|numeric|min:0',
             'payments.*.cash_source' => 'nullable|in:wallet,store',
             'payments.*.cash_wallet_id' => 'nullable|exists:cash_wallets,id',
@@ -390,16 +424,40 @@ class OrderController extends Controller
         return redirect()->route('orders.index')->with('success', 'Pedido eliminado correctamente.');
     }
 
-    private function applyPeriodFilter($query, $period)
+    private function applyPeriodFilter($query, $period, $request = null)
     {
+        // Personalizado: usar date_from y date_to del request
+        if ($request && $request->filled('date_from') && $request->filled('date_to')) {
+            try {
+                $start = \Carbon\Carbon::parse($request->date_from)->startOfDay();
+                $end = \Carbon\Carbon::parse($request->date_to)->endOfDay();
+                $query->whereBetween('date', [$start, $end]);
+                return;
+            } catch (\Exception $e) {
+            }
+        }
+
         $end = now()->endOfDay();
-        
+
         switch ($period) {
             case 'last_7':
                 $start = now()->subDays(6)->startOfDay();
                 break;
             case 'last_30':
                 $start = now()->subDays(29)->startOfDay();
+                break;
+            case 'last_90':
+                $start = now()->subDays(89)->startOfDay();
+                break;
+            case 'this_month':
+                $start = now()->startOfMonth();
+                break;
+            case 'last_month':
+                $start = now()->subMonth()->startOfMonth();
+                $end = now()->subMonth()->endOfMonth();
+                break;
+            case 'this_year':
+                $start = now()->startOfYear();
                 break;
             default:
                 $start = now()->subDays(29)->startOfDay();
@@ -534,10 +592,13 @@ class OrderController extends Controller
      */
     private function createExpensesFromOrder(Order $order)
     {
-        // Recargar el pedido y cargar explícitamente la relación de pagos
+        // Recargar el pedido y cargar explícitamente la relación de pagos y proveedor con categoría
         $order->refresh();
-        $order->load('payments');
-        
+        $order->load('payments', 'supplier.expenseCategory');
+
+        // Categoría del gasto: la del proveedor (tipo = categoría de gasto) o fallback por concepto
+        $expenseCategoryName = $order->supplier?->expenseCategory?->name ?? $this->mapConceptToCategory($order->concept);
+
         // Calcular total pagado
         $totalPaid = $order->payments->sum('amount');
         $totalAmount = $order->amount;
@@ -559,7 +620,7 @@ class OrderController extends Controller
                 'expense_amount' => $totalAmount,
                 'paid_amount' => 0,
                 'status' => 'pendiente',
-                'expense_category' => $this->mapConceptToCategory($order->concept),
+                'expense_category' => $expenseCategoryName,
                 'expense_source' => 'pedido',
                 'expense_concept' => $this->generateExpenseConcept($order),
                 'expense_payment_method' => 'bank',
@@ -576,7 +637,7 @@ class OrderController extends Controller
         }
         
         $conceptBase = $this->generateExpenseConcept($order);
-        $category = $this->mapConceptToCategory($order->concept);
+        $category = $expenseCategoryName;
 
         DB::beginTransaction();
         try {

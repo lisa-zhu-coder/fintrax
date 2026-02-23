@@ -38,6 +38,7 @@
                     @forelse($suppliers as $supplier)
                     <tr class="hover:bg-slate-50">
                         <td class="px-3 py-2 font-semibold">{{ $supplier->name }}</td>
+                        <td class="px-3 py-2">{{ $supplier->expenseCategory?->name ?? $supplier->type ?? '—' }}</td>
                         <td class="px-3 py-2">{{ $supplier->cif ?? '—' }}</td>
                         <td class="px-3 py-2">{{ $supplier->email ?? '—' }}</td>
                         <td class="px-3 py-2 text-right">{{ $supplier->orders_count }}</td>

@@ -10,7 +10,9 @@
                 <a href="{{ route('orders.index') }}" class="text-sm text-slate-500 hover:text-slate-700 mb-1 inline-block">← Pedidos</a>
                 <h1 class="text-lg font-semibold">{{ $supplier->name }}</h1>
                 <p class="text-sm text-slate-500">
-                    @if($supplier->type)
+                    @if($supplier->expenseCategory)
+                        {{ $supplier->expenseCategory->name }}
+                    @elseif($supplier->type)
                         {{ \App\Models\Supplier::TYPES[$supplier->type] ?? ucfirst(str_replace('_', ' ', $supplier->type)) }}
                     @else
                         Pedidos de este proveedor
@@ -28,6 +30,59 @@
             </div>
         </div>
     </header>
+
+    <!-- Filtros -->
+    <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+        <h2 class="mb-3 text-base font-semibold">Filtros</h2>
+        <form method="GET" action="{{ route('orders.supplier', $supplier) }}" class="space-y-4">
+            <div class="flex flex-wrap items-end gap-4">
+                <label class="block min-w-[140px]">
+                    <span class="text-xs font-semibold text-slate-700">Tienda</span>
+                    <select name="store_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Todas</option>
+                        @foreach($stores as $store)
+                            <option value="{{ $store->id }}" {{ ($filters['store_id'] ?? '') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="block min-w-[180px]">
+                    <span class="text-xs font-semibold text-slate-700">Período</span>
+                    <select name="period" id="periodSelect" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="last_7" {{ ($filters['period'] ?? 'last_30') === 'last_7' ? 'selected' : '' }}>Últimos 7 días</option>
+                        <option value="last_30" {{ ($filters['period'] ?? 'last_30') === 'last_30' ? 'selected' : '' }}>Últimos 30 días</option>
+                        <option value="last_90" {{ ($filters['period'] ?? '') === 'last_90' ? 'selected' : '' }}>Últimos 90 días</option>
+                        <option value="this_month" {{ ($filters['period'] ?? '') === 'this_month' ? 'selected' : '' }}>Este mes</option>
+                        <option value="last_month" {{ ($filters['period'] ?? '') === 'last_month' ? 'selected' : '' }}>Mes pasado</option>
+                        <option value="this_year" {{ ($filters['period'] ?? '') === 'this_year' ? 'selected' : '' }}>Este año</option>
+                        <option value="custom" {{ ($filters['period'] ?? '') === 'custom' ? 'selected' : '' }}>Personalizado</option>
+                    </select>
+                </label>
+                <div id="customDateRange" class="{{ ($filters['period'] ?? '') === 'custom' ? 'grid grid-cols-2 gap-2' : 'hidden' }}">
+                    <label class="block">
+                        <span class="text-xs font-semibold text-slate-700">Desde</span>
+                        <input type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-semibold text-slate-700">Hasta</span>
+                        <input type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    </label>
+                </div>
+                <label class="block min-w-[160px]">
+                    <span class="text-xs font-semibold text-slate-700">Forma de pago</span>
+                    <select name="payment_method" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Todas</option>
+                        <option value="cash" {{ ($filters['payment_method'] ?? '') === 'cash' ? 'selected' : '' }}>Efectivo</option>
+                        <option value="transfer" {{ ($filters['payment_method'] ?? '') === 'transfer' ? 'selected' : '' }}>Transferencia</option>
+                        <option value="card" {{ ($filters['payment_method'] ?? '') === 'card' ? 'selected' : '' }}>Tarjeta</option>
+                    </select>
+                </label>
+                <div class="flex items-center gap-2">
+                    <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Filtrar</button>
+                    <a href="{{ route('orders.supplier', $supplier) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Limpiar</a>
+                </div>
+            </div>
+        </form>
+    </div>
 
     <!-- Resumen por tienda (primero, según especificación) -->
     @if(!empty($summaryByStore))
@@ -148,4 +203,24 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var periodSelect = document.getElementById('periodSelect');
+    var customDateRange = document.getElementById('customDateRange');
+    if (periodSelect && customDateRange) {
+        function toggleCustomDates() {
+            if (periodSelect.value === 'custom') {
+                customDateRange.classList.remove('hidden');
+                customDateRange.classList.add('grid', 'grid-cols-2', 'gap-2');
+            } else {
+                customDateRange.classList.add('hidden');
+                customDateRange.classList.remove('grid', 'grid-cols-2', 'gap-2');
+            }
+        }
+        toggleCustomDates();
+        periodSelect.addEventListener('change', toggleCustomDates);
+    }
+});
+</script>
 @endsection

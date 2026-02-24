@@ -120,7 +120,7 @@
                                         Ver
                                     </a>
                                     @if(auth()->user()->hasPermission('financial.expenses.delete') || auth()->user()->hasPermission('financial.registros.delete'))
-                                    <form method="POST" action="{{ route('financial.destroy', $expense['id']) }}" class="inline ml-1" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este gasto?');">
+                                    <form method="POST" action="{{ route('financial.destroy', $expense['id']) }}" class="inline ml-1">
                                         @csrf
                                         @method('DELETE')
                                         <input type="hidden" name="redirect_to" value="{{ $cashControlReturnUrl }}">
@@ -181,7 +181,7 @@
                                             </svg>
                                             Editar
                                         </a>
-                                        <form method="POST" action="{{ route('cash-wallets.withdrawals.destroy', ['cashWallet' => $withdrawal->cash_wallet_id, 'withdrawal' => $withdrawal->id]) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar esta recogida de efectivo? También se eliminará del historial de la cartera.')">
+                                        <form method="POST" action="{{ route('cash-wallets.withdrawals.destroy', ['cashWallet' => $withdrawal->cash_wallet_id, 'withdrawal' => $withdrawal->id]) }}" class="inline">
                                             @csrf
                                             @method('DELETE')
                                             <input type="hidden" name="redirect_to" value="{{ route('financial.cash-control-month', ['store' => $store->id, 'month' => $monthKey] + request()->only(['period', 'date_from', 'date_to'])) }}">
@@ -342,7 +342,7 @@
                                                             Ver
                                                         </a>
                                                         @if(auth()->user()->hasPermission('financial.expenses.delete') || auth()->user()->hasPermission('financial.registros.delete'))
-                                                        <form method="POST" action="{{ route('financial.destroy', $dayExpense['id']) }}" class="inline ml-1" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este gasto?');">
+                                                        <form method="POST" action="{{ route('financial.destroy', $dayExpense['id']) }}" class="inline ml-1">
                                                             @csrf
                                                             @method('DELETE')
                                                             <input type="hidden" name="redirect_to" value="{{ $cashControlReturnUrl }}">

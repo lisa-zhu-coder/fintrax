@@ -99,7 +99,7 @@
                                                 </svg>
                                                 Editar
                                             </a>
-                                            <form method="POST" action="{{ route('cash-wallets.withdrawals.destroy', ['cashWallet' => $cashWallet->id, 'withdrawal' => $movement['id']]) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este retiro? El saldo de la cartera se ajustará automáticamente.')">
+                                            <form method="POST" action="{{ route('cash-wallets.withdrawals.destroy', ['cashWallet' => $cashWallet->id, 'withdrawal' => $movement['id']]) }}" class="inline">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="inline-flex items-center justify-center gap-1 rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">
@@ -118,7 +118,7 @@
                                                 </svg>
                                                 Editar
                                             </a>
-                                            <form method="POST" action="{{ route('cash-wallets.expenses.destroy', ['cashWallet' => $cashWallet->id, 'expense' => $movement['id']]) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este gasto? Se eliminará también el registro financiero asociado y el saldo de la cartera se ajustará automáticamente.')">
+                                            <form method="POST" action="{{ route('cash-wallets.expenses.destroy', ['cashWallet' => $cashWallet->id, 'expense' => $movement['id']]) }}" class="inline">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="inline-flex items-center justify-center gap-1 rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">
@@ -137,7 +137,7 @@
                                                 </svg>
                                                 Editar
                                             </a>
-                                            <form method="POST" action="{{ route('cash-wallets.transfers.destroy', ['cashWallet' => $cashWallet->id, 'transfer' => $movement['id']]) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar esta transferencia? El saldo de la cartera se ajustará automáticamente.')">
+                                            <form method="POST" action="{{ route('cash-wallets.transfers.destroy', ['cashWallet' => $cashWallet->id, 'transfer' => $movement['id']]) }}" class="inline">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="inline-flex items-center justify-center gap-1 rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">

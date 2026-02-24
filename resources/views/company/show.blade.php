@@ -230,7 +230,7 @@
                     <div class="flex items-center justify-end gap-2">
                         <a href="{{ route('stores.edit', $business) }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cuentas bancarias</a>
                         <button type="button" class="business-cancel-btn rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-business-id="{{ $business->id }}">Cancelar</button>
-                        <button type="button" onclick="if(confirm('¿Estás seguro de eliminar este negocio?')) { document.getElementById('delete-form-{{ $business->id }}').submit(); }" class="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">Eliminar</button>
+                        <button type="submit" form="delete-form-{{ $business->id }}" class="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">Eliminar</button>
                         <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700" onclick="this.disabled=true; this.form.submit();">Guardar cambios</button>
                     </div>
                 </form>

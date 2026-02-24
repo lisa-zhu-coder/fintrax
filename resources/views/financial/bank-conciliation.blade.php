@@ -261,7 +261,7 @@
                                                 <span class="text-xs text-slate-400">Sin enlace</span>
                                             @endif
                                         @endif
-                                        <form method="POST" action="{{ route('financial.bank-conciliation.destroy', $movement) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este movimiento bancario? Se eliminarán también todos los registros relacionados (traspasos, gastos, etc.). Esta acción no se puede deshacer.')">
+                                        <form method="POST" action="{{ route('financial.bank-conciliation.destroy', $movement) }}" class="inline">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="inline-flex items-center justify-center gap-1 rounded-xl border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">

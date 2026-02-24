@@ -163,7 +163,7 @@
                                     @csrf
                                     <button type="submit" class="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Recuperar</button>
                                 </form>
-                                <form method="POST" action="{{ route('company.force-delete', $company->id) }}" class="inline" onsubmit="return confirm('¿Eliminar DEFINITIVAMENTE la empresa {{ addslashes($company->name) }}? Se borrarán todos sus datos (usuarios, empleados, registros, etc.) y esta acción no se puede deshacer.');">
+                                <form method="POST" action="{{ route('company.force-delete', $company->id) }}" class="inline">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="rounded-xl border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50">Eliminar definitivamente</button>

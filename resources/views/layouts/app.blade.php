@@ -1321,5 +1321,97 @@
             });
         });
     </script>
+    {{-- Modal de confirmación de eliminación: diseño alineado con la aplicación --}}
+    <div id="confirmDeleteModal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4" aria-modal="true" role="dialog" aria-labelledby="confirmDeleteTitle">
+        <div id="confirmDeleteBackdrop" class="absolute inset-0 bg-slate-900/60 dark:bg-slate-950/70 backdrop-blur-sm transition-opacity"></div>
+        <div class="relative w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl ring-1 ring-slate-900/5 dark:ring-white/5 overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </span>
+                    <h2 id="confirmDeleteTitle" class="text-lg font-semibold text-slate-900 dark:text-slate-100">Eliminar registro</h2>
+                </div>
+                <p id="confirmDeleteMessage" class="text-sm text-slate-600 dark:text-slate-300 mb-6">¿Estás seguro de que deseas eliminar este registro?</p>
+                <div class="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+                    <button type="button" id="confirmDeleteCancel" class="w-full sm:w-auto rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+                        Cancelar
+                    </button>
+                    <button type="button" id="confirmDeleteOk" class="w-full sm:w-auto rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800 transition-colors">
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Confirmación global al eliminar: usa modal propio en lugar de confirm() nativo --}}
+    <script>
+        (function() {
+            var modal = document.getElementById('confirmDeleteModal');
+            var backdrop = document.getElementById('confirmDeleteBackdrop');
+            var btnCancel = document.getElementById('confirmDeleteCancel');
+            var btnOk = document.getElementById('confirmDeleteOk');
+            var messageEl = document.getElementById('confirmDeleteMessage');
+            var currentResolve = null;
+
+            function showModal(msg) {
+                if (msg) messageEl.textContent = msg;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                document.body.style.overflow = 'hidden';
+                btnOk.focus();
+            }
+
+            function hideModal() {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                document.body.style.overflow = '';
+            }
+
+            function confirmDelete(msg) {
+                return new Promise(function(resolve) {
+                    currentResolve = resolve;
+                    showModal(msg || '¿Estás seguro de que deseas eliminar este registro?');
+                    var done = function(ok) {
+                        hideModal();
+                        if (currentResolve) { currentResolve(ok); currentResolve = null; }
+                    };
+                    btnCancel.onclick = function() { done(false); };
+                    btnOk.onclick = function() { done(true); };
+                });
+            }
+
+            backdrop.onclick = function() {
+                if (currentResolve) { hideModal(); currentResolve(false); currentResolve = null; }
+            };
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && currentResolve) {
+                    hideModal();
+                    currentResolve(false);
+                    currentResolve = null;
+                }
+            });
+
+            document.addEventListener('submit', function(e) {
+                var f = e.target;
+                if (f.tagName !== 'FORM') return;
+                var methodInput = f.querySelector('input[name="_method"]');
+                var method = (methodInput ? methodInput.value : null) || (f.getAttribute('method') || '').toUpperCase();
+                var isDelete = (method === 'DELETE' || (f.method && f.method.toLowerCase() === 'post' && (String(f.action || '').indexOf('destroy') !== -1 || String(f.action || '').indexOf('force-delete') !== -1)));
+                if (!isDelete) return;
+                if (f.getAttribute('data-delete-confirmed') === '1') return;
+                e.preventDefault();
+                var formToSubmit = f;
+                confirmDelete('¿Estás seguro de que deseas eliminar este registro?').then(function(ok) {
+                    if (ok && formToSubmit) {
+                        formToSubmit.setAttribute('data-delete-confirmed', '1');
+                        formToSubmit.submit();
+                    }
+                });
+            }, true);
+        })();
+    </script>
 </body>
 </html>

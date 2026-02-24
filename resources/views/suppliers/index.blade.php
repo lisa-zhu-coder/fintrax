@@ -54,7 +54,7 @@
                                 <a href="{{ route('suppliers.edit', $supplier) }}" class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Editar</a>
                                 @endif
                                 @if(auth()->user()->hasPermission('admin.suppliers.delete') && $supplier->orders_count == 0)
-                                <form method="POST" action="{{ route('suppliers.destroy', $supplier) }}" class="inline" onsubmit="return confirm('¿Eliminar este proveedor?');">
+                                <form method="POST" action="{{ route('suppliers.destroy', $supplier) }}" class="inline">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">Eliminar</button>

@@ -17,7 +17,7 @@
                 </a>
                 @endif
                 @if(auth()->user()->hasPermission('invoices.main.delete'))
-                <form method="POST" action="{{ route('invoices.destroy', $invoice->id) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que quieres eliminar esta factura? Los gastos asociados se desvincularán pero no se eliminarán.')">
+                <form method="POST" action="{{ route('invoices.destroy', $invoice->id) }}" class="inline">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">

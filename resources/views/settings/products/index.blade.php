@@ -69,7 +69,7 @@
                                         <a href="{{ route('product-settings.edit', $product) }}" class="text-sm text-brand-600 hover:text-brand-700">Editar</a>
                                         @endif
                                         @if(auth()->user()->hasPermission('settings.products.delete'))
-                                        <form method="POST" action="{{ route('product-settings.destroy', $product) }}" class="inline" onsubmit="return confirm('¿Eliminar este producto?');">
+                                        <form method="POST" action="{{ route('product-settings.destroy', $product) }}" class="inline">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="text-sm text-rose-600 hover:text-rose-700">Eliminar</button>

@@ -164,7 +164,7 @@
                                     </a>
                                     @endif
                                     @if(auth()->user()->hasPermission('financial.daily_closes.delete'))
-                                    <form method="POST" action="{{ route('financial.destroy', $entry->id) }}" class="inline" onsubmit="return confirm('¿Estás seguro?')">
+                                    <form method="POST" action="{{ route('financial.destroy', $entry->id) }}" class="inline">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/30" title="Eliminar">

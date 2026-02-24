@@ -67,7 +67,7 @@
     <!-- Filtros (encima del listado de pedidos) -->
     <div class="mt-10 rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <h2 class="mb-3 text-base font-semibold">Filtros</h2>
-        <form method="GET" action="{{ route('orders.supplier', $supplier) }}" class="space-y-4">
+        <form id="supplier-orders-filter-form" method="GET" action="{{ route('orders.supplier', $supplier) }}" class="space-y-4">
             <div class="flex flex-wrap items-end gap-4">
                 <label class="block min-w-[200px]">
                     <span class="text-xs font-semibold text-slate-700">Buscar</span>
@@ -85,12 +85,12 @@
                 <label class="block min-w-[180px]">
                     <span class="text-xs font-semibold text-slate-700">Período</span>
                     <select name="period" id="periodSelect" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                        <option value="last_7" {{ ($filters['period'] ?? 'last_30') === 'last_7' ? 'selected' : '' }}>Últimos 7 días</option>
-                        <option value="last_30" {{ ($filters['period'] ?? 'last_30') === 'last_30' ? 'selected' : '' }}>Últimos 30 días</option>
+                        <option value="last_7" {{ ($filters['period'] ?? 'this_year') === 'last_7' ? 'selected' : '' }}>Últimos 7 días</option>
+                        <option value="last_30" {{ ($filters['period'] ?? 'this_year') === 'last_30' ? 'selected' : '' }}>Últimos 30 días</option>
                         <option value="last_90" {{ ($filters['period'] ?? '') === 'last_90' ? 'selected' : '' }}>Últimos 90 días</option>
                         <option value="this_month" {{ ($filters['period'] ?? '') === 'this_month' ? 'selected' : '' }}>Este mes</option>
                         <option value="last_month" {{ ($filters['period'] ?? '') === 'last_month' ? 'selected' : '' }}>Mes pasado</option>
-                        <option value="this_year" {{ ($filters['period'] ?? '') === 'this_year' ? 'selected' : '' }}>Este año</option>
+                        <option value="this_year" {{ ($filters['period'] ?? 'this_year') === 'this_year' ? 'selected' : '' }}>Este año</option>
                         <option value="custom" {{ ($filters['period'] ?? '') === 'custom' ? 'selected' : '' }}>Personalizado</option>
                     </select>
                 </label>
@@ -114,7 +114,7 @@
                     </select>
                 </label>
                 <div class="flex items-center gap-2">
-                    <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Filtrar</button>
+                    <button type="submit" form="supplier-orders-filter-form" id="supplier-orders-filter-btn" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Filtrar</button>
                     <a href="{{ route('orders.supplier', $supplier) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Limpiar</a>
                 </div>
             </div>
@@ -135,7 +135,9 @@
                         <th class="px-3 py-2">Nº Pedido</th>
                         <th class="px-3 py-2">Concepto</th>
                         <th class="px-3 py-2 text-right">Importe</th>
+                        <th class="px-3 py-2 text-right">Pagado</th>
                         <th class="px-3 py-2 text-right">Pendiente</th>
+                        <th class="px-3 py-2">Formas de pago</th>
                         <th class="px-3 py-2 text-center">Acciones</th>
                     </tr>
                 </thead>
@@ -157,8 +159,23 @@
                                 </span>
                             </td>
                             <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($order->amount, 2, ',', '.') }} €</td>
+                            <td class="px-3 py-2 text-right font-semibold text-emerald-700 whitespace-nowrap">{{ number_format($order->total_paid, 2, ',', '.') }} €</td>
                             <td class="px-3 py-2 text-right font-semibold {{ ($order->amount - $order->total_paid) > 0 ? 'text-amber-700' : 'text-emerald-700' }} whitespace-nowrap">
                                 {{ number_format(max(0, $order->amount - $order->total_paid), 2, ',', '.') }} €
+                            </td>
+                            <td class="px-3 py-2 text-slate-600">
+                                @php
+                                    $methods = $order->payments->pluck('method')->unique()->map(function ($m) {
+                                        return match($m) {
+                                            'cash' => 'Efectivo',
+                                            'transfer' => 'Transferencia',
+                                            'card' => 'Tarjeta',
+                                            'bank' => 'Transferencia',
+                                            default => ucfirst($m ?? '—'),
+                                        };
+                                    })->unique()->values()->implode(', ');
+                                @endphp
+                                {{ $methods ?: '—' }}
                             </td>
                             <td class="px-3 py-2">
                                 <div class="flex items-center justify-center gap-1">
@@ -186,7 +203,7 @@
                                     </a>
                                     @endif
                                     @if(auth()->user()->hasPermission('orders.main.delete'))
-                                    <form method="POST" action="{{ route('orders.destroy', $order) }}" class="inline" onsubmit="return confirm('¿Estás seguro?')">
+                                    <form method="POST" action="{{ route('orders.destroy', $order) }}" class="inline">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600" title="Eliminar">
@@ -199,7 +216,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="px-3 py-6 text-center text-slate-500">No hay pedidos para este proveedor</td>
+                            <td colspan="11" class="px-3 py-6 text-center text-slate-500">No hay pedidos para este proveedor</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -224,6 +241,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         toggleCustomDates();
         periodSelect.addEventListener('change', toggleCustomDates);
+    }
+
+    // Asegurar que el botón Filtrar envíe el formulario (por si en producción el submit nativo falla)
+    var filterForm = document.getElementById('supplier-orders-filter-form');
+    var filterBtn = document.getElementById('supplier-orders-filter-btn');
+    if (filterForm && filterBtn) {
+        filterBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            filterForm.submit();
+        });
     }
 });
 </script>

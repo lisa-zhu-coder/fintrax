@@ -57,7 +57,7 @@
                     <span class="font-medium text-slate-800">{{ $category->name }}</span>
                     @endif
                     @if(auth()->user()->hasPermission('settings.expense_categories.delete'))
-                    <form method="POST" action="{{ route('expense-categories-settings.destroy', $category) }}" class="inline" onsubmit="return confirm('¿Eliminar esta categoría? Los gastos que la usen seguirán mostrando el nombre guardado.');">
+                    <form method="POST" action="{{ route('expense-categories-settings.destroy', $category) }}" class="inline">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" title="Eliminar">Eliminar</button>

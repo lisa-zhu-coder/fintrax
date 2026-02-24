@@ -158,18 +158,9 @@
                             </div>
                             @if($payment->method === 'cash')
                             <div class="payment-cash-source mt-3" data-payment-index="{{ $index }}">
-                                <span class="text-xs font-semibold text-slate-700">Procedencia del efectivo *</span>
-                                <div class="mt-1 flex flex-wrap gap-4">
-                                    <label class="inline-flex items-center gap-2">
-                                        <input type="radio" name="payments[{{ $index }}][cash_source]" value="wallet" {{ $payment->cash_source === 'wallet' ? 'checked' : '' }} class="payment-cash-source-radio"/>
-                                        <span class="text-sm">Cartera</span>
-                                    </label>
-                                    <label class="inline-flex items-center gap-2">
-                                        <input type="radio" name="payments[{{ $index }}][cash_source]" value="store" {{ $payment->cash_source === 'store' ? 'checked' : '' }} class="payment-cash-source-radio"/>
-                                        <span class="text-sm">Tienda</span>
-                                    </label>
-                                </div>
-                                <div class="payment-cash-wallet mt-2 {{ $payment->cash_source !== 'wallet' ? 'hidden' : '' }}">
+                                <input type="hidden" name="payments[{{ $index }}][cash_source]" value="wallet"/>
+                                <span class="text-xs font-semibold text-slate-700">Cartera *</span>
+                                <div class="payment-cash-wallet mt-2">
                                     <select name="payments[{{ $index }}][cash_wallet_id]" class="payment-cash-wallet-select mt-1 w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                                         <option value="">Seleccione cartera</option>
                                         @foreach($cashWallets ?? [] as $w)
@@ -177,41 +168,16 @@
                                         @endforeach
                                     </select>
                                 </div>
-                                <div class="payment-cash-store mt-2 {{ $payment->cash_source !== 'store' ? 'hidden' : '' }}">
-                                    <select name="payments[{{ $index }}][cash_store_id]" class="payment-cash-store-select mt-1 w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                                        <option value="">Seleccione tienda</option>
-                                        @foreach($stores as $s)
-                                            <option value="{{ $s->id }}" {{ $payment->cash_store_id == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
                             </div>
                             @else
                             <div class="payment-cash-source mt-3 hidden" data-payment-index="{{ $index }}">
-                                <span class="text-xs font-semibold text-slate-700">Procedencia del efectivo *</span>
-                                <div class="mt-1 flex flex-wrap gap-4">
-                                    <label class="inline-flex items-center gap-2">
-                                        <input type="radio" name="payments[{{ $index }}][cash_source]" value="wallet" class="payment-cash-source-radio"/>
-                                        <span class="text-sm">Cartera</span>
-                                    </label>
-                                    <label class="inline-flex items-center gap-2">
-                                        <input type="radio" name="payments[{{ $index }}][cash_source]" value="store" class="payment-cash-source-radio"/>
-                                        <span class="text-sm">Tienda</span>
-                                    </label>
-                                </div>
-                                <div class="payment-cash-wallet mt-2 hidden">
+                                <input type="hidden" name="payments[{{ $index }}][cash_source]" value="wallet"/>
+                                <span class="text-xs font-semibold text-slate-700">Cartera *</span>
+                                <div class="payment-cash-wallet mt-2">
                                     <select name="payments[{{ $index }}][cash_wallet_id]" class="payment-cash-wallet-select mt-1 w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                                         <option value="">Seleccione cartera</option>
                                         @foreach($cashWallets ?? [] as $w)
                                             <option value="{{ $w->id }}">{{ $w->name }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="payment-cash-store mt-2 hidden">
-                                    <select name="payments[{{ $index }}][cash_store_id]" class="payment-cash-store-select mt-1 w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                                        <option value="">Seleccione tienda</option>
-                                        @foreach($stores as $s)
-                                            <option value="{{ $s->id }}">{{ $s->name }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -252,6 +218,9 @@
 @push('scripts')
 <script>
 let paymentIndex = {{ $order->payments->count() }};
+const orderStoreIdForPayments = {{ (int) $order->store_id }};
+const cashWalletsForPayments = @json($cashWallets ?? []);
+const storesForPayments = @json($stores ?? []);
 
 const storesData = @json($stores);
 const existingSplit = @json($order->store_split ?? null);
@@ -439,7 +408,7 @@ function addPaymentRow(payment = null) {
         <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
             <label class="block">
                 <span class="text-xs font-semibold text-slate-700">Fecha de pago *</span>
-                <input type="date" name="payments[${index}][date]" value="${payment?.date || ''}" required class="payment-date mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                <input type="date" name="payments[${index}][date]" value="${payment?.date || new Date().toISOString().slice(0, 10)}" required class="payment-date mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
             </label>
             <label class="block">
                 <span class="text-xs font-semibold text-slate-700">Forma de pago *</span>
@@ -461,25 +430,11 @@ function addPaymentRow(payment = null) {
             </div>
         </div>
         <div class="payment-cash-source mt-3 hidden" data-payment-index="${index}">
-            <span class="text-xs font-semibold text-slate-700">Procedencia del efectivo *</span>
-            <div class="mt-1 flex flex-wrap gap-4">
-                <label class="inline-flex items-center gap-2">
-                    <input type="radio" name="payments[${index}][cash_source]" value="wallet" class="payment-cash-source-radio"/>
-                    <span class="text-sm">Cartera</span>
-                </label>
-                <label class="inline-flex items-center gap-2">
-                    <input type="radio" name="payments[${index}][cash_source]" value="store" class="payment-cash-source-radio"/>
-                    <span class="text-sm">Tienda</span>
-                </label>
-            </div>
-            <div class="payment-cash-wallet mt-2 hidden">
+            <input type="hidden" name="payments[${index}][cash_source]" value="wallet"/>
+            <span class="text-xs font-semibold text-slate-700">Cartera *</span>
+            <div class="payment-cash-wallet mt-2">
                 <select name="payments[${index}][cash_wallet_id]" class="payment-cash-wallet-select mt-1 w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                     <option value="">Seleccione cartera</option>
-                </select>
-            </div>
-            <div class="payment-cash-store mt-2 hidden">
-                <select name="payments[${index}][cash_store_id]" class="payment-cash-store-select mt-1 w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                    <option value="">Seleccione tienda</option>
                 </select>
             </div>
         </div>
@@ -489,32 +444,17 @@ function addPaymentRow(payment = null) {
     
     const methodSelect = row.querySelector('.payment-method');
     const cashSourceBlock = row.querySelector('.payment-cash-source');
-    const walletBlock = row.querySelector('.payment-cash-wallet');
-    const storeBlock = row.querySelector('.payment-cash-store');
     const walletSelect = row.querySelector('.payment-cash-wallet-select');
-    const storeSelect = row.querySelector('.payment-cash-store-select');
     
     walletSelect.innerHTML = '<option value="">Seleccione cartera</option>' + cashWalletsForPayments.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
-    storeSelect.innerHTML = '<option value="">Seleccione tienda</option>' + storesForPayments.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
     
     function toggleCashSource() {
         const isCash = methodSelect.value === 'cash';
         cashSourceBlock.classList.toggle('hidden', !isCash);
-        if (!isCash) {
-            row.querySelectorAll('.payment-cash-source-radio').forEach(r => { r.checked = false; });
-            walletSelect.value = ''; storeSelect.value = '';
-            walletBlock.classList.add('hidden'); storeBlock.classList.add('hidden');
-        }
+        cashSourceBlock.style.display = isCash ? '' : 'none';
+        if (!isCash) walletSelect.value = '';
     }
     methodSelect.addEventListener('change', toggleCashSource);
-    row.querySelectorAll('.payment-cash-source-radio').forEach(radio => {
-        radio.addEventListener('change', function() {
-            walletBlock.classList.toggle('hidden', this.value !== 'wallet');
-            storeBlock.classList.toggle('hidden', this.value !== 'store');
-            if (this.value !== 'wallet') walletSelect.value = '';
-            if (this.value !== 'store') storeSelect.value = '';
-        });
-    });
     toggleCashSource();
     
     row.querySelectorAll('.payment-amount, .payment-date').forEach(input => {
@@ -528,28 +468,43 @@ function initPaymentCashSourceToggles() {
     document.querySelectorAll('#paymentsContainer .rounded-xl').forEach(row => {
         const methodSelect = row.querySelector('.payment-method');
         const cashSourceBlock = row.querySelector('.payment-cash-source');
-        const walletBlock = row.querySelector('.payment-cash-wallet');
-        const storeBlock = row.querySelector('.payment-cash-store');
-        const walletSelect = row.querySelector('.payment-cash-wallet-select');
-        const storeSelect = row.querySelector('.payment-cash-store-select');
         if (!methodSelect || !cashSourceBlock) return;
         function toggle() {
             const isCash = methodSelect.value === 'cash';
             cashSourceBlock.classList.toggle('hidden', !isCash);
+            cashSourceBlock.style.display = isCash ? '' : 'none';
+            if (!isCash) {
+                const walletSelect = row.querySelector('.payment-cash-wallet-select');
+                if (walletSelect) walletSelect.value = '';
+            }
         }
         methodSelect.addEventListener('change', toggle);
-        if (walletBlock && storeBlock) {
-            row.querySelectorAll('.payment-cash-source-radio').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    walletBlock.classList.toggle('hidden', this.value !== 'wallet');
-                    storeBlock.classList.toggle('hidden', this.value !== 'store');
-                });
-            });
-        }
         toggle();
     });
 }
 initPaymentCashSourceToggles();
+
+// Delegación: mostrar procedencia al cambiar a Efectivo en cualquier fila (incl. añadidas después)
+var paymentsContainerEl = document.getElementById('paymentsContainer');
+if (paymentsContainerEl) {
+    paymentsContainerEl.addEventListener('change', function(e) {
+        var target = e.target;
+        if (!target || target.tagName !== 'SELECT') return;
+        if (!target.name || target.name.indexOf('[method]') === -1) return;
+        var methodSelect = target;
+        var row = methodSelect.closest('.rounded-xl');
+        if (!row) return;
+        var cashSourceBlock = row.querySelector('.payment-cash-source');
+        if (!cashSourceBlock) return;
+        var isCash = methodSelect.value === 'cash';
+        cashSourceBlock.classList.toggle('hidden', !isCash);
+        cashSourceBlock.style.display = isCash ? '' : 'none';
+        if (!isCash) {
+            var walletSelect = row.querySelector('.payment-cash-wallet-select');
+            if (walletSelect) walletSelect.value = '';
+        }
+    });
+}
 
 function updatePaymentTotals() {
     const orderAmount = parseFloat(document.getElementById('orderAmount').value) || 0;

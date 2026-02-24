@@ -147,7 +147,7 @@
                                     </a>
                                     @endif
                                     @if(auth()->user()->hasPermission('treasury.transfers.delete'))
-                                    <form method="POST" action="{{ route('transfers.destroy', $transfer) }}" class="inline" onsubmit="return confirm('¿Estás seguro de eliminar este traspaso?')">
+                                    <form method="POST" action="{{ route('transfers.destroy', $transfer) }}" class="inline">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" title="Eliminar">

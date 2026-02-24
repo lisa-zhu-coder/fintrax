@@ -9,6 +9,7 @@ use App\Models\CashWalletExpense;
 use App\Models\CashWalletTransfer;
 use App\Models\CashWithdrawal;
 use App\Models\FinancialEntry;
+use App\Models\OrderPayment;
 use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\Transfer;
@@ -618,9 +619,19 @@ class CashWalletController extends Controller
         }
 
         try {
-            // Eliminar el registro financiero asociado si existe
-            if ($expense->financialEntry) {
-                $expense->financialEntry->delete();
+            $financialEntry = $expense->financialEntry;
+
+            // Si el gasto proviene de un pedido, eliminar el pago del pedido para que desaparezca en todas las vistas
+            if ($financialEntry) {
+                $notes = is_string($financialEntry->notes) ? json_decode($financialEntry->notes, true) : $financialEntry->notes;
+                if (is_array($notes) && !empty($notes['order_payment_id'])) {
+                    $orderPayment = OrderPayment::find($notes['order_payment_id']);
+                    if ($orderPayment) {
+                        $orderPayment->delete();
+                        Log::info('OrderPayment eliminado al borrar gasto desde historial de cartera', ['order_payment_id' => $orderPayment->id]);
+                    }
+                }
+                $financialEntry->delete();
             }
 
             // Eliminar el gasto de la cartera

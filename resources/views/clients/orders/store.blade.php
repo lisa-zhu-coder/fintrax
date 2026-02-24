@@ -112,7 +112,7 @@
                                 <a href="{{ route('clients.orders.edit', [$store, $o]) }}" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">Editar</a>
                                 @endif
                                 @if(auth()->user()->hasPermission('clients.orders.delete'))
-                                <form method="POST" action="{{ route('clients.orders.destroy', [$store, $o]) }}" class="inline" onsubmit="return confirm('¿Eliminar este registro?');">
+                                <form method="POST" action="{{ route('clients.orders.destroy', [$store, $o]) }}" class="inline">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="rounded-lg border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50">Eliminar</button>

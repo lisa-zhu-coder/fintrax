@@ -80,7 +80,9 @@ class OrderController extends Controller
             ->where('supplier_id', $supplier->id);
 
         if ($request->filled('store_id')) {
-            $this->scopeStoreForCurrentUser($query, 'store_id', (int) $request->store_id);
+            $storeId = (int) $request->store_id;
+            $this->authorizeStoreAccess($storeId);
+            $query->where('store_id', $storeId);
         } else {
             $this->scopeStoreForCurrentUser($query);
         }
@@ -97,7 +99,7 @@ class OrderController extends Controller
             });
         }
 
-        $period = $request->get('period', 'last_30');
+        $period = $request->get('period', 'this_year');
         if ($request->filled('date_from') && $request->filled('date_to')) {
             $period = 'custom';
         }
@@ -113,7 +115,7 @@ class OrderController extends Controller
             'date_from' => $request->get('date_from'),
             'date_to' => $request->get('date_to'),
             'payment_method' => $request->get('payment_method'),
-            'period' => $request->filled('date_from') && $request->filled('date_to') ? 'custom' : $request->get('period', 'last_30'),
+            'period' => $request->filled('date_from') && $request->filled('date_to') ? 'custom' : $request->get('period', 'this_year'),
             'search' => $request->get('search'),
         ];
 
@@ -376,12 +378,16 @@ class OrderController extends Controller
 
         $order->update($validated);
 
-        if ($request->has('payments')) {
-            $order->payments()->delete();
-            foreach ($request->payments as $payment) {
-                $order->payments()->create($this->paymentDataForOrder($payment, (float) ($payment['amount'] ?? 0), $order->store_id));
+        $paymentsInput = $request->input('payments', []);
+        $order->payments()->delete();
+        foreach ($paymentsInput as $payment) {
+            $amount = (float) ($payment['amount'] ?? 0);
+            if ($amount <= 0) {
+                continue;
             }
+            $order->payments()->create($this->paymentDataForOrder($payment, $amount, $order->store_id));
         }
+        $order->unsetRelation('payments');
 
         $this->addHistoryEntry($order, 'updated', $oldData);
         
@@ -396,12 +402,18 @@ class OrderController extends Controller
 
     public function destroy(Order $order)
     {
-        // Eliminar todos los gastos asociados a este pedido (CashWalletExpense se elimina por cascade)
+        // Eliminar CashWalletExpense asociados primero (FinancialEntry usa SoftDeletes, la CASCADE de BD no borra cash_wallet_expenses)
+        $entryIds = FinancialEntry::where('type', 'expense')
+            ->where('notes', 'like', '%"order_id":' . $order->id . '%')
+            ->pluck('id');
+        if ($entryIds->isNotEmpty()) {
+            CashWalletExpense::whereIn('financial_entry_id', $entryIds)->delete();
+        }
         FinancialEntry::where('type', 'expense')
             ->where('notes', 'like', '%"order_id":' . $order->id . '%')
             ->delete();
-        
-        // Si es un pedido dividido, eliminar también los pedidos relacionados
+
+        // Si es un pedido dividido, eliminar también los pedidos relacionados y sus gastos/cartera
         if ($order->store_split) {
             Order::where('id', '!=', $order->id)
                 ->where('invoice_number', $order->invoice_number)
@@ -409,13 +421,19 @@ class OrderController extends Controller
                 ->where('store_split', '!=', null)
                 ->get()
                 ->each(function ($relatedOrder) {
+                    $relatedEntryIds = FinancialEntry::where('type', 'expense')
+                        ->where('notes', 'like', '%"order_id":' . $relatedOrder->id . '%')
+                        ->pluck('id');
+                    if ($relatedEntryIds->isNotEmpty()) {
+                        CashWalletExpense::whereIn('financial_entry_id', $relatedEntryIds)->delete();
+                    }
                     FinancialEntry::where('type', 'expense')
                         ->where('notes', 'like', '%"order_id":' . $relatedOrder->id . '%')
                         ->delete();
                     $relatedOrder->delete();
                 });
         }
-        
+
         $this->addHistoryEntry($order, 'deleted');
         $order->delete();
 
@@ -601,7 +619,15 @@ class OrderController extends Controller
         $totalPaid = $order->payments->sum('amount');
         $totalAmount = $order->amount;
         
-        // Eliminar gastos existentes de este pedido para recrearlos
+        // Eliminar gastos existentes de este pedido para recrearlos.
+        // Primero eliminar CashWalletExpense asociados para que el saldo de la cartera se restaure
+        // (FinancialEntry usa SoftDeletes, por tanto la CASCADE de BD no borra cash_wallet_expenses).
+        $oldEntryIds = FinancialEntry::where('type', 'expense')
+            ->where('notes', 'like', '%"order_id":' . $order->id . '%')
+            ->pluck('id');
+        if ($oldEntryIds->isNotEmpty()) {
+            CashWalletExpense::whereIn('financial_entry_id', $oldEntryIds)->delete();
+        }
         FinancialEntry::where('type', 'expense')
             ->where('notes', 'like', '%"order_id":' . $order->id . '%')
             ->delete();
@@ -680,11 +706,7 @@ class OrderController extends Controller
                 if ($isCash && $payment->cash_source === 'wallet' && $payment->cash_wallet_id) {
                     $wallet = CashWallet::find($payment->cash_wallet_id);
                     if ($wallet) {
-                        $balance = $this->calculateWalletBalance($wallet);
-                        if ($balance < $amount) {
-                            DB::rollBack();
-                            throw new \Exception("La cartera \"{$wallet->name}\" no tiene saldo suficiente. Saldo: " . number_format($balance, 2, ',', '.') . ' €');
-                        }
+                        // Permitir saldo negativo: se puede pagar con cartera aunque el saldo no sea suficiente
                         CashWalletExpense::create([
                             'cash_wallet_id' => $wallet->id,
                             'financial_entry_id' => $financialEntry->id,
@@ -707,21 +729,16 @@ class OrderController extends Controller
                 continue;
             }
             $source = $p['cash_source'] ?? null;
+            // Si no eligió procedencia, se usará "tienda" por defecto en paymentDataForOrder
             if (!$source || !in_array($source, ['wallet', 'store'], true)) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    "payments.{$i}.cash_source" => ['Cuando el método de pago es efectivo debe indicar la procedencia: Cartera o Tienda.'],
-                ]);
+                continue;
             }
             if ($source === 'wallet' && empty($p['cash_wallet_id'])) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     "payments.{$i}.cash_wallet_id" => ['Seleccione la cartera de la que sale el efectivo.'],
                 ]);
             }
-            if ($source === 'store' && empty($p['cash_store_id'])) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    "payments.{$i}.cash_store_id" => ['Seleccione la tienda de la que sale el efectivo.'],
-                ]);
-            }
+            // store sin cash_store_id se rellena con la tienda del pedido en paymentDataForOrder
         }
     }
 
@@ -733,7 +750,8 @@ class OrderController extends Controller
             'amount' => $amount,
         ];
         if (($payment['method'] ?? '') === 'cash') {
-            $data['cash_source'] = $payment['cash_source'] ?? null;
+            $source = $payment['cash_source'] ?? null;
+            $data['cash_source'] = in_array($source, ['wallet', 'store'], true) ? $source : 'store';
             $data['cash_wallet_id'] = !empty($payment['cash_wallet_id']) ? (int) $payment['cash_wallet_id'] : null;
             $data['cash_store_id'] = !empty($payment['cash_store_id']) ? (int) $payment['cash_store_id'] : null;
             if ($data['cash_source'] === 'store' && empty($data['cash_store_id'])) {

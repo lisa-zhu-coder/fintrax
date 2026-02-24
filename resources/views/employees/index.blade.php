@@ -101,7 +101,7 @@
                                     </a>
                                     @endif
                                     @if(auth()->user()->hasPermission('hr.employees.delete'))
-                                    <form method="POST" action="{{ route('employees.destroy', $employee) }}" class="inline" onsubmit="return confirm('¿Estás seguro?')">
+                                    <form method="POST" action="{{ route('employees.destroy', $employee) }}" class="inline">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">

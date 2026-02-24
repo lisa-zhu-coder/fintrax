@@ -125,7 +125,7 @@
                                     </form>
                                     @endif
                                     @if(auth()->user()->hasPermission('trash.main.delete'))
-                                    <form method="POST" action="{{ route('trash.force-delete', $entry->id) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que quieres eliminar permanentemente este registro?');">
+                                    <form method="POST" action="{{ route('trash.force-delete', $entry->id) }}" class="inline">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">

@@ -14,6 +14,7 @@ use App\Models\CashWalletTransfer;
 use App\Models\CashWithdrawal;
 use App\Models\ExpensePayment;
 use App\Models\FinancialEntry;
+use App\Models\OrderPayment;
 use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\Transfer;
@@ -683,32 +684,37 @@ class FinancialController extends Controller
                 $this->deleteDailyCloseExpenses($entry);
             }
             
-            // Eliminar pagos relacionados si es un gasto
+            // Eliminar pagos relacionados si es un gasto (evitar registros huérfanos en todas las vistas)
             if ($entry->type === 'expense') {
                 try {
                     if (Schema::hasTable('expense_payments')) {
                         $entry->expensePayments()->delete();
                     }
                 } catch (\Exception $e) {
-                    // La tabla aún no existe, continuar sin eliminar pagos
                     Log::warning('No se pudieron eliminar los pagos del gasto: ' . $e->getMessage());
                 }
-                
-                // Eliminar registro de cash_wallet_expenses si existe
+
+                // Si el gasto proviene de un pedido, eliminar el pago del pedido para que desaparezca también en órdenes
+                $notes = is_string($entry->notes) ? json_decode($entry->notes, true) : $entry->notes;
+                if (is_array($notes) && !empty($notes['order_payment_id'])) {
+                    $orderPayment = OrderPayment::find($notes['order_payment_id']);
+                    if ($orderPayment) {
+                        $orderPayment->delete();
+                        Log::info('OrderPayment eliminado al borrar gasto desde módulo gastos', ['order_payment_id' => $orderPayment->id]);
+                    }
+                }
+
+                // Eliminar registro de cash_wallet_expenses si existe (para que desaparezca del historial de la cartera)
                 try {
                     if (Schema::hasTable('cash_wallet_expenses')) {
-                        $cashWalletExpense = CashWalletExpense::where('financial_entry_id', $entry->id)->first();
-                        if ($cashWalletExpense) {
-                            $cashWalletExpense->delete();
-                            Log::info('Registro de cash_wallet_expenses eliminado', ['financial_entry_id' => $entry->id]);
-                        }
+                        CashWalletExpense::where('financial_entry_id', $entry->id)->delete();
+                        Log::info('Registro de cash_wallet_expenses eliminado', ['financial_entry_id' => $entry->id]);
                     }
                 } catch (\Exception $e) {
-                    // La tabla aún no existe o hay un error, continuar sin eliminar
                     Log::warning('No se pudo eliminar el registro de cash_wallet_expenses: ' . $e->getMessage());
                 }
             }
-            
+
             $entry->delete();
 
             // Si se envió redirect_to (ej. desde control de efectivo), redirigir allí si es URL segura

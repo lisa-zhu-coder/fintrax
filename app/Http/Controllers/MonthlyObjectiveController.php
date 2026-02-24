@@ -424,26 +424,23 @@ class MonthlyObjectiveController extends Controller
     }
 
     /**
-     * Cierres diarios del mes indexados por fecha Y-m-d (en timezone de la app).
-     * Así cada día del objetivo usa el total que corresponde a esa fecha sin depender del timezone de la BD.
+     * Cierres diarios del mes indexados por fecha Y-m-d.
+     * Usa la fecha tal como está en BD (DATE(date)) para que el cierre del 15 no se clasifique como 16.
      *
      * @return array<string, float> clave Y-m-d, valor suma de total_amount (o amount) del cierre de ese día
      */
     private function getDailyClosesByDateForMonth(int $storeId, int $year, int $month): array
     {
-        $start = Carbon::createFromDate($year, $month, 1, config('app.timezone', 'UTC'))->startOfDay();
-        $end = $start->copy()->endOfMonth()->endOfDay();
+        $monthStr = sprintf('%04d-%02d', $year, $month);
+        $lastDay = Carbon::createFromDate($year, $month, 1)->endOfMonth()->format('Y-m-d');
         $entries = FinancialEntry::where('type', 'daily_close')
             ->where('store_id', $storeId)
-            ->whereBetween('date', [$start, $end])
+            ->whereRaw('DATE(date) >= ? AND DATE(date) <= ?', [$monthStr . '-01', $lastDay])
             ->get();
         $byDate = [];
-        $tz = config('app.timezone', 'UTC');
         foreach ($entries as $entry) {
-            $date = $entry->date instanceof \Carbon\Carbon
-                ? $entry->date->copy()->timezone($tz)
-                : Carbon::parse($entry->date, $tz);
-            $key = $date->format('Y-m-d');
+            $raw = $entry->getRawOriginal('date');
+            $key = \is_string($raw) ? \substr($raw, 0, 10) : Carbon::parse($raw)->format('Y-m-d');
             $amount = (float) ($entry->total_amount ?? $entry->amount ?? 0);
             $byDate[$key] = ($byDate[$key] ?? 0) + $amount;
         }

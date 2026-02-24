@@ -106,11 +106,14 @@ class MonthlyObjectiveController extends Controller
         $rows = $rows->unique(fn ($r) => $r->date_2026->format('Y-m-d'))->values();
         [$pct1, $pct2] = MonthlyObjectiveSetting::getPercentagesForStoreMonth($store->id, (string) $month, $year);
         $monthName = Carbon::createFromDate($year, $month, 1)->locale('es')->monthName;
-        $rowsWithCalcs = $rows->map(function ($row) use ($store, $pct1, $pct2) {
+        // Cargar todos los cierres diarios del mes y mapear por fecha (Y-m-d) en timezone de la app para que cada día use su total real
+        $dailyClosesByDate = $this->getDailyClosesByDateForMonth($store->id, $year, $month);
+        $rowsWithCalcs = $rows->map(function ($row) use ($store, $pct1, $pct2, $dailyClosesByDate) {
             $base = (float) $row->base_2025;
             $obj1 = $base * (1 + $pct1 / 100);
             $obj2 = $base * (1 + $pct2 / 100);
-            $cumplido = $this->getDailyCloseAmount($store->id, $row->date_2026);
+            $dateKey = $row->date_2026->format('Y-m-d');
+            $cumplido = $dailyClosesByDate[$dateKey] ?? 0.0;
             return (object) [
                 'row' => $row,
                 'obj1' => $obj1,
@@ -421,9 +424,35 @@ class MonthlyObjectiveController extends Controller
     }
 
     /**
+     * Cierres diarios del mes indexados por fecha Y-m-d (en timezone de la app).
+     * Así cada día del objetivo usa el total que corresponde a esa fecha sin depender del timezone de la BD.
+     *
+     * @return array<string, float> clave Y-m-d, valor suma de total_amount (o amount) del cierre de ese día
+     */
+    private function getDailyClosesByDateForMonth(int $storeId, int $year, int $month): array
+    {
+        $start = Carbon::createFromDate($year, $month, 1, config('app.timezone', 'UTC'))->startOfDay();
+        $end = $start->copy()->endOfMonth()->endOfDay();
+        $entries = FinancialEntry::where('type', 'daily_close')
+            ->where('store_id', $storeId)
+            ->whereBetween('date', [$start, $end])
+            ->get();
+        $byDate = [];
+        $tz = config('app.timezone', 'UTC');
+        foreach ($entries as $entry) {
+            $date = $entry->date instanceof \Carbon\Carbon
+                ? $entry->date->copy()->timezone($tz)
+                : Carbon::parse($entry->date, $tz);
+            $key = $date->format('Y-m-d');
+            $amount = (float) ($entry->total_amount ?? $entry->amount ?? 0);
+            $byDate[$key] = ($byDate[$key] ?? 0) + $amount;
+        }
+        return $byDate;
+    }
+
+    /**
      * Objetivo cumplido = suma del IMPORTE TOTAL (total_amount) del cierre diario de esa fecha.
-     * Cálculo dinámico en tiempo real: no se guarda en BD.
-     * Usa rango del día en timezone de la app para evitar que una fecha se confunda con la anterior/siguiente (ej. 16/01 mostrando total del 15/01).
+     * Usado en index/storeMonths donde no tenemos el mapa del mes; en monthDetail se usa getDailyClosesByDateForMonth.
      */
     private function getDailyCloseAmount(int $storeId, $date): float
     {

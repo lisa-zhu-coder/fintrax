@@ -257,9 +257,30 @@ class MonthlyObjectiveController extends Controller
                 $amount = 0;
             }
             $dateYmd = $date->format('Y-m-d');
+            // date_2025 = date_2026 - 1 año + 1 día  =>  date_2026 = date_2025 + 1 año - 1 día
+            $date2026 = $date->copy()->addYear()->subDay();
+            $date2026Ymd = $date2026->format('Y-m-d');
+            $monthStr = $date2026->format('Y-m');
+            $weekdayName = $date2026->locale('es')->dayName;
+
             $rowModel = ObjectiveDailyRow::where('store_id', $storeId)->whereDate('date_2025', $dateYmd)->first();
             if ($rowModel) {
                 $rowModel->update(['base_2025' => $amount]);
+                $updated++;
+            } else {
+                // Crear la fila si no existe (así la importación funciona aunque no se haya abierto antes ese mes 2026)
+                ObjectiveDailyRow::updateOrCreate(
+                    [
+                        'store_id' => $storeId,
+                        'date_2026' => $date2026Ymd,
+                    ],
+                    [
+                        'month' => $monthStr,
+                        'date_2025' => $dateYmd,
+                        'weekday' => $weekdayName,
+                        'base_2025' => $amount,
+                    ]
+                );
                 $updated++;
             }
         }

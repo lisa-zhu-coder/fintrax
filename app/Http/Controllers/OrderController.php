@@ -76,6 +76,15 @@ class OrderController extends Controller
 
         $supplier->load('expenseCategory');
 
+        // Resumen por tienda: sin filtros, solo restricción de tiendas del usuario (fijo)
+        $querySummary = Order::with(['store', 'supplier', 'payments'])
+            ->where('supplier_id', $supplier->id);
+        $this->scopeStoreForCurrentUser($querySummary);
+        $ordersForSummary = $querySummary->get();
+        $summary = $this->calculateSummary($ordersForSummary);
+        $summaryByStore = $this->calculateSummaryByStore($ordersForSummary);
+
+        // Listado de pedidos: con todos los filtros
         $query = Order::with(['store', 'supplier', 'payments'])
             ->where('supplier_id', $supplier->id);
 
@@ -89,6 +98,15 @@ class OrderController extends Controller
 
         if ($request->filled('payment_method') && in_array($request->payment_method, ['cash', 'transfer', 'card'], true)) {
             $query->whereHas('payments', fn ($q) => $q->where('method', $request->payment_method));
+        }
+
+        if ($request->filled('status') && in_array($request->status, ['pendiente', 'pagado'], true)) {
+            $subSelect = 'SELECT COALESCE(SUM(amount), 0) FROM order_payments WHERE order_payments.order_id = orders.id AND order_payments.deleted_at IS NULL';
+            if ($request->status === 'pendiente') {
+                $query->whereRaw("orders.amount > ({$subSelect})");
+            } else {
+                $query->whereRaw("orders.amount <= ({$subSelect})");
+            }
         }
 
         if ($request->filled('search')) {
@@ -106,8 +124,6 @@ class OrderController extends Controller
         $this->applyPeriodFilter($query, $period, $request);
 
         $orders = $query->orderBy('date', 'desc')->get();
-        $summary = $this->calculateSummary($orders);
-        $summaryByStore = $this->calculateSummaryByStore($orders);
         $stores = $this->storesForCurrentUser();
 
         $filters = [
@@ -117,6 +133,7 @@ class OrderController extends Controller
             'payment_method' => $request->get('payment_method'),
             'period' => $request->filled('date_from') && $request->filled('date_to') ? 'custom' : $request->get('period', 'this_year'),
             'search' => $request->get('search'),
+            'status' => $request->get('status'),
         ];
 
         return view('orders.supplier', compact('supplier', 'orders', 'summary', 'summaryByStore', 'stores', 'filters'));

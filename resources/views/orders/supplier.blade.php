@@ -113,6 +113,14 @@
                         <option value="card" {{ ($filters['payment_method'] ?? '') === 'card' ? 'selected' : '' }}>Tarjeta</option>
                     </select>
                 </label>
+                <label class="block min-w-[140px]">
+                    <span class="text-xs font-semibold text-slate-700">Estado</span>
+                    <select name="status" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Todos</option>
+                        <option value="pendiente" {{ ($filters['status'] ?? '') === 'pendiente' ? 'selected' : '' }}>Pendiente</option>
+                        <option value="pagado" {{ ($filters['status'] ?? '') === 'pagado' ? 'selected' : '' }}>Pagado</option>
+                    </select>
+                </label>
                 <div class="flex items-center gap-2">
                     <button type="submit" form="supplier-orders-filter-form" id="supplier-orders-filter-btn" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Filtrar</button>
                     <a href="{{ route('orders.supplier', $supplier) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Limpiar</a>

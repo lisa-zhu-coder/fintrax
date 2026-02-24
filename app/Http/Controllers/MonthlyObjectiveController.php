@@ -102,6 +102,8 @@ class MonthlyObjectiveController extends Controller
             $this->createRowsForMonth($store->id, $year, $month);
             $rows = ObjectiveDailyRow::where('store_id', $store->id)->where('month', $monthStr)->orderBy('date_2026')->get();
         }
+        // Una sola fila por fecha 2026: evita que dos días muestren el mismo "objetivo cumplido" por duplicados
+        $rows = $rows->unique(fn ($r) => $r->date_2026->format('Y-m-d'))->values();
         [$pct1, $pct2] = MonthlyObjectiveSetting::getPercentagesForStoreMonth($store->id, (string) $month, $year);
         $monthName = Carbon::createFromDate($year, $month, 1)->locale('es')->monthName;
         $rowsWithCalcs = $rows->map(function ($row) use ($store, $pct1, $pct2) {
@@ -419,16 +421,20 @@ class MonthlyObjectiveController extends Controller
     }
 
     /**
-     * Objetivo cumplido = suma del IMPORTE TOTAL (total_amount) de cierres diarios.
+     * Objetivo cumplido = suma del IMPORTE TOTAL (total_amount) del cierre diario de esa fecha.
      * Cálculo dinámico en tiempo real: no se guarda en BD.
-     * WHERE: store_id, date = date_2026, type = 'daily_close'.
+     * Usa rango del día en timezone de la app para evitar que una fecha se confunda con la anterior/siguiente (ej. 16/01 mostrando total del 15/01).
      */
     private function getDailyCloseAmount(int $storeId, $date): float
     {
-        $dateStr = $date instanceof \Carbon\Carbon ? $date->format('Y-m-d') : $date;
+        $dt = $date instanceof \Carbon\Carbon
+            ? $date->copy()->timezone(config('app.timezone', 'UTC'))
+            : Carbon::parse($date, config('app.timezone', 'UTC'));
+        $start = $dt->copy()->startOfDay();
+        $end = $dt->copy()->endOfDay();
         $total = FinancialEntry::where('type', 'daily_close')
             ->where('store_id', $storeId)
-            ->whereDate('date', $dateStr)
+            ->whereBetween('date', [$start, $end])
             ->get()
             ->sum(fn ($entry) => (float) ($entry->total_amount ?? $entry->amount ?? 0));
         return $total;

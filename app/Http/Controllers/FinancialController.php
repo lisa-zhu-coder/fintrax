@@ -526,6 +526,7 @@ class FinancialController extends Controller
                 $validated['sales'] = $totalSales;
                 $validated['expenses'] = round($totalExpenses, 2);
                 $validated['amount'] = $totalSales;
+                $validated['total_amount'] = $totalSales; // Objetivos mensuales leen total_amount; debe actualizarse al editar el cierre
             }
 
             // Si es un ingreso, procesar campos específicos

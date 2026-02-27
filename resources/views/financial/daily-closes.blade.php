@@ -87,18 +87,6 @@
                             </a>
                         </th>
                         <th class="px-3 py-2">Tienda</th>
-                        <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 select-none">
-                            <a href="{{ route('financial.daily-closes', array_merge(request()->query(), ['sort_by' => 'sales', 'sort_dir' => request('sort_by') === 'sales' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center gap-1 text-inherit">
-                                Ventas
-                                @if(request('sort_by') === 'sales')
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="{{ request('sort_dir') === 'asc' ? '' : 'rotate-180' }}">
-                                        <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                @endif
-                            </a>
-                        </th>
-                        <th class="px-3 py-2">TPV</th>
-                        <th class="px-3 py-2">Efectivo</th>
                         <th class="px-3 py-2 text-right cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 select-none">
                             <a href="{{ route('financial.daily-closes', array_merge(request()->query(), ['sort_by' => 'amount', 'sort_dir' => request('sort_by') === 'amount' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center justify-end gap-1 text-inherit">
                                 Total
@@ -109,6 +97,10 @@
                                 @endif
                             </a>
                         </th>
+                        <th class="px-3 py-2">TPV</th>
+                        <th class="px-3 py-2">Efectivo</th>
+                        <th class="px-3 py-2 text-right">Vales</th>
+                        <th class="px-3 py-2 text-right">Discrepancia</th>
                         <th class="px-3 py-2"></th>
                     </tr>
                 </thead>
@@ -117,12 +109,8 @@
                         <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                             <td class="px-3 py-2 text-slate-800 dark:text-slate-200">{{ $entry->date->format('d/m/Y') }}</td>
                             <td class="px-3 py-2 text-slate-800 dark:text-slate-200">{{ $entry->store->name }}</td>
-                            <td class="px-3 py-2 text-slate-800 dark:text-slate-200">
-                                @if(isset($entry->sales))
-                                    {{ number_format($entry->sales, 2, ',', '.') }} €
-                                @else
-                                    <span class="text-slate-400 dark:text-slate-500">—</span>
-                                @endif
+                            <td class="px-3 py-2 text-right font-semibold text-blue-700 dark:text-blue-300">
+                                {{ number_format($entry->amount, 2, ',', '.') }} €
                             </td>
                             <td class="px-3 py-2 text-slate-800 dark:text-slate-200">
                                 @if(isset($entry->tpv))
@@ -144,8 +132,26 @@
                                     <span class="text-slate-400 dark:text-slate-500">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2 text-right font-semibold text-blue-700 dark:text-blue-300">
-                                {{ number_format($entry->amount, 2, ',', '.') }} €
+                            <td class="px-3 py-2 text-right text-slate-800 dark:text-slate-200">
+                                @if(isset($entry->vouchers_result) || isset($entry->vouchers_in) || isset($entry->vouchers_out))
+                                    {{ number_format((float)($entry->vouchers_result ?? 0), 2, ',', '.') }} €
+                                @else
+                                    <span class="text-slate-400 dark:text-slate-500">—</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2 text-right font-semibold">
+                                @php
+                                    $discEfectivo = $entry->calculateCashDiscrepancy();
+                                    $discTarjeta = $entry->calculateTpvDiscrepancy();
+                                    $discrepancia = ($discEfectivo ?? 0) + ($discTarjeta ?? 0);
+                                @endphp
+                                @if($discEfectivo !== null || $discTarjeta !== null)
+                                    <span class="{{ $discrepancia < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-slate-200' }}">
+                                        {{ number_format($discrepancia, 2, ',', '.') }} €
+                                    </span>
+                                @else
+                                    <span class="text-slate-400 dark:text-slate-500">—</span>
+                                @endif
                             </td>
                             <td class="px-3 py-2 text-right">
                                 <div class="flex items-center gap-2 justify-end">
@@ -179,7 +185,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">No hay registros</td>
+                            <td colspan="8" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">No hay registros</td>
                         </tr>
                     @endforelse
                 </tbody>

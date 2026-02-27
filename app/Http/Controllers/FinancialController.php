@@ -834,8 +834,9 @@ class FinancialController extends Controller
 
         $entries = $query->orderBy('date', 'desc')->get();
         $stores = $this->getAvailableStores();
+        $dailyCloseSettings = $this->getDailyCloseSettings();
 
-        return view('financial.daily-closes', compact('entries', 'stores', 'period'));
+        return view('financial.daily-closes', compact('entries', 'stores', 'period', 'dailyCloseSettings'));
     }
 
     public function export(Request $request)

@@ -71,6 +71,7 @@
     </div>
 
     <!-- Tabla -->
+    @php $vouchersEnabled = $dailyCloseSettings['vouchers_enabled'] ?? true; @endphp
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100 dark:bg-slate-800 dark:ring-slate-600">
         <div class="overflow-x-auto">
             <table class="min-w-full text-left text-sm">
@@ -97,9 +98,11 @@
                                 @endif
                             </a>
                         </th>
-                        <th class="px-3 py-2">TPV</th>
-                        <th class="px-3 py-2">Efectivo</th>
+                        <th class="px-3 py-2 text-right">TPV</th>
+                        <th class="px-3 py-2 text-right">Efectivo</th>
+                        @if($vouchersEnabled)
                         <th class="px-3 py-2 text-right">Vales</th>
+                        @endif
                         <th class="px-3 py-2 text-right">Discrepancia</th>
                         <th class="px-3 py-2"></th>
                     </tr>
@@ -112,14 +115,14 @@
                             <td class="px-3 py-2 text-right font-semibold text-blue-700 dark:text-blue-300">
                                 {{ number_format($entry->amount, 2, ',', '.') }} €
                             </td>
-                            <td class="px-3 py-2 text-slate-800 dark:text-slate-200">
+                            <td class="px-3 py-2 text-right text-slate-800 dark:text-slate-200">
                                 @if(isset($entry->tpv))
                                     {{ number_format($entry->tpv, 2, ',', '.') }} €
                                 @else
                                     <span class="text-slate-400 dark:text-slate-500">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2 text-slate-800 dark:text-slate-200">
+                            <td class="px-3 py-2 text-right text-slate-800 dark:text-slate-200">
                                 @if(isset($entry->cash_count))
                                     @php
                                         $cashTotal = 0;
@@ -132,6 +135,7 @@
                                     <span class="text-slate-400 dark:text-slate-500">—</span>
                                 @endif
                             </td>
+                            @if($vouchersEnabled)
                             <td class="px-3 py-2 text-right text-slate-800 dark:text-slate-200">
                                 @if(isset($entry->vouchers_result) || isset($entry->vouchers_in) || isset($entry->vouchers_out))
                                     {{ number_format((float)($entry->vouchers_result ?? 0), 2, ',', '.') }} €
@@ -139,6 +143,7 @@
                                     <span class="text-slate-400 dark:text-slate-500">—</span>
                                 @endif
                             </td>
+                            @endif
                             <td class="px-3 py-2 text-right font-semibold">
                                 @php
                                     $discEfectivo = $entry->calculateCashDiscrepancy();
@@ -185,7 +190,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">No hay registros</td>
+                            <td colspan="{{ $vouchersEnabled ? 8 : 7 }}" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">No hay registros</td>
                         </tr>
                     @endforelse
                 </tbody>

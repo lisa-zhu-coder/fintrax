@@ -440,6 +440,7 @@ class FinancialController extends Controller
         $rules = [
             'date' => 'required|date',
             'store_id' => 'required|exists:stores,id',
+            'notes' => 'nullable|string|max:65535',
             'status' => 'nullable|in:pendiente,pagado',
             'expense_category' => 'nullable|string',
             'expense_concept' => 'nullable|string',

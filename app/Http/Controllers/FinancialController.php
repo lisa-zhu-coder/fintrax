@@ -1520,56 +1520,50 @@ class FinancialController extends Controller
         }
         
         foreach ($monthsData as $monthKey => &$month) {
-            $daysWithdrawn = [];
-            $daysReal = [];
-            
-            foreach ($allEntries as $entry) {
-                $entryMonthKey = $entry->date->format('Y-m');
-                if ($entryMonthKey === $monthKey) {
-                    $cashCounted = $entry->calculateCashTotal();
-                    $cashInitial = (float) ($entry->cash_initial ?? 0);
-                    $cashWithdrawn = round($cashCounted - $cashInitial, 2);
-                    
-                    if ($cashWithdrawn != 0) {
-                        $dayKey = $entry->date->format('Y-m-d');
-                        if (!in_array($dayKey, $daysWithdrawn)) {
-                            $daysWithdrawn[] = $dayKey;
-                        }
-                    }
-                    
-                    if ($entry->cash_real !== null) {
-                        $month['cash_real'] += (float)$entry->cash_real;
-                        $dayKey = $entry->date->format('Y-m-d');
-                        if (!in_array($dayKey, $daysReal)) {
-                            $daysReal[] = $dayKey;
-                        }
-                    }
-                }
-            }
-            
-            $month['days_withdrawn'] = count($daysWithdrawn);
-            $month['days_real'] = count($daysReal);
-            
             $year = substr($monthKey, 0, 4);
             $monthNum = substr($monthKey, 5, 2);
-            
-            // Calcular efectivo recogido del mes (retiros de carteras) - basado en la fecha de la recogida
-            $monthCashWithdrawals = CashWithdrawal::where('store_id', $storeId)
+
+            // Usar la misma lógica que cashControlMonth: datos del mes completo para que el resumen coincida
+            $monthEntries = FinancialEntry::with(['store'])
+                ->where('type', 'daily_close')
+                ->where('store_id', $storeId)
                 ->whereYear('date', $year)
-                ->whereMonth('date', $monthNum);
-            
-            if (($request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) || 
-                ($period && $period !== 'all')) {
-                if (!$period) {
-                    $period = 'last_30';
+                ->whereMonth('date', $monthNum)
+                ->get();
+
+            $month['total'] = 0;
+            $month['cash_real'] = 0;
+            $daysWithdrawn = [];
+            $daysReal = [];
+            foreach ($monthEntries as $entry) {
+                $cashCounted = $entry->calculateCashTotal();
+                $cashInitial = (float) ($entry->cash_initial ?? 0);
+                $cashWithdrawn = round($cashCounted - $cashInitial, 2);
+                $month['total'] += $cashWithdrawn;
+                if ($cashWithdrawn != 0) {
+                    $dayKey = $entry->date->format('Y-m-d');
+                    if (!in_array($dayKey, $daysWithdrawn)) {
+                        $daysWithdrawn[] = $dayKey;
+                    }
                 }
-                $this->applyPeriodFilter($monthCashWithdrawals, $period, $request);
+                if ($entry->cash_real !== null) {
+                    $month['cash_real'] += (float) $entry->cash_real;
+                    $dayKey = $entry->date->format('Y-m-d');
+                    if (!in_array($dayKey, $daysReal)) {
+                        $daysReal[] = $dayKey;
+                    }
+                }
             }
-            
-            $month['cash_collected'] = (float) $monthCashWithdrawals->sum('amount');
-            
-            // Gastos del mes: control_efectivo con procedencia en este mes + efectivo con procedencia TIENDA (no cartera) con fecha en este mes
-            // Excluir gastos de cierre diario (expense_source=cierre_diario): ya están en cash_expenses del cierre
+            $month['days_withdrawn'] = count($daysWithdrawn);
+            $month['days_real'] = count($daysReal);
+
+            // Efectivo recogido del mes (solo año/mes, sin filtro de período)
+            $month['cash_collected'] = (float) CashWithdrawal::where('store_id', $storeId)
+                ->whereYear('date', $year)
+                ->whereMonth('date', $monthNum)
+                ->sum('amount');
+
+            // Gastos del mes: solo los que se muestran en el cuadro "Gastos del mes" (no los de procedencia por día)
             $expensesQuery = FinancialEntry::where('type', 'expense')
                 ->where('store_id', $storeId)
                 ->where(function ($q) {
@@ -1586,23 +1580,45 @@ class FinancialController extends Controller
                             ->whereNotIn('id', CashWalletExpense::select('financial_entry_id')->whereNotNull('financial_entry_id'));
                     });
                 });
-            
-            if (($request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) || 
-                ($period && $period !== 'all')) {
-                if (!$period) {
-                    $period = 'last_30';
+            $monthExpensesList = $expensesQuery->get();
+            $month['month_expenses'] = 0;
+            foreach ($monthExpensesList as $e) {
+                $amount = (float) ($e->expense_amount ?? $e->amount ?? 0);
+                $isControlEfectivo = ($e->expense_source ?? '') === 'control_efectivo';
+                $notes = $e->notes ? json_decode($e->notes, true) : null;
+                $procDate = is_array($notes) && isset($notes['procedence_date']) ? $notes['procedence_date'] : null;
+                // Excluir control_efectivo con procedence_date = día concreto (esos van por día, no al cuadro "Gastos del mes")
+                if ($isControlEfectivo && $procDate && strlen($procDate) === 10 && substr($procDate, 0, 7) === $monthKey) {
+                    continue;
                 }
-                $this->applyPeriodFilter($expensesQuery, $period, $request);
+                $month['month_expenses'] += $amount;
             }
-            
-            $monthExpenses = $expensesQuery->get();
-            
-            foreach ($monthExpenses as $expense) {
-                $month['month_expenses'] += (float) ($expense->expense_amount ?? $expense->amount ?? 0);
+            $month['month_expenses'] = round($month['month_expenses'], 2);
+
+            // Traspasos del mes (ya rellenados antes por cashTransfersStore; recalcular solo por mes para coincidir con vista mes)
+            $traspasosEfectivoList = Transfer::where('status', 'reconciled')
+                ->whereNotNull('applied_at')
+                ->whereYear('date', $year)
+                ->whereMonth('date', $monthNum)
+                ->where(function ($q) use ($storeId) {
+                    $q->where(function ($q2) use ($storeId) {
+                        $q2->where('origin_type', 'store')->where('origin_id', $storeId)->where('origin_fund', 'cash');
+                    })->orWhere(function ($q2) use ($storeId) {
+                        $q2->where('destination_type', 'store')->where('destination_id', $storeId)->where('destination_fund', 'cash');
+                    });
+                })
+                ->get();
+            $month['traspasos_efectivo'] = 0;
+            foreach ($traspasosEfectivoList as $tr) {
+                $amount = (float) $tr->amount;
+                if ($tr->origin_type === 'store' && (int) $tr->origin_id === (int) $storeId && $tr->origin_fund === 'cash') {
+                    $month['traspasos_efectivo'] -= $amount;
+                }
+                if ($tr->destination_type === 'store' && (int) $tr->destination_id === (int) $storeId && $tr->destination_fund === 'cash') {
+                    $month['traspasos_efectivo'] += $amount;
+                }
             }
-            
-            // Saldo mensual: efectivo real - gastos del mes - efectivo recogido + traspasos efectivo
-            $month['traspasos_efectivo'] = $month['traspasos_efectivo'] ?? 0;
+
             $month['balance'] = round($month['cash_real'] - $month['month_expenses'] - $month['cash_collected'] + $month['traspasos_efectivo'], 2);
         }
         unset($month); // Limpiar la referencia después del bucle
@@ -1694,12 +1710,11 @@ class FinancialController extends Controller
         }
         
         $allExpenses = $expensesQuery->orderBy('date', 'asc')->get();
-        
-        // Agrupar gastos por día y por mes (control_efectivo usa procedence_date; resto usa fecha del gasto)
+
+        // Agrupar gastos por día (expensesByDay) y gastos del mes (monthExpenses). Solo los que están en la tabla "Gastos del mes" suman al total.
         $expensesByDay = [];
         $monthExpenses = [];
-        $monthExpensesTotal = 0;
-        
+
         foreach ($allExpenses as $expense) {
             $amount = (float) ($expense->expense_amount ?? $expense->amount ?? 0);
             $isControlEfectivo = ($expense->expense_source ?? '') === 'control_efectivo';
@@ -1707,7 +1722,7 @@ class FinancialController extends Controller
             $procDate = is_array($procedenceDate) && isset($procedenceDate['procedence_date']) ? $procedenceDate['procedence_date'] : null;
 
             if ($isControlEfectivo && $procDate) {
-                // Gastos desde "Añadir gasto": agrupar por procedence_date (día o mes)
+                // Gastos desde "Añadir gasto": con procedence_date día concreto → por día; con procedence_date mes → en "Gastos del mes"
                 if (strlen($procDate) === 10 && substr($procDate, 0, 7) === $monthKey) {
                     if (!isset($expensesByDay[$procDate])) {
                         $expensesByDay[$procDate] = [];
@@ -1727,10 +1742,9 @@ class FinancialController extends Controller
                         'concept' => $expense->expense_concept ?? $expense->concept ?? '—',
                         'amount' => $amount
                     ];
-                    $monthExpensesTotal += $amount;
                 }
             } else {
-                // Gastos en efectivo de esta tienda (p. ej. pedidos): se apuntan al mes por fecha del gasto
+                // Gastos en efectivo de esta tienda (p. ej. pedidos): se muestran en "Gastos del mes"
                 $monthExpenses[] = [
                     'id' => $expense->id,
                     'date' => $expense->date->format('d/m/Y'),
@@ -1738,9 +1752,11 @@ class FinancialController extends Controller
                     'concept' => $expense->expense_concept ?? $expense->concept ?? '—',
                     'amount' => $amount
                 ];
-                $monthExpensesTotal += $amount;
             }
         }
+
+        // Total gastos del mes = suma solo de los gastos apuntados en el cuadro "Gastos del mes" (no los de procedencia por día)
+        $monthExpensesTotal = round(array_sum(array_column($monthExpenses, 'amount')), 2);
         
         // Calcular efectivo retirado y gastos por día para cada entrada
         $entries->transform(function ($entry) use ($expensesByDay) {

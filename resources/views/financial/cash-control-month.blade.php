@@ -22,8 +22,8 @@
             </div>
             <div class="text-right">
                 <div class="text-xs text-slate-500">Saldo del mes</div>
-                <div class="text-lg font-semibold {{ $monthTotal >= 0 ? 'text-emerald-700' : 'text-rose-700' }}">
-                    {{ number_format($monthTotal, 2, ',', '.') }} €
+                <div class="text-lg font-semibold {{ $monthBalance >= 0 ? 'text-emerald-700' : 'text-rose-700' }}">
+                    {{ number_format($monthBalance, 2, ',', '.') }} €
                 </div>
             </div>
         </div>

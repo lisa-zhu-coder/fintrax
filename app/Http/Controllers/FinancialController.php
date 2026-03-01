@@ -663,6 +663,34 @@ class FinancialController extends Controller
         }
     }
 
+    /**
+     * Actualiza solo la categoría de un gasto (para edición inline en la lista de gastos).
+     */
+    public function updateExpenseCategory(Request $request, $entry)
+    {
+        $entry = FinancialEntry::findOrFail($entry);
+        if ($entry->type !== 'expense') {
+            abort(404);
+        }
+        if (!auth()->user()->hasPermission('financial.expenses.edit') && !auth()->user()->hasPermission('financial.registros.edit')) {
+            abort(403, 'No tienes permiso para editar gastos.');
+        }
+        $this->authorizeStoreAccess($entry->store_id);
+
+        $validated = $request->validate([
+            'expense_category' => 'nullable|string|max:255',
+        ]);
+        $value = $validated['expense_category'] ?? '';
+        $entry->update(['expense_category' => $value ?: null]);
+
+        $label = $value ? ucfirst(str_replace('_', ' ', $value)) : '—';
+        return response()->json([
+            'success' => true,
+            'expense_category' => $value,
+            'label' => $label,
+        ]);
+    }
+
     public function destroy($id)
     {
         try {
@@ -1837,6 +1865,7 @@ class FinancialController extends Controller
             'source' => 'cash_control'
         ]);
 
+        $amount = (float) $request->expense_amount;
         FinancialEntry::create([
             'date' => $request->date,
             'store_id' => $storeId,
@@ -1844,9 +1873,12 @@ class FinancialController extends Controller
             'expense_category' => $request->expense_category,
             'expense_source' => 'control_efectivo',
             'expense_concept' => $request->expense_concept,
-            'expense_amount' => (float) $request->expense_amount,
+            'expense_amount' => $amount,
             'expense_payment_method' => 'cash',
-            'amount' => (float) $request->expense_amount,
+            'amount' => $amount,
+            'total_amount' => $amount,
+            'status' => 'pagado',
+            'paid_amount' => $amount,
             'concept' => $request->expense_concept,
             'notes' => $notes,
             'created_by' => Auth::id(),

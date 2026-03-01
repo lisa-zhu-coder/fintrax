@@ -171,13 +171,25 @@
                             <td class="px-3 py-2">{{ $entry->date->format('d/m/Y') }}</td>
                             <td class="px-3 py-2">{{ $entry->store->name }}</td>
                             <td class="px-3 py-2">{{ $entry->expense_concept ?? $entry->concept ?? '—' }}</td>
-                            <td class="px-3 py-2">
-                                @if($entry->expense_category)
-                                    <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700">
-                                        {{ ucfirst(str_replace('_', ' ', $entry->expense_category)) }}
+                            <td class="px-3 py-2 expense-category-cell align-middle" data-entry-id="{{ $entry->id }}" data-current-value="{{ e($entry->expense_category ?? '') }}" data-current-label="{{ $entry->expense_category ? ucfirst(str_replace('_', ' ', $entry->expense_category)) : '—' }}">
+                                @if(auth()->user()->hasPermission('financial.expenses.edit') || auth()->user()->hasPermission('financial.registros.edit'))
+                                    <span class="expense-category-view inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700 cursor-pointer hover:ring-2 hover:ring-brand-300 hover:ring-offset-1 min-w-[2rem]" title="Clic para cambiar categoría">
+                                        {{ $entry->expense_category ? ucfirst(str_replace('_', ' ', $entry->expense_category)) : '—' }}
                                     </span>
+                                    <select class="expense-category-edit hidden w-full max-w-[180px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2" data-entry-id="{{ $entry->id }}">
+                                        <option value="">— Sin categoría</option>
+                                        @foreach($expenseCategories ?? [] as $cat)
+                                            <option value="{{ e($cat->name) }}" {{ ($entry->expense_category ?? '') === $cat->name ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                        @endforeach
+                                    </select>
                                 @else
-                                    <span class="text-slate-400">—</span>
+                                    @if($entry->expense_category)
+                                        <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700">
+                                            {{ ucfirst(str_replace('_', ' ', $entry->expense_category)) }}
+                                        </span>
+                                    @else
+                                        <span class="text-slate-400">—</span>
+                                    @endif
                                 @endif
                             </td>
                             <td class="px-3 py-2">
@@ -323,11 +335,10 @@
 </div>
 
 <script>
-    // Mostrar/ocultar campos de fecha personalizada
     document.addEventListener('DOMContentLoaded', function() {
+        // Mostrar/ocultar campos de fecha personalizada
         const periodSelect = document.getElementById('periodSelect');
         const customDateRange = document.getElementById('customDateRange');
-        
         if (periodSelect && customDateRange) {
             function toggleCustomDates() {
                 if (periodSelect.value === 'custom') {
@@ -336,13 +347,65 @@
                     customDateRange.classList.add('hidden');
                 }
             }
-            
-            // Verificar estado inicial
             toggleCustomDates();
-            
-            // Escuchar cambios
             periodSelect.addEventListener('change', toggleCustomDates);
         }
+
+        // Edición inline de categoría al hacer clic
+        const updateCategoryUrl = '{{ url("/financial") }}';
+        const csrfToken = document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+        document.querySelectorAll('.expense-category-cell').forEach(function(cell) {
+            const viewSpan = cell.querySelector('.expense-category-view');
+            const selectEl = cell.querySelector('.expense-category-edit');
+            if (!viewSpan || !selectEl) return;
+
+            viewSpan.addEventListener('click', function(e) {
+                e.stopPropagation();
+                viewSpan.classList.add('hidden');
+                selectEl.classList.remove('hidden');
+                selectEl.focus();
+            });
+
+            function closeEdit() {
+                selectEl.classList.add('hidden');
+                viewSpan.classList.remove('hidden');
+            }
+
+            selectEl.addEventListener('change', function() {
+                const entryId = selectEl.getAttribute('data-entry-id');
+                const value = selectEl.value;
+                const displayLabel = value ? (value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, ' ')) : '—';
+
+                fetch(updateCategoryUrl + '/' + entryId + '/category', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken || ''
+                    },
+                    body: JSON.stringify({ expense_category: value || null })
+                })
+                .then(function(r) {
+                    if (!r.ok) throw new Error('Error al guardar');
+                    return r.json();
+                })
+                .then(function(data) {
+                    viewSpan.textContent = data.label || displayLabel;
+                    cell.setAttribute('data-current-value', data.expense_category || '');
+                    cell.setAttribute('data-current-label', data.label || '—');
+                    closeEdit();
+                })
+                .catch(function() {
+                    alert('No se pudo actualizar la categoría.');
+                    closeEdit();
+                });
+            });
+
+            selectEl.addEventListener('blur', function() {
+                setTimeout(closeEdit, 150);
+            });
+        });
     });
 </script>
 @endsection

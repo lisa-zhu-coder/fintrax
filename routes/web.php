@@ -177,7 +177,8 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::get('/financial/cash-withdrawals/create', [FinancialController::class, 'createCashWithdrawal'])->name('financial.cash-withdrawals.create');
     Route::post('/financial/cash-withdrawals', [FinancialController::class, 'storeCashWithdrawal'])->name('financial.cash-withdrawals.store');
     Route::post('/financial/cash-deposits', [FinancialController::class, 'storeCashDeposit'])->name('financial.cash-deposits.store');
-    
+    Route::patch('/financial/{entry}/category', [FinancialController::class, 'updateExpenseCategory'])->name('financial.update-expense-category');
+
     Route::resource('financial', FinancialController::class);
     
     // Roles

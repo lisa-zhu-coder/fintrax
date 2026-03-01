@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use setasign\Fpdi\Fpdi;
+use Smalot\PdfParser\Parser as PdfParser;
 
 class EmployeeController extends Controller
 {
@@ -473,41 +475,77 @@ class EmployeeController extends Controller
     public function uploadPayrollAuto(Request $request)
     {
         $request->validate([
-            'payroll' => 'required|file|mimes:pdf|max:10240',
+            'payroll' => 'required|file|mimes:pdf|max:51200', // 50 MB para PDFs con muchas nóminas
         ]);
 
         $file = $request->file('payroll');
-        $base64 = base64_encode(file_get_contents($file->getRealPath()));
-        
-        // Procesar PDF para extraer información
-        $pdfData = $this->processPayrollPDF($file);
-        
-        // Extraer texto del nombre del archivo para identificar al empleado
-        $fileName = $file->getClientOriginalName();
-        $fileNameLower = mb_strtolower($fileName);
-        
-        // Buscar empleado por nombre, DNI o número de seguridad social
-        $employee = $this->findEmployeeByFile($fileName, $pdfData['text'] ?? '');
-        
-        if (!$employee) {
-            return back()->withErrors(['payroll' => 'No se pudo identificar al empleado. Por favor, asegúrate de que el nombre del archivo contenga el nombre del empleado, DNI o número de seguridad social.']);
-        }
-        
-        // Usar mes y año actuales
-        $date = now()->startOfMonth();
-        $fileName = $this->generatePayrollFileName($employee->full_name, $date, $fileName);
-        
-        // Buscar coincidencias con el empleado
-        $matchedBy = $this->matchEmployeeInPDF($pdfData['text'] ?? '', $employee);
-        
-        $employee->payrolls()->create([
-            'file_name' => $fileName,
-            'date' => $date,
-            'base64_content' => $base64,
-            'matched_by' => $matchedBy,
-        ]);
+        $path = $file->getRealPath();
+        $originalFileName = $file->getClientOriginalName();
+        $dateFromFileName = $this->extractDateFromFileName($originalFileName);
 
-        return redirect()->route('employees.show', $employee)->with('success', 'Nómina subida correctamente para ' . $employee->full_name . '.');
+        // Obtener texto por página (Smalot) para identificar empleado en cada hoja
+        $pagesText = $this->getPayrollPdfTextPerPage($path);
+        if (empty($pagesText)) {
+            return back()->withErrors(['payroll' => 'No se pudo leer el PDF. Comprueba que el archivo no esté corrupto o protegido.']);
+        }
+
+        // Obtener número de páginas (FPDI) para extraer cada página como PDF
+        $pageCount = $this->getPdfPageCount($path);
+        if ($pageCount <= 0) {
+            return back()->withErrors(['payroll' => 'No se pudo procesar el PDF.']);
+        }
+
+        $saved = 0;
+        $failedPages = [];
+        $lastEmployee = null;
+
+        for ($pageNum = 1; $pageNum <= $pageCount; $pageNum++) {
+            $pageText = $pagesText[$pageNum - 1] ?? '';
+            $employee = $this->findEmployeeByFile($originalFileName, $pageText);
+            if (!$employee) {
+                $failedPages[] = $pageNum;
+                continue;
+            }
+
+            $singlePageBase64 = $this->extractSinglePageAsBase64($path, $pageNum);
+            if ($singlePageBase64 === null) {
+                $failedPages[] = $pageNum;
+                continue;
+            }
+
+            $date = $this->extractDateFromPageText($pageText) ?? $dateFromFileName;
+            if (!($date instanceof \Carbon\Carbon)) {
+                $date = $dateFromFileName;
+            }
+            $fileName = $this->generatePayrollFileName($employee->full_name, $date, $originalFileName . '_p' . $pageNum);
+            $matchedBy = $this->matchEmployeeInPDF($pageText, $employee);
+
+            $employee->payrolls()->create([
+                'file_name' => $fileName,
+                'date' => $date,
+                'base64_content' => $singlePageBase64,
+                'matched_by' => $matchedBy,
+            ]);
+            $saved++;
+            $lastEmployee = $employee;
+        }
+
+        if ($saved === 0) {
+            $message = 'No se pudo identificar a ningún empleado en el PDF. ';
+            if (!empty($failedPages)) {
+                $message .= 'Asegúrate de que cada nómina contenga el nombre, DNI o número de la seguridad social del empleado.';
+            }
+            return back()->withErrors(['payroll' => $message]);
+        }
+
+        $message = $saved === 1
+            ? '1 nómina guardada en la ficha de ' . $lastEmployee->full_name . '.'
+            : $saved . ' nóminas guardadas en las fichas de los empleados correspondientes.';
+        if (!empty($failedPages)) {
+            $message .= ' No se pudo asignar la(s) página(s) ' . implode(', ', $failedPages) . ' (empleado no identificado).';
+        }
+
+        return redirect()->route('employees.index')->with('success', $message);
     }
 
     private function findEmployeeByFile($fileName, $pdfText = '')
@@ -559,16 +597,111 @@ class EmployeeController extends Controller
         return null;
     }
 
+    /**
+     * Devuelve el texto de cada página del PDF (índice 0 = página 1).
+     */
+    private function getPayrollPdfTextPerPage(string $path): array
+    {
+        $texts = [];
+        try {
+            if (!class_exists(PdfParser::class)) {
+                return $texts;
+            }
+            $parser = new PdfParser();
+            $document = $parser->parseFile($path);
+            $pages = $document->getPages();
+            foreach ($pages as $page) {
+                $texts[] = $page->getText() ?? '';
+            }
+        } catch (\Exception $e) {
+            Log::warning('Error extrayendo texto del PDF de nómina: ' . $e->getMessage());
+        }
+        return $texts;
+    }
+
+    /**
+     * Número de páginas del PDF usando FPDI.
+     */
+    private function getPdfPageCount(string $path): int
+    {
+        try {
+            $fpdi = new Fpdi();
+            return $fpdi->setSourceFile($path);
+        } catch (\Exception $e) {
+            Log::warning('Error leyendo número de páginas del PDF: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Extrae una sola página del PDF como contenido base64.
+     */
+    private function extractSinglePageAsBase64(string $path, int $pageNumber): ?string
+    {
+        try {
+            $fpdi = new Fpdi();
+            $fpdi->setSourceFile($path);
+            $tplId = $fpdi->importPage($pageNumber);
+            $fpdi->AddPage();
+            $fpdi->useTemplate($tplId, 0, 0, null, null, true);
+            $pdfString = $fpdi->Output('S', '');
+            return base64_encode($pdfString);
+        } catch (\Exception $e) {
+            Log::warning('Error extrayendo página ' . $pageNumber . ' del PDF: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Intenta extraer la fecha de nómina del texto de una página (periodo, nómina, etc.).
+     */
+    private function extractDateFromPageText(string $text): ?\Carbon\Carbon
+    {
+        if (trim($text) === '') {
+            return null;
+        }
+        $patterns = [
+            '/periodo[\s:]*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/iu',
+            '/n[oó]mina[\s:]*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/iu',
+            '/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/',
+            '/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/',
+        ];
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $text, $m)) {
+                if (strlen($m[1] ?? '') === 4) {
+                    $year = (int) $m[1];
+                    $month = (int) ($m[2] ?? 1);
+                    $day = (int) ($m[3] ?? 1);
+                } else {
+                    $day = (int) ($m[1] ?? 1);
+                    $month = (int) ($m[2] ?? 1);
+                    $year = (int) ($m[3] ?? now()->year);
+                }
+                if ($month >= 1 && $month <= 12 && $year >= 2000 && $year <= 2100) {
+                    return \Carbon\Carbon::createFromDate($year, $month, min($day, 28));
+                }
+            }
+        }
+        return null;
+    }
+
     private function processPayrollPDF($file)
     {
         try {
-            // Extraer fecha del nombre del archivo
-            // En producción, se puede usar una librería como smalot/pdfparser para extraer texto
             $fileName = $file->getClientOriginalName();
             $date = $this->extractDateFromFileName($fileName);
-            
+            $text = '';
+            if (class_exists(PdfParser::class)) {
+                try {
+                    $parser = new PdfParser();
+                    $document = $parser->parseFile($file->getRealPath());
+                    $text = $document->getText() ?? '';
+                } catch (\Exception $e) {
+                    // Ignorar
+                }
+            }
             return [
-                'text' => '', // Se puede implementar con smalot/pdfparser: composer require smalot/pdfparser
+                'text' => $text,
                 'date' => $date,
             ];
         } catch (\Exception $e) {

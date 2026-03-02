@@ -166,6 +166,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::get('/financial/income', [FinancialController::class, 'income'])->name('financial.income');
     Route::get('/financial/expenses', [FinancialController::class, 'expenses'])->name('financial.expenses');
     Route::get('/financial/daily-closes', [FinancialController::class, 'dailyCloses'])->name('financial.daily-closes');
+    Route::get('/financial/daily-closes/export', [FinancialController::class, 'exportDailyCloses'])->name('financial.daily-closes.export');
     // Papelera (módulo independiente con permisos trash.main.view, trash.main.edit, trash.main.delete)
     Route::get('/trash', [TrashController::class, 'index'])->name('trash.index');
     Route::post('/trash/restore/{id}', [TrashController::class, 'restore'])->name('trash.restore');

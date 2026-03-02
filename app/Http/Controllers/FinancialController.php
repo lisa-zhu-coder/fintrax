@@ -36,7 +36,7 @@ class FinancialController extends Controller
         $this->middleware('permission:financial.registros.view')->only(['index']);
         $this->middleware('permission:financial.income.view')->only(['income']);
         $this->middleware('permission:financial.expenses.view')->only(['expenses']);
-        $this->middleware('permission:financial.daily_closes.view')->only(['dailyCloses']);
+        $this->middleware('permission:financial.daily_closes.view')->only(['dailyCloses', 'exportDailyCloses']);
         $this->middleware('permission:financial.registros.create')->only(['create', 'store']);
         // show, edit, update: autorización por tipo de registro en el propio método
         $this->middleware('permission:financial.registros.delete')->only(['destroy']);
@@ -867,6 +867,75 @@ class FinancialController extends Controller
         $dailyCloseSettings = $this->getDailyCloseSettings();
 
         return view('financial.daily-closes', compact('entries', 'stores', 'period', 'dailyCloseSettings'));
+    }
+
+    /**
+     * Exportar cierres diarios a CSV con los mismos filtros (tienda y fechas) que la vista.
+     */
+    public function exportDailyCloses(Request $request)
+    {
+        $this->syncStoresFromBusinesses();
+
+        $query = FinancialEntry::with(['store'])
+            ->where('type', 'daily_close');
+
+        $enforcedStoreId = auth()->user()->getEnforcedStoreId();
+        if ($enforcedStoreId !== null) {
+            $query->where('store_id', $enforcedStoreId);
+        } elseif ($request->has('store') && $request->store !== 'all') {
+            $query->where('store_id', $request->store);
+        }
+
+        $period = $request->get('period', 'last_30');
+        $this->applyPeriodFilter($query, $period, $request);
+
+        $entries = $query->orderBy('date', 'desc')->get();
+        $vouchersEnabled = ($this->getDailyCloseSettings())['vouchers_enabled'] ?? true;
+
+        $filename = 'cierres-diarios-' . now()->format('Y-m-d-His') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ];
+
+        return response()->streamDownload(function () use ($entries, $vouchersEnabled) {
+            $out = fopen('php://output', 'w');
+            fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
+
+            $headerRow = ['Fecha', 'Tienda', 'Total (€)', 'TPV (€)', 'Efectivo (€)', 'Discrepancia (€)'];
+            if ($vouchersEnabled) {
+                array_splice($headerRow, 5, 0, ['Vales (€)']);
+            }
+            fputcsv($out, $headerRow, ';');
+
+            foreach ($entries as $entry) {
+                $discEfectivo = $entry->calculateCashDiscrepancy();
+                $discTarjeta = $entry->calculateTpvDiscrepancy();
+                $discrepancia = ($discEfectivo ?? 0) + ($discTarjeta ?? 0);
+
+                $total = (float) ($entry->total_amount ?? $entry->amount ?? 0);
+                $tpv = $entry->tpv !== null ? (float) $entry->tpv : null;
+                $efectivo = $entry->cash_count ? $entry->calculateCashTotal() : null;
+                $vales = $vouchersEnabled ? (float) ($entry->vouchers_result ?? 0) : null;
+
+                $row = [
+                    $entry->date->format('d/m/Y'),
+                    $entry->store->name ?? '',
+                    number_format($total, 2, ',', '.'),
+                    $tpv !== null ? number_format($tpv, 2, ',', '.') : '',
+                    $efectivo !== null ? number_format($efectivo, 2, ',', '.') : '',
+                ];
+                if ($vouchersEnabled) {
+                    $row[] = $vales !== null ? number_format($vales, 2, ',', '.') : '';
+                }
+                $row[] = $discEfectivo !== null || $discTarjeta !== null ? number_format($discrepancia, 2, ',', '.') : '';
+
+                fputcsv($out, $row, ';');
+            }
+
+            fclose($out);
+        }, $filename, $headers);
     }
 
     public function export(Request $request)

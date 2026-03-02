@@ -147,7 +147,7 @@ class DashboardController extends Controller
         foreach ($entries as $entry) {
             switch ($entry->type) {
                 case 'income':
-                    $summary['total_income'] += $entry->amount;
+                    // No sumar a total_income: los ingresos del dashboard son solo cierres diarios
                     break;
                 case 'expense':
                     $summary['total_expenses'] += $entry->amount;
@@ -157,6 +157,8 @@ class DashboardController extends Controller
                     break;
                 case 'daily_close':
                     $summary['daily_closes']++;
+                    // Ingresos = suma de los totales de cierres diarios del periodo filtrado
+                    $summary['total_income'] += (float) ($entry->total_amount ?? $entry->amount ?? 0);
                     break;
             }
         }

@@ -180,13 +180,15 @@ class DashboardController extends Controller
                 $sales = (float) ($entry->sales ?? $entry->amount ?? 0);
                 $expenses = (float) ($entry->expenses ?? 0);
             } elseif ($entry->type === 'income') {
-                $sales = (float) ($entry->income_amount ?? $entry->amount ?? 0);
+                // No sumar ingresos de cierre_diario: ya están en el cierre. Evita duplicar en la gráfica.
+                $isCierreDiario = ($entry->income_category ?? '') === 'cierre_diario'
+                    || str_contains((string) ($entry->notes ?? ''), 'daily_close_id:');
+                $sales = $isCierreDiario ? 0 : (float) ($entry->income_amount ?? $entry->amount ?? 0);
                 $expenses = 0;
             } elseif ($entry->type === 'expense') {
                 $sales = 0;
                 $expenses = (float) ($entry->expense_amount ?? $entry->amount ?? 0);
             } elseif ($entry->type === 'expense_refund') {
-                // Devoluciones: no se muestran en el gráfico del Dashboard
                 $sales = 0;
                 $expenses = 0;
             } else {

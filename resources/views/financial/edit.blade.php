@@ -381,62 +381,6 @@
                         </label>
                     </div>
                 </div>
-
-                <!-- Sección de Pagos -->
-                <div class="rounded-xl border-2 border-blue-100 bg-blue-50/30 p-4 ring-1 ring-blue-100">
-                    <div class="mb-3 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-2">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-blue-700">
-                                <path d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="M7 8h10M7 12h10M7 16h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                            </svg>
-                            <span class="text-sm font-semibold text-blue-900">Pagos</span>
-                        </div>
-                        <button type="button" id="addExpensePaymentBtn" class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">
-                            <span>+ Añadir pago</span>
-                        </button>
-                    </div>
-
-                    <div id="expensePaymentsContainer" class="space-y-2">
-                        @php
-                            $existingPayments = old('expense_payments');
-                            if ($existingPayments === null) {
-                                try {
-                                    $existingPayments = $entry->expensePayments ?? [];
-                                } catch (\Exception $e) {
-                                    $existingPayments = [];
-                                }
-                            }
-                        @endphp
-                        @foreach($existingPayments as $i => $payment)
-                            @php 
-                                $idx = is_numeric($i) ? (int) $i : $loop->index;
-                                $paymentDate = is_object($payment) ? $payment->date->format('Y-m-d') : ($payment['date'] ?? '');
-                                $paymentMethod = is_object($payment) ? $payment->method : ($payment['method'] ?? '');
-                                $paymentAmount = is_object($payment) ? $payment->amount : ($payment['amount'] ?? '');
-                            @endphp
-                            <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2" data-payment-index="{{ $idx }}">
-                                <input type="date" name="expense_payments[{{ $idx }}][date]" value="{{ $paymentDate }}" required class="w-40 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"/>
-                                <select name="expense_payments[{{ $idx }}][method]" required class="w-32 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2">
-                                    <option value="">Método</option>
-                                    <option value="cash" {{ $paymentMethod === 'cash' ? 'selected' : '' }}>Efectivo</option>
-                                    <option value="bank" {{ $paymentMethod === 'bank' ? 'selected' : '' }}>Banco</option>
-                                </select>
-                                <input type="number" name="expense_payments[{{ $idx }}][amount]" step="0.01" min="0" value="{{ $paymentAmount }}" placeholder="0.00" required class="expense-payment-amount flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"/>
-                                <button type="button" onclick="this.closest('div[data-payment-index]').remove(); updateExpensePaymentsTotal();" class="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" aria-label="Eliminar pago">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        @endforeach
-                    </div>
-
-                    <div class="mt-3 flex items-center justify-between rounded-lg bg-white p-2 ring-1 ring-blue-100">
-                        <span class="text-xs font-semibold text-slate-700">Total pagado</span>
-                        <span id="expensePaymentsTotal" class="text-sm font-semibold text-blue-900">0,00 €</span>
-                    </div>
-                </div>
                     </div>
                 </div>
                 

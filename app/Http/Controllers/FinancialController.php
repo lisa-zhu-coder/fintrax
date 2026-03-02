@@ -316,8 +316,12 @@ class FinancialController extends Controller
                 if (isset($validated['expense_concept'])) {
                     $entryData['expense_concept'] = $validated['expense_concept'];
                 }
-                if (isset($validated['expense_payment_method'])) {
-                    $entryData['expense_payment_method'] = $validated['expense_payment_method'];
+                // ENUM solo permite cash,bank,transfer,card; vacío = null; datafono/tarjeta → card
+                $paymentMethod = $validated['expense_payment_method'] ?? null;
+                if ($paymentMethod !== null && $paymentMethod !== '') {
+                    $entryData['expense_payment_method'] = in_array($paymentMethod, ['datafono', 'tarjeta'], true) ? 'card' : $paymentMethod;
+                } else {
+                    $entryData['expense_payment_method'] = null;
                 }
                 if (isset($validated['supplier_id']) && $validated['supplier_id']) {
                     $entryData['supplier_id'] = $validated['supplier_id'];
@@ -593,7 +597,8 @@ class FinancialController extends Controller
                     $validated['expense_concept'] = $request->input('expense_concept');
                 }
                 if ($request->has('expense_payment_method')) {
-                    $validated['expense_payment_method'] = $request->input('expense_payment_method');
+                    $pm = $request->input('expense_payment_method');
+                    $validated['expense_payment_method'] = ($pm === '' || $pm === null) ? null : (in_array($pm, ['datafono', 'tarjeta'], true) ? 'card' : $pm);
                 }
                 
                 // Calcular paid_amount desde los pagos

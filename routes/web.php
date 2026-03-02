@@ -179,6 +179,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::post('/financial/cash-withdrawals', [FinancialController::class, 'storeCashWithdrawal'])->name('financial.cash-withdrawals.store');
     Route::post('/financial/cash-deposits', [FinancialController::class, 'storeCashDeposit'])->name('financial.cash-deposits.store');
     Route::patch('/financial/{entry}/category', [FinancialController::class, 'updateExpenseCategory'])->name('financial.update-expense-category');
+    Route::patch('/financial/{entry}/reporting-month', [FinancialController::class, 'updateReportingMonth'])->name('financial.update-reporting-month');
 
     Route::resource('financial', FinancialController::class);
     

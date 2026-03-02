@@ -122,6 +122,7 @@ class FinancialController extends Controller
         $rules = [
             'date' => 'required|date',
             'store_id' => 'required|exists:stores,id',
+            'reporting_month' => 'nullable|string|regex:/^\d{4}-\d{2}$/',
             'type' => 'required|in:income,expense,daily_close',
             'total_amount' => 'nullable|numeric',
             'status' => 'nullable|in:pendiente,pagado',
@@ -202,6 +203,9 @@ class FinancialController extends Controller
         }
 
         try {
+            $date = \Carbon\Carbon::parse($validated['date']);
+            $defaultMonth = $date->format('Y-m');
+
             // Preparar datos para crear
             $entryData = [
                 'date' => $validated['date'],
@@ -209,6 +213,12 @@ class FinancialController extends Controller
                 'type' => $validated['type'],
                 'created_by' => Auth::id(),
             ];
+
+            if ($validated['type'] === 'daily_close') {
+                $entryData['reporting_month'] = $defaultMonth;
+            } else {
+                $entryData['reporting_month'] = $validated['reporting_month'] ?? $defaultMonth;
+            }
 
             // Agregar notas si existen
             if (isset($validated['notes'])) {
@@ -441,6 +451,7 @@ class FinancialController extends Controller
         $rules = [
             'date' => 'required|date',
             'store_id' => 'required|exists:stores,id',
+            'reporting_month' => 'nullable|string|regex:/^\d{4}-\d{2}$/',
             'notes' => 'nullable|string|max:65535',
             'status' => 'nullable|in:pendiente,pagado',
             'expense_category' => 'nullable|string',
@@ -529,6 +540,12 @@ class FinancialController extends Controller
                 $validated['expenses'] = round($totalExpenses, 2);
                 $validated['amount'] = $totalSales;
                 $validated['total_amount'] = $totalSales; // Objetivos mensuales leen total_amount; debe actualizarse al editar el cierre
+                $validated['reporting_month'] = \Carbon\Carbon::parse($validated['date'])->format('Y-m');
+            }
+
+            // Si es un ingreso o gasto, mes correspondiente editable
+            if (in_array($entry->type, ['income', 'expense', 'expense_refund'])) {
+                $validated['reporting_month'] = $validated['reporting_month'] ?? \Carbon\Carbon::parse($validated['date'])->format('Y-m');
             }
 
             // Si es un ingreso, procesar campos específicos
@@ -690,6 +707,39 @@ class FinancialController extends Controller
             'success' => true,
             'expense_category' => $value,
             'label' => $label,
+        ]);
+    }
+
+    /**
+     * Actualiza solo el mes correspondiente (para edición inline en ingresos y gastos).
+     */
+    public function updateReportingMonth(Request $request, $entry)
+    {
+        $entry = FinancialEntry::findOrFail($entry);
+        if (!in_array($entry->type, ['income', 'expense', 'expense_refund'])) {
+            abort(404);
+        }
+        if ($entry->type === 'expense' && ($entry->expense_source ?? '') === 'cierre_diario') {
+            abort(403, 'El mes correspondiente de gastos de cierre diario no es editable.');
+        }
+        if (!auth()->user()->hasPermission('financial.registros.edit')
+            && !($entry->type === 'income' && auth()->user()->hasPermission('financial.income.edit'))
+            && !($entry->type === 'expense' && auth()->user()->hasPermission('financial.expenses.edit'))) {
+            abort(403, 'No tienes permiso para editar este registro.');
+        }
+        $this->authorizeStoreAccess($entry->store_id);
+
+        $validated = $request->validate([
+            'reporting_month' => 'nullable|string|regex:/^\d{4}-\d{2}$/',
+        ]);
+        $value = $validated['reporting_month'] ?? null;
+        $entry->update(['reporting_month' => $value]);
+
+        $label = $value ? \Carbon\Carbon::createFromFormat('Y-m', $value)->locale('es')->isoFormat('MMMM YYYY') : '—';
+        return response()->json([
+            'success' => true,
+            'reporting_month' => $value,
+            'label' => ucfirst($label),
         ]);
     }
 
@@ -3859,12 +3909,15 @@ class FinancialController extends Controller
         $userId = $dailyClose->created_by ?? Auth::id();
         $notes = 'daily_close_id:' . $dailyClose->id;
 
+        $reportingMonth = $dailyClose->getReportingMonth();
+
         // Crear solo el ingreso de efectivo si aplica
         if ($cashSales > 0) {
             FinancialEntry::create([
                 'type' => 'income',
                 'store_id' => $dailyClose->store_id,
                 'date' => $dailyClose->date,
+                'reporting_month' => $reportingMonth,
                 'amount' => $cashSales,
                 'income_amount' => $cashSales,
                 'income_category' => 'cierre_diario',
@@ -3881,6 +3934,7 @@ class FinancialController extends Controller
                 'type' => 'income',
                 'store_id' => $dailyClose->store_id,
                 'date' => $dailyClose->date,
+                'reporting_month' => $reportingMonth,
                 'amount' => $tpv,
                 'income_amount' => $tpv,
                 'income_category' => 'cierre_diario',
@@ -3949,6 +4003,7 @@ class FinancialController extends Controller
 
             FinancialEntry::create([
                 'date' => $dailyClose->date,
+                'reporting_month' => $dailyClose->getReportingMonth(),
                 'store_id' => $dailyClose->store_id,
                 'supplier_id' => null,
                 'type' => 'expense',

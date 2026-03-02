@@ -128,13 +128,23 @@
 
     <!-- Filtros -->
     <div class="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
-        <form method="GET" action="{{ route('dashboard') }}" class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <form method="GET" action="{{ route('dashboard') }}" class="grid grid-cols-1 gap-4 md:grid-cols-5">
             <label class="block">
                 <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Tienda</span>
                 <select name="store" class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none ring-brand-200 focus:ring-4">
                     <option value="all" {{ $selectedStore === 'all' ? 'selected' : '' }}>Todas las tiendas</option>
                     @foreach($stores as $store)
                         <option value="{{ $store->id }}" {{ $selectedStore == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
+                    @endforeach
+                </select>
+            </label>
+
+            <label class="block">
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Mes correspondiente</span>
+                <select name="month" class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none ring-brand-200 focus:ring-4">
+                    <option value="">— Todos (usar período)</option>
+                    @foreach($availableMonths as $m)
+                        <option value="{{ $m['value'] }}" {{ ($month ?? '') === $m['value'] ? 'selected' : '' }}>{{ $m['label'] }}</option>
                     @endforeach
                 </select>
             </label>

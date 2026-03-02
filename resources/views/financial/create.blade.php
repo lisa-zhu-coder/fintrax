@@ -30,7 +30,7 @@
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Fecha *</span>
-                    <input type="date" name="date" value="{{ old('date', request('date', now()->format('Y-m-d'))) }}" required class="mt-1 w-full rounded-xl border {{ $errors->has('date') ? 'border-rose-400' : 'border-slate-200' }} bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <input type="date" name="date" id="dateInput" value="{{ old('date', request('date', now()->format('Y-m-d'))) }}" required class="mt-1 w-full rounded-xl border {{ $errors->has('date') ? 'border-rose-400' : 'border-slate-200' }} bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     @error('date')
                         <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
                     @enderror
@@ -44,6 +44,25 @@
                             <option value="{{ $store->id }}" {{ old('store_id', request('store_id')) == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
                         @endforeach
                     </select>
+                </label>
+
+                <label class="block" id="reportingMonthLabel" style="display: {{ in_array($type ?? old('type'), ['income', 'expense', 'expense_refund']) ? 'block' : 'none' }};">
+                    <span class="text-xs font-semibold text-slate-700">Mes correspondiente</span>
+                    <select name="reporting_month" id="reportingMonthSelect" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        @php
+                            $defaultMonth = old('date', request('date', now()->format('Y-m-d')));
+                            $defaultMonth = \Carbon\Carbon::parse($defaultMonth)->format('Y-m');
+                        @endphp
+                        @for($i = 12; $i >= 0; $i--)
+                            @php $m = now()->addMonths($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
+                            <option value="{{ $val }}" {{ old('reporting_month', $defaultMonth) === $val ? 'selected' : '' }}>{{ $lab }}</option>
+                        @endfor
+                        @for($i = 1; $i <= 24; $i++)
+                            @php $m = now()->subMonths($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
+                            <option value="{{ $val }}" {{ old('reporting_month', $defaultMonth) === $val ? 'selected' : '' }}>{{ $lab }}</option>
+                        @endfor
+                    </select>
+                    <div class="mt-1 text-xs text-slate-500">Mes a efectos de beneficio (por defecto = mes de la fecha)</div>
                 </label>
 
                 <label class="block" @if(count($allowedTypes) === 1) style="display: none;" @endif>
@@ -713,6 +732,12 @@ if (entryTypeElement) {
         }
         
         toggleDailyCloseRequired(type === 'daily_close');
+
+        // Mes correspondiente: solo para income, expense, expense_refund
+        const reportingMonthLabel = document.getElementById('reportingMonthLabel');
+        if (reportingMonthLabel) {
+            reportingMonthLabel.style.display = ['income', 'expense', 'expense_refund'].includes(type) ? 'block' : 'none';
+        }
         
         // Hacer total_amount required solo cuando es expense
         if (totalAmountInput) {
@@ -729,6 +754,17 @@ if (entryTypeElement) {
         }
     });
 }
+
+// Al cambiar la fecha, actualizar mes correspondiente por defecto (si existe la opción)
+document.getElementById('dateInput')?.addEventListener('change', function() {
+    const reportingSelect = document.getElementById('reportingMonthSelect');
+    if (!reportingSelect) return;
+    const dateVal = this.value;
+    if (!dateVal) return;
+    const yyyyMm = dateVal.substring(0, 7);
+    const opt = reportingSelect.querySelector('option[value="' + yyyyMm + '"]');
+    if (opt) reportingSelect.value = yyyyMm;
+});
 
 // Event listeners
 document.getElementById('addExpenseItemBtn')?.addEventListener('click', addExpenseItem);

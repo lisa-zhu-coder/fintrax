@@ -97,6 +97,7 @@
             <table class="min-w-full text-left text-sm">
                 <thead class="text-xs uppercase text-slate-500">
                     <tr>
+                        <th class="px-3 py-2">Mes correspondiente</th>
                         <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 select-none">
                             <a href="{{ route('financial.income', array_merge(request()->query(), ['sort_by' => 'date', 'sort_dir' => request('sort_by') === 'date' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center gap-1">
                                 Fecha
@@ -136,6 +137,27 @@
                 <tbody class="divide-y divide-slate-100">
                     @forelse($entries as $entry)
                         <tr class="hover:bg-slate-50">
+                            <td class="px-3 py-2 align-middle reporting-month-cell" data-entry-id="{{ $entry->id }}" data-current-value="{{ e($entry->getReportingMonth()) }}" data-current-label="{{ ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}" data-readonly="{{ ($entry->income_category ?? '') === 'cierre_diario' ? '1' : '0' }}">
+                                @if(($entry->income_category ?? '') === 'cierre_diario')
+                                    <span class="text-slate-600">{{ ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}</span>
+                                @elseif(auth()->user()->hasPermission('financial.income.edit') || auth()->user()->hasPermission('financial.registros.edit'))
+                                    <span class="reporting-month-view inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700 cursor-pointer hover:ring-2 hover:ring-brand-300 hover:ring-offset-1 min-w-[2rem]" title="Clic para cambiar mes">
+                                        {{ ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}
+                                    </span>
+                                    <select class="reporting-month-edit hidden w-full max-w-[160px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2" data-entry-id="{{ $entry->id }}">
+                                        @for($i = 12; $i >= 0; $i--)
+                                            @php $m = now()->addMonths($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
+                                            <option value="{{ $val }}" {{ $entry->getReportingMonth() === $val ? 'selected' : '' }}>{{ $lab }}</option>
+                                        @endfor
+                                        @for($i = 1; $i <= 24; $i++)
+                                            @php $m = now()->subMonths($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
+                                            <option value="{{ $val }}" {{ $entry->getReportingMonth() === $val ? 'selected' : '' }}>{{ $lab }}</option>
+                                        @endfor
+                                    </select>
+                                @else
+                                    <span class="text-slate-600">{{ ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}</span>
+                                @endif
+                            </td>
                             <td class="px-3 py-2">{{ $entry->date->format('d/m/Y') }}</td>
                             <td class="px-3 py-2">{{ $entry->store->name }}</td>
                             <td class="px-3 py-2">{{ $entry->income_concept ?? $entry->concept ?? '—' }}</td>
@@ -207,7 +229,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-3 py-6 text-center text-slate-500">No hay registros</td>
+                            <td colspan="8" class="px-3 py-6 text-center text-slate-500">No hay registros</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -223,7 +245,6 @@
 </div>
 
 <script>
-    // Mostrar/ocultar campos de fecha personalizada
     document.addEventListener('DOMContentLoaded', function() {
         const periodSelect = document.getElementById('periodSelect');
         const customDateRange = document.getElementById('customDateRange');
@@ -236,13 +257,51 @@
                     customDateRange.classList.add('hidden');
                 }
             }
-            
-            // Verificar estado inicial
             toggleCustomDates();
-            
-            // Escuchar cambios
             periodSelect.addEventListener('change', toggleCustomDates);
         }
+
+        // Edición inline de mes correspondiente
+        const baseUrl = '{{ url("/financial") }}';
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        document.querySelectorAll('.reporting-month-cell').forEach(function(cell) {
+            if (cell.getAttribute('data-readonly') === '1') return;
+            const viewSpan = cell.querySelector('.reporting-month-view');
+            const selectEl = cell.querySelector('.reporting-month-edit');
+            if (!viewSpan || !selectEl) return;
+
+            viewSpan.addEventListener('click', function(e) {
+                e.stopPropagation();
+                viewSpan.classList.add('hidden');
+                selectEl.classList.remove('hidden');
+                selectEl.focus();
+            });
+
+            function closeEdit() {
+                selectEl.classList.add('hidden');
+                viewSpan.classList.remove('hidden');
+            }
+
+            selectEl.addEventListener('change', function() {
+                const entryId = selectEl.getAttribute('data-entry-id');
+                const value = selectEl.value;
+                fetch(baseUrl + '/' + entryId + '/reporting-month', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                    body: JSON.stringify({ reporting_month: value || null })
+                })
+                .then(function(r) { if (!r.ok) throw new Error('Error'); return r.json(); })
+                .then(function(data) {
+                    viewSpan.textContent = data.label || '—';
+                    cell.setAttribute('data-current-value', data.reporting_month || '');
+                    cell.setAttribute('data-current-label', data.label || '—');
+                    closeEdit();
+                })
+                .catch(function() { alert('No se pudo actualizar.'); closeEdit(); });
+            });
+
+            selectEl.addEventListener('blur', function() { setTimeout(closeEdit, 150); });
+        });
     });
 </script>
 @endsection

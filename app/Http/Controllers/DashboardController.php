@@ -37,6 +37,7 @@ class DashboardController extends Controller
         $period = $request->get('period', 'this_month');
         $fromDate = $request->get('from_date');
         $toDate = $request->get('to_date');
+        $month = $request->get('month'); // YYYY-MM, cuando se usa filtra por mes correspondiente
 
         $selectedStore = $request->get('store', 'all');
         if (!$user->isSuperAdmin() && !$user->isAdmin()) {
@@ -48,23 +49,24 @@ class DashboardController extends Controller
             }
         }
 
-        $entries = $this->getFilteredEntries($selectedStore, $period, $user, $fromDate, $toDate);
+        $entries = $this->getFilteredEntries($selectedStore, $period, $user, $fromDate, $toDate, $month);
 
         $summary = $this->calculateSummary($entries);
         $chartData = $this->prepareChartData($entries);
-        $expensesByCategory = $this->getExpensesByCategory($selectedStore, $period, $user, $fromDate, $toDate);
-        $incomeByPaymentMethod = $this->getIncomeByPaymentMethod($selectedStore, $period, $user, $fromDate, $toDate);
+        $expensesByCategory = $this->getExpensesByCategory($selectedStore, $period, $user, $fromDate, $toDate, $month);
+        $incomeByPaymentMethod = $this->getIncomeByPaymentMethod($selectedStore, $period, $user, $fromDate, $toDate, $month);
         $ordersPaidVsPending = $this->getOrdersPaidVsPending($selectedStore, $period, $user, $fromDate, $toDate);
         $overtimeByStore = $this->getOvertimeByStore($selectedStore, $period, $user, $fromDate, $toDate);
         $cashWallets = CashWallet::orderBy('name')->get();
 
         $widgetLayout = $this->getWidgetLayoutForUser($user);
         $availableWidgetKeys = WidgetRegistry::getAvailableKeys($user);
+        $availableMonths = $this->getAvailableMonths($selectedStore, $user);
 
-        return view('dashboard.index', compact('stores', 'selectedStore', 'period', 'fromDate', 'toDate', 'entries', 'summary', 'chartData', 'expensesByCategory', 'incomeByPaymentMethod', 'ordersPaidVsPending', 'overtimeByStore', 'cashWallets', 'widgetLayout', 'availableWidgetKeys'));
+        return view('dashboard.index', compact('stores', 'selectedStore', 'period', 'fromDate', 'toDate', 'month', 'availableMonths', 'entries', 'summary', 'chartData', 'expensesByCategory', 'incomeByPaymentMethod', 'ordersPaidVsPending', 'overtimeByStore', 'cashWallets', 'widgetLayout', 'availableWidgetKeys'));
     }
 
-    private function getFilteredEntries($selectedStore, $period, $user, $fromDate = null, $toDate = null)
+    private function getFilteredEntries($selectedStore, $period, $user, $fromDate = null, $toDate = null, $month = null)
     {
         $query = FinancialEntry::with(['store', 'creator']);
 
@@ -80,9 +82,62 @@ class DashboardController extends Controller
             }
         }
 
-        $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
+        if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $this->applyMonthFilter($query, $month);
+        } else {
+            $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
+        }
 
         return $query->orderBy('date', 'desc')->orderBy('created_at', 'desc')->get();
+    }
+
+    private function applyMonthFilter($query, string $month): void
+    {
+        $driver = DB::getDriverName();
+        if ($driver === 'mysql') {
+            $query->whereRaw("COALESCE(reporting_month, DATE_FORMAT(date, '%Y-%m')) = ?", [$month]);
+        } else {
+            $query->whereRaw("COALESCE(reporting_month, strftime('%Y-%m', date)) = ?", [$month]);
+        }
+    }
+
+    /**
+     * Meses que tienen al menos un registro (respeta filtro de tienda).
+     * Devuelve colección de ['value' => 'YYYY-MM', 'label' => 'Enero 2026'] ordenados descendente.
+     */
+    private function getAvailableMonths(string $selectedStore, $user): \Illuminate\Support\Collection
+    {
+        $driver = DB::getDriverName();
+        $monthExpr = $driver === 'mysql'
+            ? "COALESCE(reporting_month, DATE_FORMAT(date, '%Y-%m'))"
+            : "COALESCE(reporting_month, strftime('%Y-%m', date))";
+
+        $query = FinancialEntry::query()
+            ->selectRaw("{$monthExpr} as month_val")
+            ->groupByRaw($monthExpr)
+            ->orderByRaw("{$monthExpr} DESC");
+
+        $enforcedStoreId = $user->getEnforcedStoreId();
+        if ($enforcedStoreId !== null) {
+            $query->where('store_id', $enforcedStoreId);
+        } elseif ($selectedStore !== 'all' && $user->canAccessStore((int) $selectedStore)) {
+            $query->where('store_id', $selectedStore);
+        } else {
+            $allowed = $user->getAllowedStoreIds();
+            if (!empty($allowed)) {
+                $query->whereIn('store_id', $allowed);
+            }
+        }
+
+        return $query->pluck('month_val')
+            ->filter()
+            ->map(function ($val) {
+                return [
+                    'value' => $val,
+                    'label' => ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $val)->locale('es')->isoFormat('MMMM YYYY')),
+                ];
+            })
+            ->values();
     }
 
     private function getDateRangeForPeriod($period, $fromDate = null, $toDate = null): array
@@ -219,7 +274,7 @@ class DashboardController extends Controller
      * Gastos agregados por categoría (query optimizada en BD).
      * Respeta filtros de tienda y período del dashboard.
      */
-    private function getExpensesByCategory($selectedStore, $period, $user, $fromDate = null, $toDate = null)
+    private function getExpensesByCategory($selectedStore, $period, $user, $fromDate = null, $toDate = null, $month = null)
     {
         $query = FinancialEntry::query()
             ->where('type', 'expense')
@@ -239,7 +294,11 @@ class DashboardController extends Controller
             }
         }
 
-        $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
+        if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $this->applyMonthFilter($query, $month);
+        } else {
+            $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
+        }
 
         return $query->get();
     }
@@ -248,7 +307,7 @@ class DashboardController extends Controller
      * Ingresos agregados por método de pago (query optimizada en BD).
      * Respeta filtros de tienda y período del dashboard.
      */
-    private function getIncomeByPaymentMethod($selectedStore, $period, $user, $fromDate = null, $toDate = null)
+    private function getIncomeByPaymentMethod($selectedStore, $period, $user, $fromDate = null, $toDate = null, $month = null)
     {
         $normalizedMethod = "CASE
             WHEN expense_payment_method IN ('card','datafono','tarjeta') THEN 'Tarjeta'
@@ -277,7 +336,11 @@ class DashboardController extends Controller
             }
         }
 
-        $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
+        if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $this->applyMonthFilter($query, $month);
+        } else {
+            $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
+        }
 
         return $query->get();
     }

@@ -17,6 +17,7 @@ class FinancialEntry extends Model
     protected $fillable = [
         'company_id',
         'date',
+        'reporting_month',
         'store_id',
         'type',
         'concept',
@@ -213,5 +214,13 @@ class FinancialEntry extends Model
 
         $tpv = (float) ($this->tpv ?? 0);
         return round($tpv - (float) $this->shopify_tpv, 2);
+    }
+
+    /**
+     * Mes correspondiente para beneficio (YYYY-MM). Si no existe, deriva de la fecha.
+     */
+    public function getReportingMonth(): string
+    {
+        return $this->reporting_month ?? $this->date->format('Y-m');
     }
 }

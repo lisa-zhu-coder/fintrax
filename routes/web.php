@@ -251,9 +251,12 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::post('/vacations/days', [VacationController::class, 'toggleDay'])->name('vacations.toggle-day');
     Route::post('/vacations/days/bulk', [VacationController::class, 'registerWeeks'])->name('vacations.register-weeks');
 
-    // Ajustes - Horas extras (precios por empleada)
+    // Ajustes - Horas extras (tipos + precios por empleada)
     Route::get('/settings/overtime', [OvertimeSettingController::class, 'index'])->name('overtime-settings.index');
     Route::put('/settings/overtime', [OvertimeSettingController::class, 'update'])->name('overtime-settings.update');
+    Route::post('/settings/overtime-types', [OvertimeSettingController::class, 'storeType'])->name('overtime-types.store');
+    Route::put('/settings/overtime-types/{overtimeType}', [OvertimeSettingController::class, 'updateType'])->name('overtime-types.update');
+    Route::delete('/settings/overtime-types/{overtimeType}', [OvertimeSettingController::class, 'destroyType'])->name('overtime-types.destroy');
 
     // Ajustes - Productos
     Route::get('/settings/products', [\App\Http\Controllers\ProductSettingsController::class, 'index'])->name('product-settings.index');

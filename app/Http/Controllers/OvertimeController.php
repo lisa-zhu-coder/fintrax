@@ -6,9 +6,11 @@ use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Models\Employee;
 use App\Models\OvertimeRecord;
 use App\Models\OvertimeSetting;
+use App\Models\OvertimeType;
 use App\Models\Store;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class OvertimeController extends Controller
 {
@@ -16,7 +18,6 @@ class OvertimeController extends Controller
 
     public function __construct()
     {
-        $this->middleware('permission:hr.overtime.view')->only(['index', 'storeMonths', 'monthDetail', 'employeeDetail']);
         $this->middleware('permission:hr.overtime.create')->only(['create', 'store']);
         $this->middleware('permission:hr.overtime.edit')->only(['editRecord', 'updateRecord']);
         $this->middleware('permission:hr.overtime.delete')->only(['destroyRecord']);
@@ -27,8 +28,9 @@ class OvertimeController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorizeOvertimeView();
         $year = (int) $request->get('year', now()->year);
-        $stores = $this->storesForCurrentUser();
+        $stores = $this->storesForOvertime();
         $availableYears = $this->availableYears();
         return view('overtime.index', compact('stores', 'year', 'availableYears'));
     }
@@ -38,48 +40,56 @@ class OvertimeController extends Controller
      */
     public function storeMonths(Store $store, int $year)
     {
+        $this->authorizeOvertimeView();
+        $this->authorizeOvertimeStore($store->id);
         $employeeIds = $store->employees()->pluck('employees.id');
-        $records = OvertimeRecord::whereIn('employee_id', $employeeIds)
+        $records = OvertimeRecord::with('overtimeType')->whereIn('employee_id', $employeeIds)
             ->whereYear('date', $year)
             ->get();
+        $types = OvertimeType::orderBy('sort_order')->get();
         $monthsData = [];
         for ($month = 1; $month <= 12; $month++) {
             $monthRecords = $records->filter(fn ($r) => (int) $r->date->format('n') === $month);
-            $totalOvertime = $monthRecords->sum('overtime_hours');
-            $totalSundayHoliday = $monthRecords->sum('sunday_holiday_hours');
-            $amountOvertime = 0;
-            $amountSundayHoliday = 0;
-            foreach ($monthRecords->groupBy('employee_id') as $empId => $empRecords) {
-                [$priceOvertime, $priceSunday] = OvertimeSetting::getPriceForEmployee($empId);
-                $amountOvertime += $empRecords->sum('overtime_hours') * $priceOvertime;
-                $amountSundayHoliday += $empRecords->sum('sunday_holiday_hours') * $priceSunday;
+            $byType = [];
+            $totalAmount = 0;
+            foreach ($types as $type) {
+                $tr = $monthRecords->where('overtime_type_id', $type->id);
+                $totalHours = $tr->sum('hours');
+                $amount = 0;
+                foreach ($tr->groupBy('employee_id') as $empId => $empRecords) {
+                    $price = OvertimeSetting::getPriceForEmployeeAndType($empId, $type->id);
+                    $amount += $empRecords->sum('hours') * $price;
+                }
+                $byType[$type->id] = (object) ['hours' => $totalHours, 'amount' => $amount];
+                $totalAmount += $amount;
             }
             $monthsData[] = (object) [
                 'month' => $month,
                 'monthName' => Carbon::createFromDate($year, $month, 1)->locale('es')->monthName,
                 'year' => $year,
-                'total_overtime_hours' => $totalOvertime,
-                'total_sunday_holiday_hours' => $totalSundayHoliday,
-                'total_amount_overtime' => $amountOvertime,
-                'total_amount_sunday_holiday' => $amountSundayHoliday,
+                'byType' => $byType,
+                'types' => $types,
+                'totalAmount' => $totalAmount,
             ];
         }
-        return view('overtime.store-months', compact('store', 'year', 'monthsData'));
+        return view('overtime.store-months', compact('store', 'year', 'monthsData', 'types'));
     }
 
     /**
-     * Vista 3: Empleadas del mes (tabla por empleada con totales).
+     * Vista 3: Empleadas del mes (tabla por empleada con totales por tipo).
      */
     public function monthDetail(Store $store, int $year, int $month)
     {
-        $this->authorizeStoreAccess($store->id);
+        $this->authorizeOvertimeView();
+        $this->authorizeOvertimeStore($store->id);
         $monthStr = sprintf('%04d-%02d', $year, $month);
         $start = Carbon::parse($year . '-' . $month . '-01');
         $end = $start->copy()->endOfMonth();
         $employeeIds = $store->employees()->pluck('employees.id');
-        $records = OvertimeRecord::whereIn('employee_id', $employeeIds)
+        $records = OvertimeRecord::with('overtimeType')->whereIn('employee_id', $employeeIds)
             ->whereBetween('date', [$start->format('Y-m-d'), $end->format('Y-m-d')])
             ->get();
+        $types = OvertimeType::orderBy('sort_order')->get();
         $byEmployee = $records->groupBy('employee_id');
         $employeesData = [];
         foreach ($byEmployee as $empId => $empRecords) {
@@ -87,25 +97,27 @@ class OvertimeController extends Controller
             if (! $employee) {
                 continue;
             }
-            [$priceOvertime, $priceSunday] = OvertimeSetting::getPriceForEmployee($empId);
-            $hoursOvertime = $empRecords->sum('overtime_hours');
-            $hoursSundayHoliday = $empRecords->sum('sunday_holiday_hours');
-            $amountOvertime = $hoursOvertime * $priceOvertime;
-            $amountSundayHoliday = $hoursSundayHoliday * $priceSunday;
+            $byType = [];
+            $totalAmount = 0;
+            foreach ($types as $type) {
+                $tr = $empRecords->where('overtime_type_id', $type->id);
+                $hours = $tr->sum('hours');
+                $price = OvertimeSetting::getPriceForEmployeeAndType($empId, $type->id);
+                $amount = $hours * $price;
+                $byType[$type->id] = (object) ['hours' => $hours, 'price' => $price, 'amount' => $amount];
+                $totalAmount += $amount;
+            }
             $employeesData[] = (object) [
                 'employee' => $employee,
-                'hours_overtime' => $hoursOvertime,
-                'price_overtime' => $priceOvertime,
-                'amount_overtime' => $amountOvertime,
-                'hours_sunday_holiday' => $hoursSundayHoliday,
-                'price_sunday_holiday' => $priceSunday,
-                'amount_sunday_holiday' => $amountSundayHoliday,
+                'byType' => $byType,
+                'types' => $types,
+                'totalAmount' => $totalAmount,
             ];
         }
         usort($employeesData, fn ($a, $b) => strcmp($a->employee->full_name ?? '', $b->employee->full_name ?? ''));
         $monthName = Carbon::createFromDate($year, $month, 1)->locale('es')->monthName;
         $employees = $store->employees()->orderBy('full_name')->get();
-        return view('overtime.month', compact('store', 'year', 'month', 'monthName', 'employeesData', 'employees'));
+        return view('overtime.month', compact('store', 'year', 'month', 'monthName', 'employeesData', 'employees', 'types'));
     }
 
     /**
@@ -113,22 +125,25 @@ class OvertimeController extends Controller
      */
     public function create(Store $store, int $year, int $month)
     {
+        $this->authorizeOvertimeView();
+        $this->authorizeOvertimeStore($store->id);
         $monthName = Carbon::createFromDate($year, $month, 1)->locale('es')->monthName;
         $employees = $store->employees()->orderBy('full_name')->get();
-        return view('overtime.create', compact('store', 'year', 'month', 'monthName', 'employees'));
+        $types = OvertimeType::orderBy('sort_order')->get();
+        return view('overtime.create', compact('store', 'year', 'month', 'monthName', 'employees', 'types'));
     }
 
     /**
-     * Guardar nuevo registro de horas.
+     * Guardar nuevo registro de horas (puede crear varios registros si hay varios tipos con horas).
      */
     public function store(Request $request, Store $store, int $year, int $month)
     {
-        $this->authorizeStoreAccess($store->id);
+        $this->authorizeOvertimeStore($store->id);
+        $types = OvertimeType::orderBy('sort_order')->get();
         $validated = $request->validate([
             'employee_id' => 'required|exists:employees,id',
             'date' => 'required|date',
-            'overtime_hours' => 'nullable|numeric|min:0',
-            'sunday_holiday_hours' => 'nullable|numeric|min:0',
+            ...$types->mapWithKeys(fn ($t) => ["hours_type_{$t->id}" => 'nullable|numeric|min:0'])->toArray(),
         ], [], [
             'employee_id' => 'empleada',
             'date' => 'fecha',
@@ -138,14 +153,22 @@ class OvertimeController extends Controller
         if (! $belongsToStore) {
             return redirect()->back()->with('error', 'La empleada no pertenece a esta tienda.');
         }
-        OvertimeRecord::create([
-            'employee_id' => $employeeId,
-            'date' => $validated['date'],
-            'overtime_hours' => (float) ($validated['overtime_hours'] ?? 0),
-            'sunday_holiday_hours' => (float) ($validated['sunday_holiday_hours'] ?? 0),
-        ]);
+        $created = 0;
+        foreach ($types as $type) {
+            $hours = (float) ($validated["hours_type_{$type->id}"] ?? 0);
+            if ($hours > 0) {
+                OvertimeRecord::create([
+                    'employee_id' => $employeeId,
+                    'date' => $validated['date'],
+                    'overtime_type_id' => $type->id,
+                    'hours' => $hours,
+                ]);
+                $created++;
+            }
+        }
+        $msg = $created > 0 ? 'Horas añadidas correctamente.' : 'No se añadieron horas (debe indicar al menos un valor mayor que 0).';
         return redirect()->route('overtime.month', ['store' => $store, 'year' => $year, 'month' => $month])
-            ->with('success', 'Horas añadidas correctamente.');
+            ->with($created > 0 ? 'success' : 'error', $msg);
     }
 
     /**
@@ -153,19 +176,21 @@ class OvertimeController extends Controller
      */
     public function employeeDetail(Employee $employee)
     {
-        $records = $employee->overtimeRecords()->orderByDesc('date')->get();
-        [$priceOvertime, $priceSunday] = OvertimeSetting::getPriceForEmployee($employee->id);
-        $rows = $records->map(function ($r) use ($priceOvertime, $priceSunday) {
-            $amtOvertime = (float) $r->overtime_hours * $priceOvertime;
-            $amtSunday = (float) $r->sunday_holiday_hours * $priceSunday;
+        $this->authorizeOvertimeView();
+        $this->authorizeOvertimeEmployee($employee);
+        $records = $employee->overtimeRecords()->with('overtimeType')->orderByDesc('date')->get();
+        $types = OvertimeType::orderBy('sort_order')->get();
+        $pricesByType = OvertimeSetting::getPricesByTypeForEmployee($employee->id);
+        $rows = $records->map(function ($r) use ($pricesByType) {
+            $price = $pricesByType[$r->overtime_type_id] ?? 0;
+            $amount = (float) $r->hours * $price;
             return (object) [
                 'record' => $r,
-                'amount_overtime' => $amtOvertime,
-                'amount_sunday_holiday' => $amtSunday,
-                'amount_total' => $amtOvertime + $amtSunday,
+                'price' => $price,
+                'amount' => $amount,
             ];
         });
-        return view('overtime.employee', compact('employee', 'rows', 'priceOvertime', 'priceSunday'));
+        return view('overtime.employee', compact('employee', 'rows', 'types'));
     }
 
     /**
@@ -176,9 +201,10 @@ class OvertimeController extends Controller
         $employee = $overtimeRecord->employee;
         $store = $employee->stores()->first();
         if ($store) {
-            $this->authorizeStoreAccess($store->id);
+            $this->authorizeOvertimeStore($store->id);
         }
-        return view('overtime.edit-record', compact('overtimeRecord', 'employee', 'store'));
+        $types = OvertimeType::orderBy('sort_order')->get();
+        return view('overtime.edit-record', compact('overtimeRecord', 'employee', 'store', 'types'));
     }
 
     /**
@@ -188,13 +214,13 @@ class OvertimeController extends Controller
     {
         $validated = $request->validate([
             'date' => 'required|date',
-            'overtime_hours' => 'nullable|numeric|min:0',
-            'sunday_holiday_hours' => 'nullable|numeric|min:0',
+            'overtime_type_id' => 'required|exists:overtime_types,id',
+            'hours' => 'required|numeric|min:0',
         ]);
         $overtimeRecord->update([
             'date' => $validated['date'],
-            'overtime_hours' => (float) ($validated['overtime_hours'] ?? 0),
-            'sunday_holiday_hours' => (float) ($validated['sunday_holiday_hours'] ?? 0),
+            'overtime_type_id' => $validated['overtime_type_id'],
+            'hours' => (float) $validated['hours'],
         ]);
         return redirect()->route('overtime.employee', $overtimeRecord->employee)
             ->with('success', 'Registro actualizado.');
@@ -207,7 +233,7 @@ class OvertimeController extends Controller
     {
         $store = $overtimeRecord->employee->stores()->first();
         if ($store) {
-            $this->authorizeStoreAccess($store->id);
+            $this->authorizeOvertimeStore($store->id);
         }
         $employee = $overtimeRecord->employee;
         $overtimeRecord->delete();
@@ -227,5 +253,82 @@ class OvertimeController extends Controller
             $years = $years->prepend(now()->year)->unique()->sortDesc()->values();
         }
         return $years;
+    }
+
+    /**
+     * Tiendas que el usuario puede ver en horas extras (view_own vs view_store).
+     */
+    private function storesForOvertime()
+    {
+        $user = Auth::user();
+        if ($user->isSuperAdmin() || $user->isAdmin()) {
+            return Store::all();
+        }
+        $canViewStore = $user->hasPermission('hr.overtime.view_store');
+        $canViewOwn = $user->hasPermission('hr.overtime.view_own');
+        if (!$canViewStore && !$canViewOwn) {
+            return collect();
+        }
+        if ($canViewStore) {
+            return $this->storesForCurrentUser();
+        }
+        // view_own: solo tiendas donde el usuario tiene su ficha de empleado
+        $employee = $user->employee;
+        if (!$employee) {
+            return collect();
+        }
+        return $employee->stores;
+    }
+
+    private function authorizeOvertimeStore(?int $storeId): void
+    {
+        $user = Auth::user();
+        if (!$user) abort(403, 'No autenticado.');
+        if ($user->isSuperAdmin() || $user->isAdmin()) return;
+        $canViewStore = $user->hasPermission('hr.overtime.view_store');
+        if ($canViewStore) {
+            $this->authorizeStoreAccess($storeId);
+            return;
+        }
+        $canViewOwn = $user->hasPermission('hr.overtime.view_own');
+        if ($canViewOwn) {
+            $employee = $user->employee;
+            if (!$employee) abort(403, 'No tienes ficha de empleado.');
+            $belongsToStore = $employee->stores()->where('stores.id', $storeId)->exists();
+            if (!$belongsToStore) abort(403, 'Solo puedes ver horas extras de tu tienda.');
+            return;
+        }
+        abort(403, 'No tienes permiso para ver horas extras.');
+    }
+
+    private function authorizeOvertimeEmployee(Employee $employee): void
+    {
+        $user = Auth::user();
+        if (!$user) abort(403, 'No autenticado.');
+        if ($user->isSuperAdmin() || $user->isAdmin()) return;
+        $canViewStore = $user->hasPermission('hr.overtime.view_store');
+        if ($canViewStore) {
+            $storeIds = $employee->stores->pluck('id')->toArray();
+            foreach ($storeIds as $sid) {
+                if ($user->canAccessStore($sid)) return;
+            }
+            abort(403, 'No tienes acceso a esta empleada.');
+            return;
+        }
+        $canViewOwn = $user->hasPermission('hr.overtime.view_own');
+        if ($canViewOwn) {
+            if ($employee->user_id !== $user->id) abort(403, 'Solo puedes ver tus propias horas extras.');
+            return;
+        }
+        abort(403, 'No tienes permiso para ver horas extras.');
+    }
+
+    private function authorizeOvertimeView(): void
+    {
+        $user = Auth::user();
+        if (!$user) abort(403, 'No autenticado.');
+        if ($user->isSuperAdmin() || $user->isAdmin()) return;
+        if ($user->hasPermission('hr.overtime.view_own') || $user->hasPermission('hr.overtime.view_store')) return;
+        abort(403, 'No tienes permiso para ver horas extras.');
     }
 }

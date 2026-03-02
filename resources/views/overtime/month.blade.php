@@ -41,12 +41,11 @@
             <thead class="text-xs uppercase text-slate-500 bg-slate-50">
                 <tr>
                     <th class="px-3 py-2 text-left">Empleada</th>
-                    <th class="px-3 py-2 text-right">Horas extras</th>
-                    <th class="px-3 py-2 text-right">Precio h. extras</th>
-                    <th class="px-3 py-2 text-right">Importe horas extras</th>
-                    <th class="px-3 py-2 text-right">Horas domingo/festivos</th>
-                    <th class="px-3 py-2 text-right">Precio h. domingo/fest.</th>
-                    <th class="px-3 py-2 text-right">Importe domingo/festivos</th>
+                    @foreach($types as $type)
+                    <th class="px-3 py-2 text-right">h {{ $type->name }}</th>
+                    <th class="px-3 py-2 text-right">€ {{ $type->name }}</th>
+                    @endforeach
+                    <th class="px-3 py-2 text-right">Total €</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -55,16 +54,16 @@
                         <td class="px-3 py-2">
                             <a href="{{ route('overtime.employee', $data->employee) }}" class="font-semibold text-slate-900 hover:text-brand-600">{{ $data->employee->full_name }}</a>
                         </td>
-                        <td class="px-3 py-2 text-right">{{ number_format($data->hours_overtime, 2, ',', '.') }} h</td>
-                        <td class="px-3 py-2 text-right">{{ number_format($data->price_overtime, 2, ',', '.') }} €</td>
-                        <td class="px-3 py-2 text-right">{{ number_format($data->amount_overtime, 2, ',', '.') }} €</td>
-                        <td class="px-3 py-2 text-right">{{ number_format($data->hours_sunday_holiday, 2, ',', '.') }} h</td>
-                        <td class="px-3 py-2 text-right">{{ number_format($data->price_sunday_holiday, 2, ',', '.') }} €</td>
-                        <td class="px-3 py-2 text-right">{{ number_format($data->amount_sunday_holiday, 2, ',', '.') }} €</td>
+                        @foreach($types as $type)
+                        @php $bt = $data->byType[$type->id] ?? null; @endphp
+                        <td class="px-3 py-2 text-right">{{ $bt ? number_format($bt->hours, 2, ',', '.') : '0,00' }} h</td>
+                        <td class="px-3 py-2 text-right">{{ $bt ? number_format($bt->amount, 2, ',', '.') : '0,00' }} €</td>
+                        @endforeach
+                        <td class="px-3 py-2 text-right font-medium">{{ number_format($data->totalAmount, 2, ',', '.') }} €</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="px-3 py-6 text-center text-slate-500">No hay registros en este mes. Usa «Añadir horas» para registrar.</td>
+                        <td colspan="{{ 1 + $types->count() * 2 + 1 }}" class="px-3 py-6 text-center text-slate-500">No hay registros en este mes. Usa «Añadir horas» para registrar.</td>
                     </tr>
                 @endforelse
             </tbody>

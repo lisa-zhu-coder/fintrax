@@ -380,7 +380,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Horas extra y festivos por tienda (o por empleado si solo hay una tienda).
+     * Horas extra por tienda (o por empleado si solo hay una tienda). Agrupa por tipo dinámico.
      */
     private function getOvertimeByStore($selectedStore, $period, $user, $fromDate = null, $toDate = null)
     {
@@ -402,7 +402,7 @@ class DashboardController extends Controller
         $records = OvertimeRecord::query()
             ->whereIn('employee_id', $employeeIds)
             ->whereBetween('date', [$start, $end])
-            ->with('employee.stores')
+            ->with(['employee.stores', 'overtimeType'])
             ->get();
 
         $byKey = [];
@@ -410,14 +410,12 @@ class DashboardController extends Controller
 
         foreach ($records as $record) {
             $employee = $record->employee;
-            if (!$employee) {
+            if (!$employee || !$record->overtimeType) {
                 continue;
             }
-            [$priceOvertime, $priceSunday] = OvertimeSetting::getPriceForEmployee($employee->id);
-            $hoursOvertime = (float) ($record->overtime_hours ?? 0);
-            $hoursSunday = (float) ($record->sunday_holiday_hours ?? 0);
-            $amountOvertime = $hoursOvertime * $priceOvertime;
-            $amountSunday = $hoursSunday * $priceSunday;
+            $price = OvertimeSetting::getPriceForEmployeeAndType($employee->id, $record->overtime_type_id);
+            $hours = (float) ($record->hours ?? 0);
+            $amount = $hours * $price;
 
             $stores = $employee->stores;
             foreach ($stores as $store) {
@@ -430,16 +428,16 @@ class DashboardController extends Controller
                     $byKey[$key] = [
                         'label' => $label,
                         'store_id' => $store->id,
-                        'hours_overtime' => 0,
-                        'hours_sunday' => 0,
-                        'amount_overtime' => 0,
-                        'amount_sunday' => 0,
+                        'by_type' => [],
                     ];
                 }
-                $byKey[$key]['hours_overtime'] += $hoursOvertime;
-                $byKey[$key]['hours_sunday'] += $hoursSunday;
-                $byKey[$key]['amount_overtime'] += $amountOvertime;
-                $byKey[$key]['amount_sunday'] += $amountSunday;
+                $tid = $record->overtime_type_id;
+                $tname = $record->overtimeType->name;
+                if (!isset($byKey[$key]['by_type'][$tid])) {
+                    $byKey[$key]['by_type'][$tid] = ['name' => $tname, 'hours' => 0, 'amount' => 0];
+                }
+                $byKey[$key]['by_type'][$tid]['hours'] += $hours;
+                $byKey[$key]['by_type'][$tid]['amount'] += $amount;
             }
         }
 

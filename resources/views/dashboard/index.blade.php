@@ -471,14 +471,31 @@ document.addEventListener('DOMContentLoaded', function() {
 })();
 </script>
 @endif
-@if(auth()->user()->hasPermission('hr.overtime.view') && $overtimeByStore->isNotEmpty())
+@if(auth()->user()->hasAnyPermission(['hr.overtime.view_own', 'hr.overtime.view_store']) && $overtimeByStore->isNotEmpty())
 @php
     $overtimeLabels = $overtimeByStore->pluck('label')->values()->toArray();
-    $overtimeHours = $overtimeByStore->map(fn ($r) => (float) $r['hours_overtime'])->values()->toArray();
-    $overtimeSundayHours = $overtimeByStore->map(fn ($r) => (float) $r['hours_sunday'])->values()->toArray();
+    $overtimeTypesOrder = [];
+    foreach ($overtimeByStore as $r) {
+        foreach ($r['by_type'] ?? [] as $tid => $t) {
+            if (!isset($overtimeTypesOrder[$tid])) $overtimeTypesOrder[$tid] = $t['name'];
+        }
+    }
+    $overtimeDatasets = [];
+    $colors = ['rgba(37, 173, 159, 0.6)', 'rgba(34, 77, 95, 0.6)', 'rgba(251, 191, 36, 0.6)', 'rgba(239, 68, 68, 0.6)', 'rgba(139, 92, 246, 0.6)'];
+    $ci = 0;
+    foreach ($overtimeTypesOrder as $tid => $tname) {
+        $data = $overtimeByStore->map(fn ($r) => (float) (($r['by_type'][$tid] ?? [])['hours'] ?? 0))->values()->toArray();
+        $overtimeDatasets[] = [
+            'label' => $tname,
+            'data' => $data,
+            'backgroundColor' => $colors[$ci % count($colors)],
+            'borderColor' => str_replace('0.6', '1', $colors[$ci % count($colors)]),
+            'borderWidth' => 1
+        ];
+        $ci++;
+    }
     $overtimeRowData = $overtimeByStore->map(fn ($r) => [
-        'amount_overtime' => (float) $r['amount_overtime'],
-        'amount_sunday' => (float) $r['amount_sunday'],
+        'by_type' => $r['by_type'] ?? [],
         'store_id' => $r['store_id'] ?? null,
     ])->values()->toArray();
 @endphp
@@ -487,26 +504,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.querySelector('[data-chart="overtime"]');
     if (!ctx) return;
     const rowData = @json($overtimeRowData);
+    const fmt = (v) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v);
     new Chart(ctx, {
         type: 'bar',
         data: {
             labels: @json($overtimeLabels),
-            datasets: [
-                {
-                    label: 'Horas extra',
-                    data: @json($overtimeHours),
-                    backgroundColor: 'rgba(37, 173, 159, 0.6)',
-                    borderColor: 'rgb(37, 173, 159)',
-                    borderWidth: 1
-                },
-                {
-                    label: 'Horas domingo/festivo',
-                    data: @json($overtimeSundayHours),
-                    backgroundColor: 'rgba(34, 77, 95, 0.6)',
-                    borderColor: 'rgb(34, 77, 95)',
-                    borderWidth: 1
-                }
-            ]
+            datasets: @json($overtimeDatasets)
         },
         options: {
             responsive: true,
@@ -519,9 +522,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (context.length === 0) return '';
                             const idx = context[0].dataIndex;
                             const row = rowData[idx];
-                            if (!row) return '';
-                            const fmt = (v) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v);
-                            return 'Importe extra: ' + fmt(row.amount_overtime) + '\nImporte festivo: ' + fmt(row.amount_sunday);
+                            if (!row || !row.by_type) return '';
+                            return Object.entries(row.by_type).map(([tid, t]) => t.name + ': ' + fmt(t.amount)).join('\n');
                         }
                     }
                 }

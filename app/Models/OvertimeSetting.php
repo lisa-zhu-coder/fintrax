@@ -9,13 +9,12 @@ class OvertimeSetting extends Model
 {
     protected $fillable = [
         'employee_id',
-        'price_overtime_hour',
-        'price_sunday_holiday_hour',
+        'overtime_type_id',
+        'price_per_hour',
     ];
 
     protected $casts = [
-        'price_overtime_hour' => 'decimal:2',
-        'price_sunday_holiday_hour' => 'decimal:2',
+        'price_per_hour' => 'decimal:2',
     ];
 
     public function employee(): BelongsTo
@@ -23,12 +22,31 @@ class OvertimeSetting extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public static function getPriceForEmployee(int $employeeId): array
+    public function overtimeType(): BelongsTo
     {
-        $s = self::where('employee_id', $employeeId)->first();
-        return [
-            (float) ($s->price_overtime_hour ?? 0),
-            (float) ($s->price_sunday_holiday_hour ?? 0),
-        ];
+        return $this->belongsTo(OvertimeType::class);
+    }
+
+    /**
+     * Precio por hora para un empleado y tipo. Devuelve 0 si no hay configuración.
+     */
+    public static function getPriceForEmployeeAndType(int $employeeId, int $overtimeTypeId): float
+    {
+        $s = self::where('employee_id', $employeeId)
+            ->where('overtime_type_id', $overtimeTypeId)
+            ->first();
+        return (float) ($s->price_per_hour ?? 0);
+    }
+
+    /**
+     * Precios por tipo para un empleado. Devuelve ['type_id' => price, ...]
+     */
+    public static function getPricesByTypeForEmployee(int $employeeId): array
+    {
+        return self::where('employee_id', $employeeId)
+            ->get()
+            ->pluck('price_per_hour', 'overtime_type_id')
+            ->map(fn ($p) => (float) $p)
+            ->toArray();
     }
 }

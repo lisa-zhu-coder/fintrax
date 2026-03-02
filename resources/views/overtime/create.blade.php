@@ -41,14 +41,15 @@
                 <input type="date" name="date" value="{{ old('date', \Carbon\Carbon::createFromDate($year, $month, 1)->format('Y-m-d')) }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                 @error('date')<span class="text-xs text-rose-600">{{ $message }}</span>@enderror
             </label>
+            @foreach($types as $type)
             <label class="block">
-                <span class="text-xs font-semibold text-slate-700">Horas extras</span>
-                <input type="number" name="overtime_hours" value="{{ old('overtime_hours', 0) }}" step="0.01" min="0" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                <span class="text-xs font-semibold text-slate-700">Horas — {{ $type->name }}</span>
+                <input type="number" name="hours_type_{{ $type->id }}" value="{{ old('hours_type_' . $type->id, 0) }}" step="0.01" min="0" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
             </label>
-            <label class="block">
-                <span class="text-xs font-semibold text-slate-700">Horas domingo/festivos</span>
-                <input type="number" name="sunday_holiday_hours" value="{{ old('sunday_holiday_hours', 0) }}" step="0.01" min="0" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
-            </label>
+            @endforeach
+            @if($types->isEmpty())
+                <p class="text-slate-500 text-sm">No hay tipos de horas extras. Configúralos en Ajustes → Ajustes de horas extras.</p>
+            @endif
             <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar</button>
         </form>
     </div>

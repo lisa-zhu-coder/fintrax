@@ -112,7 +112,7 @@ return [
             'label' => 'RR.HH.',
             'items' => [
                 ['key' => 'employees', 'label' => 'Empleados', 'actions' => ['view_own', 'view_store', 'create', 'edit', 'delete', 'configure']],
-                ['key' => 'overtime', 'label' => 'Horas extras', 'actions' => ['view', 'create', 'edit', 'delete']],
+                ['key' => 'overtime', 'label' => 'Horas extras', 'actions' => ['view_own', 'view_store', 'create', 'edit', 'delete']],
                 ['key' => 'vacations', 'label' => 'Vacaciones', 'actions' => ['view', 'edit']],
             ],
         ],

@@ -147,8 +147,8 @@ class UpdateRoles extends Command
                 $perms[$key] = true;
             }
         }
-        // RR.HH.: solo view (en controller se restringe employee a su ficha) + vacaciones view/edit
-        $grantHr = ['hr.employees.view', 'hr.overtime.view', 'hr.overtime.create', 'hr.overtime.edit', 'hr.vacations.view', 'hr.vacations.edit'];
+        // RR.HH.: empleados view; horas extras view_own (solo sus horas) + create/edit; vacaciones view/edit
+        $grantHr = ['hr.employees.view_own', 'hr.overtime.view_own', 'hr.overtime.create', 'hr.overtime.edit', 'hr.vacations.view', 'hr.vacations.edit'];
         foreach ($grantHr as $key) {
             if (isset($perms[$key])) {
                 $perms[$key] = true;
@@ -171,6 +171,8 @@ class UpdateRoles extends Command
                 }
             }
         }
+        // Horas extras: viewer solo ve las suyas
+        $perms['hr.overtime.view_own'] = true;
         return $perms;
     }
 }

@@ -38,6 +38,7 @@ class ClearProjectData extends Command
         'ring_inventories',
         'overtime_records',
         'overtime_settings',
+        'overtime_types',
         'objective_daily_rows',
         'monthly_objective_settings',
         'order_payments',

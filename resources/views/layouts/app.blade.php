@@ -665,7 +665,7 @@
                 </div>
                 @endif
 
-                @if(auth()->user()->hasAnyPermission(['hr.employees.view_own', 'hr.employees.view_store', 'hr.overtime.view']))
+                @if(auth()->user()->hasAnyPermission(['hr.employees.view_own', 'hr.employees.view_store', 'hr.overtime.view_own', 'hr.overtime.view_store']))
                 {{-- RR.HH. (desplegable) --}}
                 <div>
                     <button type="button" id="hrMenuToggle" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors">
@@ -687,7 +687,7 @@
                             <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 13.255A23.93 23.93 0 0112 15c-3.18 0-6.19-.7-8.9-1.98"/><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M16 4V2a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
                             <span class="sidebar-submenu-text">Empleados</span></a>
                         @endif
-                        @if(auth()->user()->hasPermission('hr.overtime.view'))
+                        @if(auth()->user()->hasAnyPermission(['hr.overtime.view_own', 'hr.overtime.view_store']))
                         <a href="{{ route('overtime.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('overtime.*') && !request()->routeIs('overtime-settings.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
                             <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                             <span class="sidebar-submenu-text">Horas extras</span></a>

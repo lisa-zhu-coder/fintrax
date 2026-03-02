@@ -25,10 +25,11 @@
                 <thead class="text-xs uppercase text-slate-500 bg-slate-50">
                     <tr>
                         <th class="px-3 py-2 text-left">Mes</th>
-                        <th class="px-3 py-2 text-right">Total horas extras</th>
-                        <th class="px-3 py-2 text-right">Total horas domingo/festivos</th>
-                        <th class="px-3 py-2 text-right">Importe horas extras</th>
-                        <th class="px-3 py-2 text-right">Importe domingo/festivos</th>
+                        @foreach($types as $type)
+                        <th class="px-3 py-2 text-right">h {{ $type->name }}</th>
+                        <th class="px-3 py-2 text-right">€ {{ $type->name }}</th>
+                        @endforeach
+                        <th class="px-3 py-2 text-right">Total €</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -37,10 +38,12 @@
                             <td class="px-3 py-2">
                                 <a href="{{ route('overtime.month', ['store' => $store, 'year' => $m->year, 'month' => $m->month]) }}" class="font-semibold text-slate-900 hover:text-brand-600">{{ $m->monthName }}</a>
                             </td>
-                            <td class="px-3 py-2 text-right">{{ number_format($m->total_overtime_hours, 2, ',', '.') }} h</td>
-                            <td class="px-3 py-2 text-right">{{ number_format($m->total_sunday_holiday_hours, 2, ',', '.') }} h</td>
-                            <td class="px-3 py-2 text-right">{{ number_format($m->total_amount_overtime, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right">{{ number_format($m->total_amount_sunday_holiday, 2, ',', '.') }} €</td>
+                            @foreach($types as $type)
+                            @php $bt = $m->byType[$type->id] ?? (object)['hours' => 0, 'amount' => 0]; @endphp
+                            <td class="px-3 py-2 text-right">{{ number_format($bt->hours, 2, ',', '.') }} h</td>
+                            <td class="px-3 py-2 text-right">{{ number_format($bt->amount, 2, ',', '.') }} €</td>
+                            @endforeach
+                            <td class="px-3 py-2 text-right">{{ number_format($m->totalAmount, 2, ',', '.') }} €</td>
                         </tr>
                     @endforeach
                 </tbody>

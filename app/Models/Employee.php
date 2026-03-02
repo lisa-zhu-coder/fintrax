@@ -81,9 +81,9 @@ class Employee extends Model
         return $this->hasMany(OvertimeRecord::class);
     }
 
-    public function overtimeSetting(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function overtimeSettings(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasOne(OvertimeSetting::class);
+        return $this->hasMany(OvertimeSetting::class);
     }
 
     public function vacationPeriods(): HasMany

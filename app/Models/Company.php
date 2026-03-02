@@ -132,4 +132,12 @@ class Company extends Model
     {
         return $this->hasMany(CustomerRepair::class);
     }
+
+    /**
+     * Tipos de horas extras de esta empresa.
+     */
+    public function overtimeTypes(): HasMany
+    {
+        return $this->hasMany(OvertimeType::class);
+    }
 }

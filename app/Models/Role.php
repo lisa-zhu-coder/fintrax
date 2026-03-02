@@ -68,6 +68,10 @@ class Role extends Model
         if ($permission === 'hr.employees.view_own' && (!empty($permissions['hr.employees.view']) || !empty($permissions['view']))) {
             return true;
         }
+        // Compatibilidad: hr.overtime.view (legacy) = ver horas extras de la tienda
+        if (($permission === 'hr.overtime.view_store' || $permission === 'hr.overtime.view_own') && !empty($permissions['hr.overtime.view'])) {
+            return true;
+        }
         
         // Mapeo de permisos granulares a permisos generales (compatibilidad)
         // Si el permiso termina en .view, .create, .edit, .delete, verificar el permiso general

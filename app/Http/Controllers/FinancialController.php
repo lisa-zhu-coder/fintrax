@@ -188,14 +188,15 @@ class FinancialController extends Controller
 
         $validated = $request->validate($rules);
 
+        // Un solo cierre diario por tienda y fecha (ese cierre genera un ingreso de efectivo y uno de datáfono)
         if ($validated['type'] === 'daily_close') {
             $exists = FinancialEntry::where('type', 'daily_close')
                 ->where('store_id', $validated['store_id'])
-                ->where('date', $validated['date'])
+                ->whereDate('date', $validated['date'])
                 ->exists();
             if ($exists) {
                 throw ValidationException::withMessages([
-                    'date' => ['Ya existe un cierre de caja para esta tienda y fecha. Solo puede haber un registro por tienda y día.'],
+                    'date' => ['Ya existe un cierre diario para esta tienda y fecha. Solo puede haber un cierre por tienda y día.'],
                 ]);
             }
         }
@@ -464,15 +465,16 @@ class FinancialController extends Controller
         }
         $validated = $request->validate($rules);
 
+        // Un solo cierre diario por tienda y fecha (al editar, no puede haber otro cierre con la misma tienda y fecha)
         if ($entry->type === 'daily_close') {
             $exists = FinancialEntry::where('type', 'daily_close')
                 ->where('store_id', $validated['store_id'])
-                ->where('date', $validated['date'])
+                ->whereDate('date', $validated['date'])
                 ->where('id', '!=', $entry->id)
                 ->exists();
             if ($exists) {
                 throw ValidationException::withMessages([
-                    'date' => ['Ya existe un cierre de caja para esta tienda y fecha. Solo puede haber un registro por tienda y día.'],
+                    'date' => ['Ya existe un cierre diario para esta tienda y fecha. Solo puede haber un cierre por tienda y día.'],
                 ]);
             }
         }
@@ -3833,7 +3835,8 @@ class FinancialController extends Controller
     }
 
     /**
-     * Crear o actualizar ingresos automáticos para un cierre diario
+     * Crear o actualizar ingresos automáticos para un cierre diario.
+     * Primero se eliminan todos los ingresos asociados a este cierre (evita duplicados al crear/editar).
      */
     private function syncDailyCloseIncomes(FinancialEntry $dailyClose)
     {
@@ -3841,33 +3844,24 @@ class FinancialController extends Controller
             return;
         }
 
+        // Eliminar cualquier ingreso previo asociado a este cierre (mismo formato u otro) para no duplicar
+        $this->deleteDailyCloseIncomes($dailyClose);
+
         // Calcular efectivo del cierre
         $cashCounted = $dailyClose->calculateCashTotal();
         $cashInitial = (float) ($dailyClose->cash_initial ?? 0);
         $cashExpenses = (float) ($dailyClose->cash_expenses ?? 0);
         $cashSales = round($cashCounted - $cashInitial + $cashExpenses, 2);
-        
+
         // Datáfono
         $tpv = (float) ($dailyClose->tpv ?? 0);
 
-        // Buscar ingresos existentes asociados a este cierre
-        $existingCashIncome = FinancialEntry::where('type', 'income')
-            ->where('store_id', $dailyClose->store_id)
-            ->where('date', $dailyClose->date)
-            ->where('notes', 'LIKE', '%daily_close_id:' . $dailyClose->id . '%')
-            ->where('income_concept', 'Ingreso efectivo cierre diario')
-            ->first();
+        $userId = $dailyClose->created_by ?? Auth::id();
+        $notes = 'daily_close_id:' . $dailyClose->id;
 
-        $existingTpvIncome = FinancialEntry::where('type', 'income')
-            ->where('store_id', $dailyClose->store_id)
-            ->where('date', $dailyClose->date)
-            ->where('notes', 'LIKE', '%daily_close_id:' . $dailyClose->id . '%')
-            ->where('income_concept', 'Ingreso datáfono cierre diario')
-            ->first();
-
-        // Crear o actualizar ingreso de efectivo
+        // Crear solo el ingreso de efectivo si aplica
         if ($cashSales > 0) {
-            $incomeData = [
+            FinancialEntry::create([
                 'type' => 'income',
                 'store_id' => $dailyClose->store_id,
                 'date' => $dailyClose->date,
@@ -3875,26 +3869,15 @@ class FinancialController extends Controller
                 'income_amount' => $cashSales,
                 'income_category' => 'cierre_diario',
                 'income_concept' => 'Ingreso efectivo cierre diario',
-                'expense_payment_method' => 'cash', // Usamos este campo para indicar método de pago
-                'notes' => 'daily_close_id:' . $dailyClose->id,
-                'created_by' => $dailyClose->created_by ?? Auth::id(),
-            ];
-
-            if ($existingCashIncome) {
-                $existingCashIncome->update($incomeData);
-            } else {
-                FinancialEntry::create($incomeData);
-            }
-        } else {
-            // Si el efectivo es 0 o negativo, eliminar el ingreso si existe
-            if ($existingCashIncome) {
-                $existingCashIncome->delete();
-            }
+                'expense_payment_method' => 'cash',
+                'notes' => $notes,
+                'created_by' => $userId,
+            ]);
         }
 
-        // Crear o actualizar ingreso de datáfono
+        // Crear solo el ingreso de datáfono si aplica
         if ($tpv > 0) {
-            $incomeData = [
+            FinancialEntry::create([
                 'type' => 'income',
                 'store_id' => $dailyClose->store_id,
                 'date' => $dailyClose->date,
@@ -3902,26 +3885,15 @@ class FinancialController extends Controller
                 'income_amount' => $tpv,
                 'income_category' => 'cierre_diario',
                 'income_concept' => 'Ingreso datáfono cierre diario',
-                'expense_payment_method' => 'bank', // Usamos este campo para indicar método de pago
-                'notes' => 'daily_close_id:' . $dailyClose->id,
-                'created_by' => $dailyClose->created_by ?? Auth::id(),
-            ];
-
-            if ($existingTpvIncome) {
-                $existingTpvIncome->update($incomeData);
-            } else {
-                FinancialEntry::create($incomeData);
-            }
-        } else {
-            // Si el datáfono es 0, eliminar el ingreso si existe
-            if ($existingTpvIncome) {
-                $existingTpvIncome->delete();
-            }
+                'expense_payment_method' => 'bank',
+                'notes' => $notes,
+                'created_by' => $userId,
+            ]);
         }
     }
 
     /**
-     * Eliminar ingresos automáticos asociados a un cierre diario
+     * Eliminar ingresos automáticos asociados a un cierre diario (cualquier formato de notes).
      */
     private function deleteDailyCloseIncomes(FinancialEntry $dailyClose)
     {
@@ -3929,11 +3901,15 @@ class FinancialController extends Controller
             return;
         }
 
-        // Buscar y eliminar ingresos asociados
+        $id = (int) $dailyClose->id;
+        // Incluir ambos formatos: "daily_close_id:X" (controller) y "Generado automáticamente desde cierre diario #X" (command)
         FinancialEntry::where('type', 'income')
             ->where('store_id', $dailyClose->store_id)
             ->where('date', $dailyClose->date)
-            ->where('notes', 'LIKE', '%daily_close_id:' . $dailyClose->id . '%')
+            ->where(function ($q) use ($id) {
+                $q->where('notes', 'LIKE', '%daily_close_id:' . $id . '%')
+                    ->orWhere('notes', 'LIKE', '%Generado automáticamente desde cierre diario #' . $id . '%');
+            })
             ->delete();
     }
 

@@ -72,6 +72,11 @@ class Role extends Model
         if (($permission === 'hr.overtime.view_store' || $permission === 'hr.overtime.view_own') && !empty($permissions['hr.overtime.view'])) {
             return true;
         }
+        // Compatibilidad: salario bruto/neto (legacy) = ver salario de todos
+        if (($permission === 'hr.employees.view_salary_store' || $permission === 'hr.employees.view_salary_own')
+            && (!empty($permissions['hr.employees.view_gross_salary']) || !empty($permissions['hr.employees.view_net_salary']))) {
+            return true;
+        }
         
         // Mapeo de permisos granulares a permisos generales (compatibilidad)
         // Si el permiso termina en .view, .create, .edit, .delete, verificar el permiso general

@@ -115,7 +115,11 @@
             </div>
 
             <!-- Información Financiera -->
-            @if($employee->social_security || $employee->iban || $employee->gross_salary || $employee->net_salary)
+            @php
+                $canViewSalary = auth()->user()->hasPermission('hr.employees.view_salary_store') || (auth()->user()->hasPermission('hr.employees.view_salary_own') && $employee->user_id === auth()->id());
+                $hasFinancialInfo = $employee->social_security || $employee->iban || ($canViewSalary && ($employee->gross_salary || $employee->net_salary));
+            @endphp
+            @if($hasFinancialInfo)
             <div class="rounded-xl border-2 border-amber-100 bg-amber-50/30 p-4 ring-1 ring-amber-100">
                 <h3 class="mb-4 text-sm font-semibold text-amber-900">Información Financiera</h3>
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -131,13 +135,13 @@
                         <div class="mt-1 text-sm text-slate-900">{{ $employee->iban }}</div>
                     </div>
                     @endif
-                    @if($employee->gross_salary)
+                    @if($canViewSalary && $employee->gross_salary)
                     <div>
                         <span class="text-xs font-semibold text-slate-500">Salario bruto mensual</span>
                         <div class="mt-1 text-sm font-semibold text-slate-900">{{ number_format($employee->gross_salary, 2, ',', '.') }} €</div>
                     </div>
                     @endif
-                    @if($employee->net_salary)
+                    @if($canViewSalary && $employee->net_salary)
                     <div>
                         <span class="text-xs font-semibold text-slate-500">Salario neto mensual</span>
                         <div class="mt-1 text-sm font-semibold text-slate-900">{{ number_format($employee->net_salary, 2, ',', '.') }} €</div>

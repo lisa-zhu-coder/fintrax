@@ -181,6 +181,7 @@
                         <span class="text-xs font-semibold text-slate-700">Número IBAN</span>
                         <input type="text" name="iban" value="{{ $oldInput['iban'] ?? old('iban') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
+                    @if(auth()->user()->hasPermission('hr.employees.view_salary_store'))
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Salario bruto mensual (€)</span>
                         <input type="number" name="gross_salary" step="0.01" min="0" value="{{ $oldInput['gross_salary'] ?? old('gross_salary') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
@@ -189,6 +190,7 @@
                         <span class="text-xs font-semibold text-slate-700">Salario neto aproximado mensual (€)</span>
                         <input type="number" name="net_salary" step="0.01" min="0" value="{{ $oldInput['net_salary'] ?? old('net_salary') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
+                    @endif
                 </div>
             </div>
 

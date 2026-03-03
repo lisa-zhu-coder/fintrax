@@ -170,6 +170,11 @@ class EmployeeController extends Controller
             $storeIds = $validated['store_ids'];
             unset($validated['store_ids']);
 
+            // Solo permitir salarios si el usuario tiene permiso (en creación solo view_salary_store)
+            if (!$user->hasPermission('hr.employees.view_salary_store')) {
+                unset($validated['gross_salary'], $validated['net_salary']);
+            }
+
             $employee = Employee::create($validated);
             $employee->stores()->sync($storeIds);
 
@@ -337,6 +342,14 @@ class EmployeeController extends Controller
                         $validated['store_ids'] = [$enforcedStoreId];
                     }
                 }
+            }
+
+            // Solo permitir actualizar salarios: view_salary_store (todos) o view_salary_own (solo su ficha)
+            $user = Auth::user();
+            $canSetSalary = $user->hasPermission('hr.employees.view_salary_store')
+                || ($user->hasPermission('hr.employees.view_salary_own') && $employee->user_id === $user->id);
+            if (!$canSetSalary) {
+                unset($validated['gross_salary'], $validated['net_salary']);
             }
 
             $employee->update($validated);

@@ -149,6 +149,8 @@
                         <span class="text-xs font-semibold text-slate-700">Número IBAN</span>
                         <input type="text" name="iban" value="{{ old('iban', $employee->iban) }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
+                    @php $canEditSalary = auth()->user()->hasPermission('hr.employees.view_salary_store') || (auth()->user()->hasPermission('hr.employees.view_salary_own') && $employee->user_id === auth()->id()); @endphp
+                    @if($canEditSalary)
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Salario bruto mensual (€)</span>
                         <input type="number" name="gross_salary" step="0.01" min="0" value="{{ old('gross_salary', $employee->gross_salary) }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
@@ -157,6 +159,7 @@
                         <span class="text-xs font-semibold text-slate-700">Salario neto aproximado mensual (€)</span>
                         <input type="number" name="net_salary" step="0.01" min="0" value="{{ old('net_salary', $employee->net_salary) }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
+                    @endif
                 </div>
             </div>
 

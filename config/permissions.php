@@ -15,6 +15,8 @@ return [
         'configure' => 'Configurar',
         'view_own' => 'Solo su ficha',
         'view_store' => 'Todas las fichas de la tienda',
+        'view_salary_own' => 'Ver salario bruto y neto (solo el suyo)',
+        'view_salary_store' => 'Ver salario bruto y neto (todos los empleados)',
         'edit_initial' => 'Editar inicial',
     ],
 
@@ -111,7 +113,7 @@ return [
             'key' => 'hr',
             'label' => 'RR.HH.',
             'items' => [
-                ['key' => 'employees', 'label' => 'Empleados', 'actions' => ['view_own', 'view_store', 'create', 'edit', 'delete', 'configure']],
+                ['key' => 'employees', 'label' => 'Empleados', 'actions' => ['view_own', 'view_store', 'view_salary_own', 'view_salary_store', 'create', 'edit', 'delete', 'configure']],
                 ['key' => 'overtime', 'label' => 'Horas extras', 'actions' => ['view_own', 'view_store', 'create', 'edit', 'delete']],
                 ['key' => 'vacations', 'label' => 'Vacaciones', 'actions' => ['view', 'edit']],
             ],

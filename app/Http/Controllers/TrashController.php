@@ -32,7 +32,8 @@ class TrashController extends Controller
         $query = FinancialEntry::onlyTrashed()->with(['store', 'creator']);
 
         $this->scopeStoreForCurrentUser($query);
-        if ($request->has('store') && $request->store !== '' && $request->store !== 'all') {
+        // Solo aplicar filtro por tienda del request si el usuario puede elegir (varias tiendas o admin)
+        if (auth()->user()->getEnforcedStoreId() === null && $request->has('store') && $request->store !== '' && $request->store !== 'all') {
             $query->where('store_id', $request->store);
         }
         if ($request->has('type') && $request->type !== '') {

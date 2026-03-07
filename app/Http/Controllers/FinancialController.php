@@ -68,6 +68,35 @@ class FinancialController extends Controller
         $period = $request->get('period', 'last_30');
         $this->applyPeriodFilter($query, $period, $request);
 
+        // Filtro por tipo
+        if ($request->filled('type') && $request->get('type') !== 'all') {
+            $query->where('type', $request->get('type'));
+        }
+
+        // Filtro por categoría (gastos o ingresos)
+        if ($request->filled('category')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('expense_category', $request->get('category'))
+                    ->orWhere('income_category', $request->get('category'));
+            });
+        }
+
+        // Filtro por usuario creador
+        if ($request->filled('user')) {
+            $query->where('created_by', $request->get('user'));
+        }
+
+        // Búsqueda por concepto o notas
+        if ($request->filled('search')) {
+            $term = '%' . $request->get('search') . '%';
+            $query->where(function ($q) use ($term) {
+                $q->where('concept', 'like', $term)
+                    ->orWhere('notes', 'like', $term)
+                    ->orWhere('expense_concept', 'like', $term)
+                    ->orWhere('income_concept', 'like', $term);
+            });
+        }
+
         $entries = $query->orderBy('date', 'desc')->orderBy('created_at', 'desc')->paginate(50);
         $stores = $this->storesForCurrentUser();
         $companyId = session('company_id');
@@ -890,6 +919,15 @@ class FinancialController extends Controller
             $query->where('expense_category', $request->category);
         }
 
+        // Filtro por método de pago
+        if ($request->filled('payment_method')) {
+            if ($request->payment_method === 'cash') {
+                $query->where('expense_payment_method', 'cash');
+            } elseif ($request->payment_method === 'bank') {
+                $query->whereIn('expense_payment_method', ['bank', 'card', 'datafono', 'tarjeta']);
+            }
+        }
+
         // Filtro "Solo pendientes"
         if ($request->has('only_pending') && $request->only_pending == '1') {
             $query->whereRaw('(COALESCE(total_amount, 0) - COALESCE(paid_amount, 0)) > 0');
@@ -1251,9 +1289,9 @@ class FinancialController extends Controller
             // Obtener todas las tiendas disponibles
             $stores = $this->getAvailableStores();
             
-            // Aplicar filtro por tienda si se especifica
+            // Aplicar filtro por tienda solo si el usuario puede elegir (varias tiendas o admin)
             $selectedStoreId = $request->get('store_id');
-            if ($selectedStoreId) {
+            if (auth()->user()->getEnforcedStoreId() === null && $selectedStoreId) {
                 $stores = $stores->filter(function($store) use ($selectedStoreId) {
                     return $store->id == $selectedStoreId;
                 });
@@ -1530,6 +1568,7 @@ class FinancialController extends Controller
         } catch (\Exception $e) {
             Log::error('Error en bankControl: ' . $e->getMessage());
             $stores = $this->getAvailableStores();
+            $allStores = $stores;
             $storesData = [];
             $period = $request->get('period', 'all');
             $availableYears = [];
@@ -2254,8 +2293,13 @@ class FinancialController extends Controller
         $query = BankMovement::forCurrentCompany()
             ->with(['bankAccount.store', 'financialEntry', 'destinationStore']);
         
-        // Filtro por tienda (a través de bank_account)
-        if ($request->has('store_id') && $request->store_id) {
+        // Filtro por tienda (a través de bank_account): forzada si el usuario solo tiene una
+        $enforcedStoreId = auth()->user()->getEnforcedStoreId();
+        if ($enforcedStoreId !== null) {
+            $query->whereHas('bankAccount', function($q) use ($enforcedStoreId) {
+                $q->where('store_id', $enforcedStoreId);
+            });
+        } elseif ($request->has('store_id') && $request->store_id) {
             $query->whereHas('bankAccount', function($q) use ($request) {
                 $q->where('store_id', $request->store_id);
             });
@@ -2327,7 +2371,8 @@ class FinancialController extends Controller
         }
         
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
-        return view('financial.bank-conciliation', compact('movements', 'bankAccounts', 'stores', 'relatedTransfers', 'movementToTransferMap', 'expenseCategories'));
+        $loans = \App\Models\Loan::orderBy('name')->get();
+        return view('financial.bank-conciliation', compact('movements', 'bankAccounts', 'stores', 'relatedTransfers', 'movementToTransferMap', 'expenseCategories', 'loans'));
     }
 
     /**

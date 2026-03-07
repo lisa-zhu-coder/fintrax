@@ -34,17 +34,7 @@
     <!-- Filtros -->
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <form method="GET" action="{{ route('financial.bank-conciliation') }}" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
-            <label class="block">
-                <span class="text-xs font-semibold text-slate-700">Tienda</span>
-                <select name="store_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                    <option value="">Todas las tiendas</option>
-                    @foreach($stores as $store)
-                        <option value="{{ $store->id }}" {{ request('store_id') == $store->id ? 'selected' : '' }}>
-                            {{ $store->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </label>
+            @include('partials.store-filter-select', ['name' => 'store_id', 'stores' => $stores, 'selected' => request('store_id'), 'label' => 'Tienda', 'showAllOption' => true])
 
             <label class="block">
                 <span class="text-xs font-semibold text-slate-700">Fecha desde</span>
@@ -224,6 +214,18 @@
                                                     </svg>
                                                     Enlazar gasto
                                                 </button>
+                                                @if(auth()->user()->hasPermission('loans.payments.create'))
+                                                <button type="button" 
+                                                    class="btn-conciliate-loan inline-flex items-center justify-center gap-1 rounded-xl border border-violet-600 bg-white px-3 py-1.5 text-xs font-semibold text-violet-600 hover:bg-violet-50"
+                                                    data-movement-id="{{ $movement->id }}"
+                                                    data-amount="{{ abs($movement->amount) }}"
+                                                    data-date="{{ $movement->date->format('Y-m-d') }}">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <path d="M12 8v13M17 8v13M7 8v13M2 8v13M7 8h10a2 2 0 012 2v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a2 2 0 012-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                    </svg>
+                                                    Pago de préstamo
+                                                </button>
+                                                @endif
                                                 @if(auth()->user()->hasPermission('financial.expenses.create'))
                                                 <button type="button" 
                                                     class="btn-create-expense inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-600 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50"
@@ -489,6 +491,52 @@
     </div>
 </div>
 
+@if(auth()->user()->hasPermission('loans.payments.create') && isset($loans) && $loans->isNotEmpty())
+<!-- Modal conciliar como pago de préstamo -->
+<div id="loanPaymentModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onclick="closeLoanPaymentModal()"></div>
+        <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div class="mb-4 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900">Conciliar como pago de préstamo</h3>
+                <button type="button" onclick="closeLoanPaymentModal()" class="text-slate-400 hover:text-slate-600">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="mb-4 rounded-xl bg-slate-50 p-3 text-sm">
+                <div class="text-slate-600">Importe del movimiento: <strong id="loanPaymentModalAmount"></strong> €</div>
+            </div>
+            <form id="loanPaymentForm" method="POST" action="">
+                @csrf
+                <label class="block mb-4">
+                    <span class="text-xs font-semibold text-slate-700">Préstamo *</span>
+                    <select name="loan_id" id="loanPaymentLoanId" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Selecciona préstamo</option>
+                        @foreach($loans as $l)
+                            <option value="{{ $l->id }}">{{ $l->name }} (saldo: {{ number_format($l->getBalance(), 2, ',', '.') }} €)</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="block mb-4">
+                    <span class="text-xs font-semibold text-slate-700">Importe (€) *</span>
+                    <input type="number" name="amount" id="loanPaymentAmount" step="0.01" min="0.01" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                </label>
+                <label class="block mb-4">
+                    <span class="text-xs font-semibold text-slate-700">Comentario</span>
+                    <input type="text" name="comment" id="loanPaymentComment" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" placeholder="Opcional"/>
+                </label>
+                <div class="flex items-center justify-end gap-3">
+                    <button type="button" onclick="closeLoanPaymentModal()" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
+                    <button type="submit" class="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Conciliar como pago</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
 <script>
 let currentMovementId = null;
 const baseUrl = '{{ url("/financial/bank-conciliation") }}';
@@ -516,6 +564,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const date = this.getAttribute('data-date');
             const storeId = this.getAttribute('data-store-id');
             openCreateModal(movementId, description, amount, date, storeId);
+        });
+    });
+    
+    // Botones conciliar como pago de préstamo
+    document.querySelectorAll('.btn-conciliate-loan').forEach(button => {
+        button.addEventListener('click', function() {
+            const movementId = this.getAttribute('data-movement-id');
+            const amount = this.getAttribute('data-amount');
+            openLoanPaymentModal(movementId, amount);
         });
     });
     
@@ -572,6 +629,26 @@ function closeLinkModal() {
     document.getElementById('linkModal').classList.add('hidden');
     document.body.style.overflow = '';
     document.getElementById('linkForm').reset();
+}
+
+function openLoanPaymentModal(movementId, amount) {
+    const modal = document.getElementById('loanPaymentModal');
+    const form = document.getElementById('loanPaymentForm');
+    if (!modal || !form) return;
+    form.action = baseUrl + '/' + movementId + '/conciliate-loan-payment';
+    document.getElementById('loanPaymentAmount').value = parseFloat(amount).toFixed(2);
+    document.getElementById('loanPaymentModalAmount').textContent = parseFloat(amount).toFixed(2).replace('.', ',');
+    document.getElementById('loanPaymentComment').value = '';
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeLoanPaymentModal() {
+    const modal = document.getElementById('loanPaymentModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
 }
 
 function openCreateModal(movementId, description, amount, date, storeId) {

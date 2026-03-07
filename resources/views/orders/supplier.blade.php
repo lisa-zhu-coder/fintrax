@@ -73,15 +73,7 @@
                     <span class="text-xs font-semibold text-slate-700">Buscar</span>
                     <input type="text" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Nº factura o Nº pedido" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                 </label>
-                <label class="block min-w-[140px]">
-                    <span class="text-xs font-semibold text-slate-700">Tienda</span>
-                    <select name="store_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                        <option value="">Todas</option>
-                        @foreach($stores as $store)
-                            <option value="{{ $store->id }}" {{ ($filters['store_id'] ?? '') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
-                        @endforeach
-                    </select>
-                </label>
+                <div class="min-w-[140px]">@include('partials.store-filter-select', ['name' => 'store_id', 'stores' => $stores, 'selected' => $filters['store_id'] ?? '', 'label' => 'Tienda', 'showAllOption' => true])</div>
                 <label class="block min-w-[180px]">
                     <span class="text-xs font-semibold text-slate-700">Período</span>
                     <select name="period" id="periodSelect" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">

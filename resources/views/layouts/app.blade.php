@@ -488,7 +488,7 @@
                         @endif
 
                         {{-- Control de flujos (submenú) - solo si tiene algún permiso de tesorería --}}
-                        @if(auth()->user()->hasAnyPermission(['treasury.cash_control.view', 'treasury.cash_wallets.view', 'treasury.bank_control.view', 'treasury.bank_conciliation.view', 'treasury.transfers.view']))
+                        @if(auth()->user()->hasAnyPermission(['treasury.cash_control.view', 'treasury.cash_wallets.view', 'treasury.bank_control.view', 'treasury.bank_conciliation.view', 'treasury.transfers.view', 'loans.main.view']))
                         <div>
                             <button type="button" id="flowControlMenuToggle" title="Control de flujos" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors">
                                 <div class="flex items-center gap-3">
@@ -554,6 +554,11 @@
                                 <a href="{{ route('transfers.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('transfers.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
                                     <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4M3 12h18"/></svg>
                                     <span class="sidebar-submenu-text">Traspasos</span></a>
+                                @endif
+                                @if(auth()->user()->hasPermission('loans.main.view'))
+                                <a href="{{ route('loans.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('loans.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
+                                    <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v13M17 8v13M7 8v13M2 8v13M7 8h10a2 2 0 012 2v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a2 2 0 012-2z"/></svg>
+                                    <span class="sidebar-submenu-text">Préstamos</span></a>
                                 @endif
                             </div>
                         </div>
@@ -710,7 +715,7 @@
                 </a>
                 @endif
 
-                @if(auth()->user()->isSuperAdmin() || auth()->user()->hasAnyPermission(['settings.cash_reduction.view', 'settings.objectives.view', 'settings.overtime.view', 'settings.products.view', 'settings.daily_close.view', 'settings.expense_categories.view']))
+                @if(auth()->user()->isSuperAdmin() || auth()->user()->hasAnyPermission(['settings.cash_reduction.view', 'settings.objectives.view', 'settings.overtime.view', 'settings.products.view', 'settings.daily_close.view', 'settings.expense_categories.view', 'settings.loan_types.manage']))
                 <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <button type="button" id="settingsMenuToggle" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors">
                         <div class="flex items-center gap-3">
@@ -760,6 +765,12 @@
                         <a href="{{ route('expense-categories-settings.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('expense-categories-settings.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
                             <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/><path d="M5 6V4a1 1 0 011-1h3v2M5 18v2a1 1 0 001 1h3v-2"/></svg>
                             <span class="sidebar-submenu-text">Categorías de gastos</span>
+                        </a>
+                        @endif
+                        @if(auth()->user()->hasPermission('settings.loan_types.manage'))
+                        <a href="{{ route('loan-types-settings.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('loan-types-settings.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
+                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v13M17 8v13M7 8v13M2 8v13M7 8h10a2 2 0 012 2v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a2 2 0 012-2z"/></svg>
+                            <span class="sidebar-submenu-text">Tipos de préstamo</span>
                         </a>
                         @endif
                         @if(auth()->user()->isSuperAdmin())

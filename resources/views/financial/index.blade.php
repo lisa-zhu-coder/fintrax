@@ -40,15 +40,7 @@
                     <input type="text" name="search" value="{{ request('search') }}" placeholder="Buscar por concepto, notas..." class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                 </label>
                 
-                <label class="block">
-                    <span class="text-xs font-semibold text-slate-700">Tienda</span>
-                    <select name="store" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                        <option value="all" {{ request('store') === 'all' ? 'selected' : '' }}>Todas las tiendas</option>
-                        @foreach($stores as $store)
-                            <option value="{{ $store->id }}" {{ request('store') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
-                        @endforeach
-                    </select>
-                </label>
+                @include('partials.store-filter-select', ['name' => 'store', 'stores' => $stores, 'selected' => request('store'), 'label' => 'Tienda', 'showAllOption' => true])
                 
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Período</span>
@@ -73,6 +65,17 @@
                         <option value="income" {{ request('type') === 'income' ? 'selected' : '' }}>Ingreso</option>
                         <option value="expense_refund" {{ request('type') === 'expense_refund' ? 'selected' : '' }}>Devolución</option>
                     </select>
+                </label>
+            </div>
+            
+            <div id="customDateRange" class="hidden grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Desde</span>
+                    <input type="date" name="date_from" value="{{ request('date_from') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Hasta</span>
+                    <input type="date" name="date_to" value="{{ request('date_to') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                 </label>
             </div>
             

@@ -9,6 +9,9 @@ use App\Http\Controllers\DeclaredSalesController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\FinancialController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\LoanController;
+use App\Http\Controllers\LoanPaymentController;
+use App\Http\Controllers\LoanTypeController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\StoreCashReductionController;
@@ -138,6 +141,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::post('/financial/bank-conciliation/{bankMovement}/link-expense', [FinancialController::class, 'linkBankMovementToExpense'])->name('financial.bank-conciliation.link-expense');
     Route::post('/financial/bank-conciliation/{bankMovement}/create-expense', [FinancialController::class, 'createExpenseFromBankMovement'])->name('financial.bank-conciliation.create-expense');
     Route::post('/financial/bank-conciliation/{bankMovement}/conciliate-transfer', [FinancialController::class, 'conciliateAsTransfer'])->name('financial.bank-conciliation.conciliate-transfer');
+    Route::post('/financial/bank-conciliation/{bankMovement}/conciliate-loan-payment', [LoanPaymentController::class, 'conciliateFromBank'])->name('financial.bank-conciliation.conciliate-loan-payment');
     Route::post('/financial/bank-conciliation/{bankMovement}/ignore', [FinancialController::class, 'ignoreBankMovement'])->name('financial.bank-conciliation.ignore');
     Route::delete('/financial/bank-conciliation/{bankMovement}', [FinancialController::class, 'destroyBankMovement'])->name('financial.bank-conciliation.destroy');
     Route::get('/financial/bank-movements/available-expenses', [FinancialController::class, 'getAvailableExpenses'])->name('financial.bank-movements.available-expenses');
@@ -277,6 +281,12 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::put('/settings/expense-categories/{expenseCategory}', [\App\Http\Controllers\ExpenseCategorySettingsController::class, 'update'])->name('expense-categories-settings.update');
     Route::delete('/settings/expense-categories/{expenseCategory}', [\App\Http\Controllers\ExpenseCategorySettingsController::class, 'destroy'])->name('expense-categories-settings.destroy');
 
+    // Ajustes - Tipos de préstamo
+    Route::get('/settings/loan-types', [LoanTypeController::class, 'index'])->name('loan-types-settings.index');
+    Route::post('/settings/loan-types', [LoanTypeController::class, 'store'])->name('loan-types-settings.store');
+    Route::put('/settings/loan-types/{loanType}', [LoanTypeController::class, 'update'])->name('loan-types-settings.update');
+    Route::delete('/settings/loan-types/{loanType}', [LoanTypeController::class, 'destroy'])->name('loan-types-settings.destroy');
+
     // Carteras de Efectivo
     Route::get('/cash-wallets', [CashWalletController::class, 'index'])->name('cash-wallets.index');
     Route::get('/cash-wallets/create', [CashWalletController::class, 'create'])->name('cash-wallets.create');
@@ -304,6 +314,19 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::get('/transfers/{transfer}/edit', [TransferController::class, 'edit'])->name('transfers.edit');
     Route::put('/transfers/{transfer}', [TransferController::class, 'update'])->name('transfers.update');
     Route::delete('/transfers/{transfer}', [TransferController::class, 'destroy'])->name('transfers.destroy');
+
+    // Préstamos
+    Route::get('/loans', [LoanController::class, 'index'])->name('loans.index');
+    Route::get('/loans/create', [LoanController::class, 'create'])->name('loans.create');
+    Route::post('/loans', [LoanController::class, 'store'])->name('loans.store');
+    Route::get('/loans/{loan}', [LoanController::class, 'show'])->name('loans.show');
+    Route::get('/loans/{loan}/edit', [LoanController::class, 'edit'])->name('loans.edit');
+    Route::put('/loans/{loan}', [LoanController::class, 'update'])->name('loans.update');
+    Route::delete('/loans/{loan}', [LoanController::class, 'destroy'])->name('loans.destroy');
+    Route::post('/loans/{loan}/payments', [LoanPaymentController::class, 'store'])->name('loans.payments.store');
+    Route::get('/loans/{loan}/payments/{payment}/edit', [LoanPaymentController::class, 'edit'])->name('loans.payments.edit');
+    Route::put('/loans/{loan}/payments/{payment}', [LoanPaymentController::class, 'update'])->name('loans.payments.update');
+    Route::delete('/loans/{loan}/payments/{payment}', [LoanPaymentController::class, 'destroy'])->name('loans.payments.destroy');
 
     // Inventarios por categoría
     Route::get('/inventory/categories', [\App\Http\Controllers\CategoryInventoryController::class, 'categories'])->name('inventory.categories.index');

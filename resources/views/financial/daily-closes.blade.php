@@ -33,15 +33,7 @@
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100 dark:bg-slate-800 dark:ring-slate-600">
         <form method="GET" action="{{ route('financial.daily-closes') }}" class="space-y-4">
             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <label class="block">
-                    <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Tienda</span>
-                    <select name="store" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-brand-200 focus:ring-4 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">
-                        <option value="all" {{ request('store') === 'all' ? 'selected' : '' }}>Todas las tiendas</option>
-                        @foreach($stores as $store)
-                            <option value="{{ $store->id }}" {{ request('store') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
-                        @endforeach
-                    </select>
-                </label>
+                @include('partials.store-filter-select', ['name' => 'store', 'stores' => $stores, 'selected' => request('store'), 'label' => 'Tienda', 'showAllOption' => true])
                 
                 <label class="block" id="periodLabel">
                     <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Período</span>

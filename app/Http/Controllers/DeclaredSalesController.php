@@ -36,7 +36,8 @@ class DeclaredSalesController extends Controller
         $this->scopeStoreForCurrentUser($query);
 
         $storeParam = $request->get('store', 'all');
-        if ($storeParam !== 'all' && (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin())) {
+        // Solo aplicar filtro por tienda del request si el usuario puede elegir (varias tiendas o admin)
+        if (auth()->user()->getEnforcedStoreId() === null && $storeParam !== 'all' && $storeParam !== '') {
             $query->where('store_id', $storeParam);
         }
 

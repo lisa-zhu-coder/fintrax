@@ -96,13 +96,17 @@ class UpdateRoles extends Command
     {
         $perms = array_fill_keys($allKeys, false);
         $grant = [
-            'dashboard', 'financial', 'treasury', 'objectives', 'declared_sales',
+            'dashboard', 'financial', 'treasury', 'loans', 'objectives', 'declared_sales',
             'invoices', 'orders', 'inventory', 'sales', 'hr',
         ];
         foreach ($grant as $moduleKey) {
             foreach ($byModule[$moduleKey] ?? [] as $key) {
                 $perms[$key] = true;
             }
+        }
+        // Manager: tipos de préstamo en Ajustes
+        if (isset($perms['settings.loan_types.manage'])) {
+            $perms['settings.loan_types.manage'] = true;
         }
         return $perms;
     }
@@ -161,7 +165,7 @@ class UpdateRoles extends Command
     {
         $perms = array_fill_keys($allKeys, false);
         $viewOnlyModules = [
-            'dashboard', 'financial', 'treasury', 'objectives', 'declared_sales',
+            'dashboard', 'financial', 'treasury', 'loans', 'objectives', 'declared_sales',
             'invoices', 'orders', 'inventory', 'sales', 'hr',
         ];
         foreach ($viewOnlyModules as $moduleKey) {

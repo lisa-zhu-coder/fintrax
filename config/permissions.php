@@ -18,6 +18,7 @@ return [
         'view_salary_own' => 'Ver salario bruto y neto (solo el suyo)',
         'view_salary_store' => 'Ver salario bruto y neto (todos los empleados)',
         'edit_initial' => 'Editar inicial',
+        'manage' => 'Gestionar',
     ],
 
     'modules' => [
@@ -55,6 +56,14 @@ return [
                 ['key' => 'bank_control', 'label' => 'Control de banco', 'actions' => ['view', 'edit']],
                 ['key' => 'bank_conciliation', 'label' => 'Conciliación bancaria', 'actions' => ['view', 'edit', 'delete']],
                 ['key' => 'transfers', 'label' => 'Traspasos', 'actions' => ['view', 'create', 'edit', 'delete']],
+            ],
+        ],
+        [
+            'key' => 'loans',
+            'label' => 'Préstamos',
+            'items' => [
+                ['key' => 'main', 'label' => 'Préstamos', 'actions' => ['view', 'create', 'edit', 'delete']],
+                ['key' => 'payments', 'label' => 'Pagos de préstamos', 'actions' => ['create', 'edit', 'delete']],
             ],
         ],
         [
@@ -129,6 +138,7 @@ return [
                 ['key' => 'products', 'label' => 'Productos', 'actions' => ['view', 'create', 'edit', 'delete']],
                 ['key' => 'daily_close', 'label' => 'Cierre de caja', 'actions' => ['view', 'edit']],
                 ['key' => 'expense_categories', 'label' => 'Categorías de gastos', 'actions' => ['view', 'create', 'edit', 'delete']],
+                ['key' => 'loan_types', 'label' => 'Tipos de préstamo', 'actions' => ['manage']],
             ],
         ],
         [

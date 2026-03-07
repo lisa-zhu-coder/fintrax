@@ -17,17 +17,7 @@
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <form method="GET" action="{{ route('financial.bank-control') }}" class="space-y-4">
             <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
-                <label class="block">
-                    <span class="text-xs font-semibold text-slate-700">Tienda</span>
-                    <select name="store_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                        <option value="">Todas las tiendas</option>
-                        @if(isset($allStores))
-                            @foreach($allStores as $store)
-                                <option value="{{ $store->id }}" {{ request('store_id') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
-                            @endforeach
-                        @endif
-                    </select>
-                </label>
+                @include('partials.store-filter-select', ['name' => 'store_id', 'stores' => $allStores ?? collect(), 'selected' => request('store_id'), 'label' => 'Tienda', 'showAllOption' => true])
                 
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Año</span>

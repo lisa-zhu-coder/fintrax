@@ -39,15 +39,7 @@
                     <option value="expense_refund" {{ request('type') === 'expense_refund' ? 'selected' : '' }}>Devolución</option>
                 </select>
             </label>
-            <label class="block">
-                <span class="text-xs font-semibold text-slate-700">Tienda</span>
-                <select name="store" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                    <option value="">Todas</option>
-                    @foreach($stores as $store)
-                        <option value="{{ $store->id }}" {{ request('store') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
-                    @endforeach
-                </select>
-            </label>
+            @include('partials.store-filter-select', ['name' => 'store', 'stores' => $stores, 'selected' => request('store'), 'label' => 'Tienda', 'showAllOption' => true])
             <label class="block">
                 <span class="text-xs font-semibold text-slate-700">Período (eliminado)</span>
                 <select name="period" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">

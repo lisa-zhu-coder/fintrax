@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
+use App\Models\Company;
 use App\Models\DeclaredSale;
 use App\Models\FinancialEntry;
 use App\Models\Store;
 use App\Models\StoreCashReduction;
+use App\Services\DeclaredSalesRegistroPdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -98,7 +100,8 @@ class DeclaredSalesController extends Controller
     }
 
     /**
-     * Exportar ventas declaradas (todos los días del mes con los mismos filtros).
+     * Exportar ventas declaradas en PDF con diseño "Registro de ventas" (plantilla LT).
+     * Un documento por mes; una página por tienda con todos los días del mes.
      */
     public function export(Request $request)
     {
@@ -109,32 +112,22 @@ class DeclaredSalesController extends Controller
             return redirect()->route('declared-sales.index')->with('error', 'Mes no válido.');
         }
         $storeIds = $this->getStoreIdsForFilter($request);
+        if (empty($storeIds)) {
+            return redirect()->route('declared-sales.index')->with('error', 'No hay tiendas para exportar.');
+        }
         $dailyRows = $this->buildDailyRowsForMonth($resolvedMonth, $storeIds);
 
-        $filename = 'ventas-declaradas-' . $resolvedMonth->format('Y-m') . '.csv';
-        $headers = [
-            'Content-Type' => 'text/csv; charset=UTF-8',
+        $companyId = session('company_id');
+        $companyName = $companyId ? (Company::find($companyId)->name ?? 'Fintrax') : 'Fintrax';
+
+        $pdf = new DeclaredSalesRegistroPdf($dailyRows, $companyName, $resolvedMonth);
+        $pdf->build();
+        $filename = 'registro-ventas-' . $resolvedMonth->format('Y-m') . '.pdf';
+
+        return response($pdf->Output('S'), 200, [
+            'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ];
-
-        $callback = function () use ($dailyRows) {
-            $stream = fopen('php://output', 'w');
-            fprintf($stream, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
-            fputcsv($stream, ['Fecha', 'Tienda', 'Banco (€)', 'Efectivo (€)', 'Total sin IVA (€)', 'Total con IVA (€)'], ';');
-            foreach ($dailyRows as $row) {
-                fputcsv($stream, [
-                    $row['date']->format('d/m/Y'),
-                    $row['store_name'],
-                    number_format($row['bank_amount'], 2, ',', ''),
-                    number_format($row['cash_amount'], 2, ',', ''),
-                    number_format($row['total_without_vat'], 2, ',', ''),
-                    number_format($row['total_with_vat'], 2, ',', ''),
-                ], ';');
-            }
-            fclose($stream);
-        };
-
-        return response()->stream($callback, 200, $headers);
+        ]);
     }
 
     /**

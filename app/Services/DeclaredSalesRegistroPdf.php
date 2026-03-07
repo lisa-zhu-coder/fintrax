@@ -147,7 +147,7 @@ class DeclaredSalesRegistroPdf extends \FPDF
         $boxH = 18;
         $boxW = 88;
         $nRows = max(count($rows), 1);
-        $headerH = 6;
+        $headerH = 10;
         $totalRowH = 6;
         $tableTop = 72;
         $tableHeight = $pageH - $tableTop - $bottomMargin;
@@ -192,14 +192,23 @@ class DeclaredSalesRegistroPdf extends \FPDF
         $this->Cell($boxW, 10, $this->enc(number_format($totalWithoutVat, 2, ',', '.') . ' €'), 0, 0, 'L', false);
         $this->SetY($tableTop);
 
-        // 5. Cabecera tabla: sin color de fondo, texto negro en negrita
+        // 5. Cabecera tabla: sin color de fondo, texto negro en negrita ("TOTAL CON IVA" y "TOTAL SIN IVA" en dos líneas)
         $this->SetFont('Helvetica', 'B', 10);
         $this->SetTextColor(self::BLACK[0], self::BLACK[1], self::BLACK[2]);
+        $headerY = $this->GetY();
         $this->Cell($wFecha, $headerH, $this->enc('Fecha'), 0, 0, 'L');
         $this->Cell($wCol, $headerH, 'TPV', 0, 0, 'R');
         $this->Cell($wCol, $headerH, $this->enc('EFECTIVO'), 0, 0, 'R');
-        $this->Cell($wCol, $headerH, $this->enc('TOTAL CON IVA'), 0, 0, 'R');
-        $this->Cell($wCol, $headerH, $this->enc('TOTAL SIN IVA'), 0, 1, 'R');
+        $xCol4 = $this->GetX();
+        $this->SetXY($xCol4, $headerY);
+        $this->Cell($wCol, $headerH / 2, $this->enc('TOTAL CON'), 0, 0, 'R');
+        $this->SetXY($xCol4, $headerY + $headerH / 2);
+        $this->Cell($wCol, $headerH / 2, $this->enc('IVA'), 0, 0, 'R');
+        $xCol5 = $xCol4 + $wCol;
+        $this->SetXY($xCol5, $headerY);
+        $this->Cell($wCol, $headerH / 2, $this->enc('TOTAL SIN'), 0, 0, 'R');
+        $this->SetXY($xCol5, $headerY + $headerH / 2);
+        $this->Cell($wCol, $headerH / 2, $this->enc('IVA'), 0, 1, 'R');
 
         // 6. Filas de datos (altura calculada para ocupar justo una hoja)
         $this->SetFont('Helvetica', '', 10);

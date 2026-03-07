@@ -100,8 +100,8 @@ class DeclaredSalesController extends Controller
     }
 
     /**
-     * Exportar ventas declaradas en PDF con diseño "Registro de ventas" (plantilla LT).
-     * Un documento por mes; una página por tienda con todos los días del mes.
+     * Exportar ventas declaradas: PDF (diseño Registro de ventas) o Excel (CSV).
+     * Query: format=pdf|excel (por defecto pdf).
      */
     public function export(Request $request)
     {
@@ -116,7 +116,17 @@ class DeclaredSalesController extends Controller
             return redirect()->route('declared-sales.index')->with('error', 'No hay tiendas para exportar.');
         }
         $dailyRows = $this->buildDailyRowsForMonth($resolvedMonth, $storeIds);
+        $format = strtolower($request->get('format', 'pdf'));
 
+        if ($format === 'excel' || $format === 'csv') {
+            return $this->exportExcel($dailyRows, $resolvedMonth);
+        }
+
+        return $this->exportPdf($dailyRows, $resolvedMonth);
+    }
+
+    private function exportPdf(array $dailyRows, Carbon $resolvedMonth)
+    {
         $companyId = session('company_id');
         $companyName = $companyId ? (Company::find($companyId)->name ?? 'Fintrax') : 'Fintrax';
 
@@ -128,6 +138,34 @@ class DeclaredSalesController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
+    }
+
+    private function exportExcel(array $dailyRows, Carbon $resolvedMonth)
+    {
+        $filename = 'registro-ventas-' . $resolvedMonth->format('Y-m') . '.csv';
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ];
+
+        $callback = function () use ($dailyRows) {
+            $stream = fopen('php://output', 'w');
+            fprintf($stream, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8 para Excel
+            fputcsv($stream, ['Fecha', 'Tienda', 'TPV (€)', 'Efectivo (€)', 'Total con IVA (€)', 'Total sin IVA (€)'], ';');
+            foreach ($dailyRows as $row) {
+                fputcsv($stream, [
+                    $row['date']->locale('es')->translatedFormat('l, d \d\e F \d\e Y'),
+                    $row['store_name'],
+                    number_format($row['bank_amount'], 2, ',', ''),
+                    number_format($row['cash_amount'], 2, ',', ''),
+                    number_format($row['total_with_vat'], 2, ',', ''),
+                    number_format($row['total_without_vat'], 2, ',', ''),
+                ], ';');
+            }
+            fclose($stream);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 
     /**

@@ -50,17 +50,27 @@
                 </button>
                 @if($showDailyView ?? false)
                     @php
-                        $exportParams = ['month' => request('month', now()->format('Y-m'))];
+                        $exportBase = ['month' => request('month', now()->format('Y-m'))];
                         if (request('store') && request('store') !== 'all') {
-                            $exportParams['store'] = request('store');
+                            $exportBase['store'] = request('store');
                         }
                     @endphp
-                    <a href="{{ route('declared-sales.export', $exportParams) }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        Exportar PDF (Registro de ventas)
-                    </a>
+                    <div class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-1" role="group">
+                        <span class="px-3 py-1.5 text-xs font-semibold text-slate-500">Exportar:</span>
+                        <a href="{{ route('declared-sales.export', array_merge($exportBase, ['format' => 'pdf'])) }}" class="inline-flex items-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            PDF
+                        </a>
+                        <a href="{{ route('declared-sales.export', array_merge($exportBase, ['format' => 'excel'])) }}" class="inline-flex items-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Excel
+                        </a>
+                    </div>
                 @endif
                 <a href="{{ route('declared-sales.index') }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Limpiar filtros

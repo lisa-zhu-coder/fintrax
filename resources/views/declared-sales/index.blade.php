@@ -48,6 +48,20 @@
                     </svg>
                     Filtrar
                 </button>
+                @if($showDailyView ?? false)
+                    @php
+                        $exportParams = ['month' => request('month', now()->format('Y-m'))];
+                        if (request('store') && request('store') !== 'all') {
+                            $exportParams['store'] = request('store');
+                        }
+                    @endphp
+                    <a href="{{ route('declared-sales.export', $exportParams) }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Exportar datos
+                    </a>
+                @endif
                 <a href="{{ route('declared-sales.index') }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Limpiar filtros
                 </a>
@@ -105,7 +119,12 @@
 
     <!-- Tabla de Ventas Declaradas -->
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
-        <h2 class="mb-4 text-base font-semibold">Ventas Declaradas</h2>
+        <h2 class="mb-4 text-base font-semibold">
+            Ventas Declaradas
+            @if($showDailyView ?? false)
+                <span class="text-sm font-normal text-slate-500">— Todos los días del mes (0 cuando no hay cierre)</span>
+            @endif
+        </h2>
         <div class="overflow-x-auto">
             <table class="min-w-full text-left text-sm">
                 <thead class="text-xs uppercase text-slate-500">
@@ -119,44 +138,69 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                    @forelse($declaredSales as $sale)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-3 py-2">
-                                <div class="font-semibold">{{ $sale->date->format('d/m/Y') }}</div>
-                                <div class="text-xs text-slate-500">{{ $sale->date->format('F Y') }}</div>
-                            </td>
-                            <td class="px-3 py-2 font-semibold">{{ $sale->store ? $sale->store->name : 'Sin tienda' }}</td>
-                            <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($sale->bank_amount, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right whitespace-nowrap">
-                                {{ number_format($sale->cash_amount, 2, ',', '.') }} €
-                                @if($sale->cash_reduction_percent > 0)
-                                    <div class="text-xs text-slate-500">(-{{ number_format($sale->cash_reduction_percent, 2, ',', '.') }}%)</div>
-                                @endif
-                            </td>
-                            <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($sale->total_without_vat, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-semibold text-brand-700 whitespace-nowrap">{{ number_format($sale->total_with_vat, 2, ',', '.') }} €</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6" class="px-3 py-6 text-center text-slate-500">
-                                No hay ventas declaradas para el período seleccionado.
-                                @if(auth()->user()->hasPermission('declared_sales.main.create'))
-                                    <div class="mt-2">
-                                        <form method="POST" action="{{ route('declared-sales.generate-from-daily-closes') }}" class="inline" onsubmit="return confirm('¿Generar ventas declaradas desde los cierres diarios del mes seleccionado?')">
-                                            @csrf
-                                            <input type="hidden" name="month" value="{{ request('month', now()->format('Y-m')) }}">
-                                            @if(request('store') && request('store') !== 'all')
-                                                <input type="hidden" name="store_id" value="{{ request('store') }}">
-                                            @endif
-                                            <button type="submit" class="text-brand-600 hover:text-brand-700 underline">
-                                                Generar desde cierres diarios
-                                            </button>
-                                        </form>
-                                    </div>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforelse
+                    @if($showDailyView ?? false)
+                        @forelse(($dailyRows ?? []) as $row)
+                            <tr class="hover:bg-slate-50 {{ $row['total_with_vat'] == 0 ? 'bg-slate-50/50' : '' }}">
+                                <td class="px-3 py-2">
+                                    <div class="font-semibold">{{ $row['date']->format('d/m/Y') }}</div>
+                                    <div class="text-xs text-slate-500">{{ $row['date']->translatedFormat('l') }}</div>
+                                </td>
+                                <td class="px-3 py-2 font-semibold">{{ $row['store_name'] }}</td>
+                                <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($row['bank_amount'], 2, ',', '.') }} €</td>
+                                <td class="px-3 py-2 text-right whitespace-nowrap">
+                                    {{ number_format($row['cash_amount'], 2, ',', '.') }} €
+                                    @if(($row['cash_reduction_percent'] ?? 0) > 0)
+                                        <div class="text-xs text-slate-500">(-{{ number_format($row['cash_reduction_percent'], 2, ',', '.') }}%)</div>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($row['total_without_vat'], 2, ',', '.') }} €</td>
+                                <td class="px-3 py-2 text-right font-semibold text-brand-700 whitespace-nowrap">{{ number_format($row['total_with_vat'], 2, ',', '.') }} €</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="px-3 py-6 text-center text-slate-500">No hay datos para el mes seleccionado.</td>
+                            </tr>
+                        @endforelse
+                    @else
+                        @forelse($declaredSales as $sale)
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-3 py-2">
+                                    <div class="font-semibold">{{ $sale->date->format('d/m/Y') }}</div>
+                                    <div class="text-xs text-slate-500">{{ $sale->date->format('F Y') }}</div>
+                                </td>
+                                <td class="px-3 py-2 font-semibold">{{ $sale->store ? $sale->store->name : 'Sin tienda' }}</td>
+                                <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($sale->bank_amount, 2, ',', '.') }} €</td>
+                                <td class="px-3 py-2 text-right whitespace-nowrap">
+                                    {{ number_format($sale->cash_amount, 2, ',', '.') }} €
+                                    @if($sale->cash_reduction_percent > 0)
+                                        <div class="text-xs text-slate-500">(-{{ number_format($sale->cash_reduction_percent, 2, ',', '.') }}%)</div>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($sale->total_without_vat, 2, ',', '.') }} €</td>
+                                <td class="px-3 py-2 text-right font-semibold text-brand-700 whitespace-nowrap">{{ number_format($sale->total_with_vat, 2, ',', '.') }} €</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="px-3 py-6 text-center text-slate-500">
+                                    No hay ventas declaradas para el período seleccionado.
+                                    @if(auth()->user()->hasPermission('declared_sales.main.create'))
+                                        <div class="mt-2">
+                                            <form method="POST" action="{{ route('declared-sales.generate-from-daily-closes') }}" class="inline" onsubmit="return confirm('¿Generar ventas declaradas desde los cierres diarios del mes seleccionado?')">
+                                                @csrf
+                                                <input type="hidden" name="month" value="{{ request('month', now()->format('Y-m')) }}">
+                                                @if(request('store') && request('store') !== 'all')
+                                                    <input type="hidden" name="store_id" value="{{ request('store') }}">
+                                                @endif
+                                                <button type="submit" class="text-brand-600 hover:text-brand-700 underline">
+                                                    Generar desde cierres diarios
+                                                </button>
+                                            </form>
+                                        </div>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforelse
+                    @endif
                 </tbody>
             </table>
         </div>

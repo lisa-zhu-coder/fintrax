@@ -206,6 +206,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     
     // Ventas Declaradas
     Route::get('/declared-sales', [DeclaredSalesController::class, 'index'])->name('declared-sales.index');
+    Route::get('/declared-sales/export', [DeclaredSalesController::class, 'export'])->name('declared-sales.export');
     Route::post('/declared-sales/generate-from-daily-closes', [DeclaredSalesController::class, 'generateFromDailyCloses'])->name('declared-sales.generate-from-daily-closes');
     
     // Configuración - Reducción de Efectivo por Tienda

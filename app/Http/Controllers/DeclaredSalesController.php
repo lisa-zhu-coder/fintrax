@@ -20,7 +20,7 @@ class DeclaredSalesController extends Controller
 
     public function __construct()
     {
-        $this->middleware('permission:declared_sales.main.view')->only(['index']);
+        $this->middleware('permission:declared_sales.main.view')->only(['index', 'export']);
         $this->middleware('permission:declared_sales.main.create')->only(['generateFromDailyCloses']);
     }
 
@@ -71,10 +71,183 @@ class DeclaredSalesController extends Controller
         $declaredSales = $query->orderBy('date', 'desc')->orderBy('store_id')->get();
         $stores = $this->getAvailableStores();
 
-        // Generar resumen mensual
-        $monthlySummary = $this->generateMonthlySummary($request);
+        // Cuando hay filtro por mes (o mes por defecto), mostrar todos los días del mes con importes (0 si no hay cierre)
+        $showDailyView = false;
+        $dailyRows = [];
+        $resolvedMonth = null;
+        if ($request->has('month') && $request->month) {
+            try {
+                $resolvedMonth = Carbon::parse($request->month)->startOfMonth();
+            } catch (\Exception $e) {
+            }
+        } elseif (! $request->has('year') || ! $request->year) {
+            $resolvedMonth = now()->startOfMonth();
+        }
+        if ($resolvedMonth) {
+            $storeIds = $this->getStoreIdsForFilter($request);
+            $dailyRows = $this->buildDailyRowsForMonth($resolvedMonth, $storeIds);
+            $showDailyView = true;
+        }
 
-        return view('declared-sales.index', compact('declaredSales', 'stores', 'monthlySummary'));
+        // Generar resumen mensual (desde dailyRows si hay vista diaria, sino desde DeclaredSale)
+        $monthlySummary = $showDailyView
+            ? $this->monthlySummaryFromDailyRows($dailyRows)
+            : $this->generateMonthlySummary($request);
+
+        return view('declared-sales.index', compact('declaredSales', 'stores', 'monthlySummary', 'dailyRows', 'showDailyView', 'resolvedMonth'));
+    }
+
+    /**
+     * Exportar ventas declaradas (todos los días del mes con los mismos filtros).
+     */
+    public function export(Request $request)
+    {
+        $month = $request->get('month', now()->format('Y-m'));
+        try {
+            $resolvedMonth = Carbon::parse($month)->startOfMonth();
+        } catch (\Exception $e) {
+            return redirect()->route('declared-sales.index')->with('error', 'Mes no válido.');
+        }
+        $storeIds = $this->getStoreIdsForFilter($request);
+        $dailyRows = $this->buildDailyRowsForMonth($resolvedMonth, $storeIds);
+
+        $filename = 'ventas-declaradas-' . $resolvedMonth->format('Y-m') . '.csv';
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ];
+
+        $callback = function () use ($dailyRows) {
+            $stream = fopen('php://output', 'w');
+            fprintf($stream, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
+            fputcsv($stream, ['Fecha', 'Tienda', 'Banco (€)', 'Efectivo (€)', 'Total sin IVA (€)', 'Total con IVA (€)'], ';');
+            foreach ($dailyRows as $row) {
+                fputcsv($stream, [
+                    $row['date']->format('d/m/Y'),
+                    $row['store_name'],
+                    number_format($row['bank_amount'], 2, ',', ''),
+                    number_format($row['cash_amount'], 2, ',', ''),
+                    number_format($row['total_without_vat'], 2, ',', ''),
+                    number_format($row['total_with_vat'], 2, ',', ''),
+                ], ';');
+            }
+            fclose($stream);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * IDs de tiendas a mostrar según filtro y permisos.
+     */
+    private function getStoreIdsForFilter(Request $request): array
+    {
+        $stores = $this->getAvailableStores();
+        $enforcedStoreId = auth()->user()->getEnforcedStoreId();
+        if ($enforcedStoreId !== null) {
+            return [$enforcedStoreId];
+        }
+        $storeParam = $request->get('store', 'all');
+        if ($storeParam !== 'all' && $storeParam !== '') {
+            return [(int) $storeParam];
+        }
+        return $stores->pluck('id')->toArray();
+    }
+
+    /**
+     * Construir una fila por cada día del mes y cada tienda. Sin cierre diario = importes 0.
+     */
+    private function buildDailyRowsForMonth(Carbon $monthStart, array $storeIds): array
+    {
+        if (empty($storeIds)) {
+            return [];
+        }
+        $endDate = $monthStart->copy()->endOfMonth();
+        $stores = Store::whereIn('id', $storeIds)->get()->keyBy('id');
+        $cashReductions = StoreCashReduction::forCurrentCompany()->whereIn('store_id', $storeIds)->get()->keyBy('store_id');
+
+        $dailyCloses = FinancialEntry::where('type', 'daily_close')
+            ->whereBetween('date', [$monthStart, $endDate])
+            ->whereIn('store_id', $storeIds)
+            ->orderBy('date')
+            ->orderBy('store_id')
+            ->get();
+
+        $byDateStore = [];
+        foreach ($dailyCloses as $close) {
+            $key = $close->date->format('Y-m-d') . '_' . $close->store_id;
+            $byDateStore[$key] = $close;
+        }
+
+        $rows = [];
+        $current = $monthStart->copy();
+        while ($current->lte($endDate)) {
+            $dateStr = $current->format('Y-m-d');
+            foreach ($storeIds as $storeId) {
+                $key = $dateStr . '_' . $storeId;
+                $close = $byDateStore[$key] ?? null;
+                $cashReduction = $cashReductions->get($storeId);
+                $cashReductionPercent = $cashReduction ? (float) $cashReduction->cash_reduction_percent : 0;
+
+                if ($close) {
+                    $bankAmount = (float) ($close->tpv ?? 0);
+                    $cashAmount = $close->calculateComputedCashSales();
+                    $efectivoReducido = $cashAmount * (1 - ($cashReductionPercent / 100));
+                    $totalWithVat = $bankAmount + $efectivoReducido;
+                    $totalWithoutVat = $totalWithVat / 1.21;
+                } else {
+                    $bankAmount = $cashAmount = $totalWithVat = $totalWithoutVat = 0.0;
+                }
+
+                $rows[] = [
+                    'date' => $current->copy(),
+                    'store_id' => $storeId,
+                    'store_name' => $stores->get($storeId)->name ?? '—',
+                    'bank_amount' => round($bankAmount, 2),
+                    'cash_amount' => round($cashAmount, 2),
+                    'cash_reduction_percent' => $cashReductionPercent,
+                    'total_with_vat' => round($totalWithVat, 2),
+                    'total_without_vat' => round($totalWithoutVat, 2),
+                ];
+            }
+            $current->addDay();
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Resumen mensual a partir de las filas diarias (para la vista por días).
+     */
+    private function monthlySummaryFromDailyRows(array $dailyRows): array
+    {
+        $byStore = [];
+        foreach ($dailyRows as $row) {
+            $id = $row['store_id'];
+            if (! isset($byStore[$id])) {
+                $byStore[$id] = [
+                    'store_id' => $id,
+                    'store_name' => $row['store_name'],
+                    'total_bank_amount' => 0,
+                    'total_cash_amount' => 0,
+                    'total_with_vat' => 0,
+                    'total_without_vat' => 0,
+                    'count' => 0,
+                ];
+            }
+            $byStore[$id]['total_bank_amount'] += $row['bank_amount'];
+            $byStore[$id]['total_cash_amount'] += $row['cash_amount'];
+            $byStore[$id]['total_with_vat'] += $row['total_with_vat'];
+            $byStore[$id]['total_without_vat'] += $row['total_without_vat'];
+            $byStore[$id]['count']++;
+        }
+        foreach ($byStore as &$item) {
+            $item['total_bank_amount'] = round($item['total_bank_amount'], 2);
+            $item['total_cash_amount'] = round($item['total_cash_amount'], 2);
+            $item['total_with_vat'] = round($item['total_with_vat'], 2);
+            $item['total_without_vat'] = round($item['total_without_vat'], 2);
+        }
+        return array_values($byStore);
     }
 
     /**

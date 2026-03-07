@@ -147,12 +147,7 @@
                                 </td>
                                 <td class="px-3 py-2 font-semibold">{{ $row['store_name'] }}</td>
                                 <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($row['bank_amount'], 2, ',', '.') }} €</td>
-                                <td class="px-3 py-2 text-right whitespace-nowrap">
-                                    {{ number_format($row['cash_amount'], 2, ',', '.') }} €
-                                    @if(($row['cash_reduction_percent'] ?? 0) > 0)
-                                        <div class="text-xs text-slate-500">(-{{ number_format($row['cash_reduction_percent'], 2, ',', '.') }}%)</div>
-                                    @endif
-                                </td>
+                                <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($row['cash_amount'], 2, ',', '.') }} €</td>
                                 <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($row['total_without_vat'], 2, ',', '.') }} €</td>
                                 <td class="px-3 py-2 text-right font-semibold text-brand-700 whitespace-nowrap">{{ number_format($row['total_with_vat'], 2, ',', '.') }} €</td>
                             </tr>
@@ -170,12 +165,7 @@
                                 </td>
                                 <td class="px-3 py-2 font-semibold">{{ $sale->store ? $sale->store->name : 'Sin tienda' }}</td>
                                 <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($sale->bank_amount, 2, ',', '.') }} €</td>
-                                <td class="px-3 py-2 text-right whitespace-nowrap">
-                                    {{ number_format($sale->cash_amount, 2, ',', '.') }} €
-                                    @if($sale->cash_reduction_percent > 0)
-                                        <div class="text-xs text-slate-500">(-{{ number_format($sale->cash_reduction_percent, 2, ',', '.') }}%)</div>
-                                    @endif
-                                </td>
+                                <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($sale->cash_amount, 2, ',', '.') }} €</td>
                                 <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($sale->total_without_vat, 2, ',', '.') }} €</td>
                                 <td class="px-3 py-2 text-right font-semibold text-brand-700 whitespace-nowrap">{{ number_format($sale->total_with_vat, 2, ',', '.') }} €</td>
                             </tr>

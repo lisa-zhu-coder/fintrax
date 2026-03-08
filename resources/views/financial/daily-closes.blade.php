@@ -121,14 +121,9 @@
                                 @endif
                             </td>
                             <td class="px-3 py-2 text-right text-slate-800 dark:text-slate-200">
-                                @if(isset($entry->cash_count))
-                                    @php
-                                        $cashTotal = 0;
-                                        foreach($entry->cash_count as $denomination => $count) {
-                                            $cashTotal += (float)$denomination * (int)$count;
-                                        }
-                                    @endphp
-                                    {{ number_format($cashTotal, 2, ',', '.') }} €
+                                @php $cashSales = $entry->calculateComputedCashSales(); @endphp
+                                @if($cashSales > 0 || $entry->cash_count || $entry->cash_initial !== null || $entry->cash_expenses !== null)
+                                    {{ number_format($cashSales, 2, ',', '.') }} €
                                 @else
                                     <span class="text-slate-400 dark:text-slate-500">—</span>
                                 @endif

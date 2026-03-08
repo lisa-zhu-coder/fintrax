@@ -37,25 +37,29 @@
                 <thead class="text-xs uppercase text-slate-500 bg-slate-50">
                     <tr>
                         <th class="px-3 py-2 text-left">Tienda</th>
-                        <th class="px-3 py-2 text-right">Objetivo 1</th>
-                        <th class="px-3 py-2 text-right">Objetivo 2</th>
+                        @foreach($definitions as $def)
+                            <th class="px-3 py-2 text-right">{{ $def->name }}</th>
+                        @endforeach
                         <th class="px-3 py-2 text-right">Objetivo cumplido</th>
-                        <th class="px-3 py-2 text-right">Diferencia Obj. 1</th>
-                        <th class="px-3 py-2 text-right">Diferencia Obj. 2</th>
+                        @foreach($definitions as $def)
+                            <th class="px-3 py-2 text-right">Dif. {{ $def->name }}</th>
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @foreach($stores as $store)
-                        @php $data = $storeData[$store->id] ?? ['obj1' => 0, 'obj2' => 0, 'cumplido' => 0, 'diff1' => 0, 'diff2' => 0]; @endphp
+                        @php $data = $storeData[$store->id] ?? ['objectives' => [], 'cumplido' => 0, 'diffs' => []]; @endphp
                         <tr class="hover:bg-slate-50">
                             <td class="px-3 py-2">
                                 <a href="{{ route('objectives.store-months', ['store' => $store, 'year' => $year]) }}" class="font-semibold text-slate-900 hover:text-brand-600">{{ $store->name }}</a>
                             </td>
-                            <td class="px-3 py-2 text-right">{{ number_format($data['obj1'], 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right">{{ number_format($data['obj2'], 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right">{{ number_format($data['cumplido'], 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-medium {{ $data['diff1'] >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($data['diff1'], 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-medium {{ $data['diff2'] >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($data['diff2'], 2, ',', '.') }} €</td>
+                            @foreach($data['objectives'] ?? [] as $obj)
+                                <td class="px-3 py-2 text-right">{{ number_format($obj, 2, ',', '.') }} €</td>
+                            @endforeach
+                            <td class="px-3 py-2 text-right">{{ number_format($data['cumplido'] ?? 0, 2, ',', '.') }} €</td>
+                            @foreach($data['diffs'] ?? [] as $diff)
+                                <td class="px-3 py-2 text-right font-medium {{ $diff >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($diff, 2, ',', '.') }} €</td>
+                            @endforeach
                         </tr>
                     @endforeach
                 </tbody>

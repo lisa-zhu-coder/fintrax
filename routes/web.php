@@ -231,9 +231,11 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::put('/objectives/store/{store}/{year}/{month}/bases', [MonthlyObjectiveController::class, 'updateMonthBases'])->name('objectives.update-month-bases');
     Route::put('/objectives/rows/{objectiveDailyRow}', [MonthlyObjectiveController::class, 'updateBase'])->name('objectives.update-base');
 
-    // Ajustes - Objetivos de ventas (porcentajes por mes)
+    // Ajustes - Objetivos de ventas (definiciones + porcentajes por mes)
     Route::get('/settings/objectives', [MonthlyObjectiveSettingController::class, 'index'])->name('objectives-settings.index');
     Route::post('/settings/objectives', [MonthlyObjectiveSettingController::class, 'store'])->name('objectives-settings.store');
+    Route::post('/settings/objectives/definitions', [MonthlyObjectiveSettingController::class, 'storeObjectiveDefinition'])->name('objectives-settings.definitions.store');
+    Route::delete('/settings/objectives/definitions/{objective_definition}', [MonthlyObjectiveSettingController::class, 'destroyObjectiveDefinition'])->name('objectives-settings.definitions.destroy');
     Route::delete('/settings/objectives/{objectives_setting}', [MonthlyObjectiveSettingController::class, 'destroy'])->name('objectives-settings.destroy');
 
     // Horas extras

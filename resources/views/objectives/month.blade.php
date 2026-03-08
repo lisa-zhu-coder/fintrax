@@ -29,27 +29,24 @@
 
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <h2 class="text-sm font-semibold text-slate-700 mb-3">Resumen del mes</h2>
-        <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
-            <div class="rounded-xl bg-slate-50 p-3">
-                <p class="text-xs font-medium text-slate-500 uppercase">Total Objetivo 1</p>
-                <p class="text-lg font-semibold text-slate-800">{{ number_format($summary->total_obj1, 2, ',', '.') }} €</p>
-            </div>
-            <div class="rounded-xl bg-slate-50 p-3">
-                <p class="text-xs font-medium text-slate-500 uppercase">Total Objetivo 2</p>
-                <p class="text-lg font-semibold text-slate-800">{{ number_format($summary->total_obj2, 2, ',', '.') }} €</p>
-            </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            @foreach($definitions as $i => $def)
+                <div class="rounded-xl bg-slate-50 p-3">
+                    <p class="text-xs font-medium text-slate-500 uppercase">Total {{ $def->name }}</p>
+                    <p class="text-lg font-semibold text-slate-800">{{ number_format($summary->total_objectives[$i] ?? 0, 2, ',', '.') }} €</p>
+                </div>
+            @endforeach
             <div class="rounded-xl bg-slate-50 p-3">
                 <p class="text-xs font-medium text-slate-500 uppercase">Total Objetivo cumplido</p>
-                <p class="text-lg font-semibold text-slate-800">{{ number_format($summary->total_cumplido, 2, ',', '.') }} €</p>
+                <p class="text-lg font-semibold text-slate-800">{{ number_format($summary->total_cumplido ?? 0, 2, ',', '.') }} €</p>
             </div>
-            <div class="rounded-xl bg-slate-50 p-3">
-                <p class="text-xs font-medium text-slate-500 uppercase">Diferencia Obj. 1</p>
-                <p class="text-lg font-semibold {{ $summary->diff1 >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($summary->diff1, 2, ',', '.') }} €</p>
-            </div>
-            <div class="rounded-xl bg-slate-50 p-3">
-                <p class="text-xs font-medium text-slate-500 uppercase">Diferencia Obj. 2</p>
-                <p class="text-lg font-semibold {{ $summary->diff2 >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($summary->diff2, 2, ',', '.') }} €</p>
-            </div>
+            @foreach($definitions as $i => $def)
+                <div class="rounded-xl bg-slate-50 p-3">
+                    <p class="text-xs font-medium text-slate-500 uppercase">Diferencia {{ $def->name }}</p>
+                    @php $d = $summary->diffs[$i] ?? 0; @endphp
+                    <p class="text-lg font-semibold {{ $d >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($d, 2, ',', '.') }} €</p>
+                </div>
+            @endforeach
         </div>
     </div>
 
@@ -63,11 +60,13 @@
                         <th class="px-3 py-2 text-left">Fecha 2025 (día)</th>
                         <th class="px-3 py-2 text-right">Base 2025</th>
                         <th class="px-3 py-2 text-left">Fecha 2026 (día)</th>
-                        <th class="px-3 py-2 text-right">Objetivo 1</th>
-                        <th class="px-3 py-2 text-right">Objetivo 2</th>
+                        @foreach($definitions as $def)
+                            <th class="px-3 py-2 text-right">{{ $def->name }}</th>
+                        @endforeach
                         <th class="px-3 py-2 text-right">Objetivo cumplido 2026</th>
-                        <th class="px-3 py-2 text-right">Dif. Obj. 1</th>
-                        <th class="px-3 py-2 text-right">Dif. Obj. 2</th>
+                        @foreach($definitions as $def)
+                            <th class="px-3 py-2 text-right">Dif. {{ $def->name }}</th>
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -85,11 +84,13 @@
                                 <span class="block font-medium text-slate-700">{{ $row->date_2026->locale('es')->dayName }}</span>
                                 <span class="block text-sm text-slate-500">{{ $row->date_2026->format('d/m/Y') }}</span>
                             </td>
-                            <td class="px-3 py-2 text-right">{{ number_format($item->obj1, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right">{{ number_format($item->obj2, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right">{{ number_format($item->cumplido, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-medium {{ $item->diff1 >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($item->diff1, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-medium {{ $item->diff2 >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($item->diff2, 2, ',', '.') }} €</td>
+                            @foreach($item->objectives ?? [] as $obj)
+                                <td class="px-3 py-2 text-right">{{ number_format($obj, 2, ',', '.') }} €</td>
+                            @endforeach
+                            <td class="px-3 py-2 text-right">{{ number_format($item->cumplido ?? 0, 2, ',', '.') }} €</td>
+                            @foreach($item->diffs ?? [] as $diff)
+                                <td class="px-3 py-2 text-right font-medium {{ $diff >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($diff, 2, ',', '.') }} €</td>
+                            @endforeach
                         </tr>
                     @endforeach
                 </tbody>

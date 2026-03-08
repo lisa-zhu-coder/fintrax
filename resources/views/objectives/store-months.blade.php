@@ -24,11 +24,13 @@
                 <thead class="text-xs uppercase text-slate-500 bg-slate-50">
                     <tr>
                         <th class="px-3 py-2 text-left">Mes</th>
-                        <th class="px-3 py-2 text-right">Objetivo 1</th>
-                        <th class="px-3 py-2 text-right">Objetivo 2</th>
+                        @foreach($definitions as $def)
+                            <th class="px-3 py-2 text-right">{{ $def->name }}</th>
+                        @endforeach
                         <th class="px-3 py-2 text-right">Objetivo cumplido</th>
-                        <th class="px-3 py-2 text-right">Dif. Obj. 1</th>
-                        <th class="px-3 py-2 text-right">Dif. Obj. 2</th>
+                        @foreach($definitions as $def)
+                            <th class="px-3 py-2 text-right">Dif. {{ $def->name }}</th>
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -37,11 +39,13 @@
                             <td class="px-3 py-2">
                                 <a href="{{ route('objectives.month', ['store' => $store, 'year' => $m->year, 'month' => $m->month]) }}" class="font-semibold text-slate-900 hover:text-brand-600">{{ $m->monthName }}</a>
                             </td>
-                            <td class="px-3 py-2 text-right">{{ number_format($m->obj1, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right">{{ number_format($m->obj2, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right">{{ number_format($m->cumplido, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-medium {{ $m->diff1 >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($m->diff1, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-medium {{ $m->diff2 >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($m->diff2, 2, ',', '.') }} €</td>
+                            @foreach($m->objectives ?? [] as $obj)
+                                <td class="px-3 py-2 text-right">{{ number_format($obj, 2, ',', '.') }} €</td>
+                            @endforeach
+                            <td class="px-3 py-2 text-right">{{ number_format($m->cumplido ?? 0, 2, ',', '.') }} €</td>
+                            @foreach($m->diffs ?? [] as $diff)
+                                <td class="px-3 py-2 text-right font-medium {{ $diff >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ number_format($diff, 2, ',', '.') }} €</td>
+                            @endforeach
                         </tr>
                     @endforeach
                 </tbody>

@@ -140,4 +140,12 @@ class Company extends Model
     {
         return $this->hasMany(OvertimeType::class);
     }
+
+    /**
+     * Definiciones de objetivos de ventas (Objetivo 1, Objetivo 2, etc.).
+     */
+    public function objectiveDefinitions(): HasMany
+    {
+        return $this->hasMany(ObjectiveDefinition::class);
+    }
 }

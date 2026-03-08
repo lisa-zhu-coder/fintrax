@@ -21,74 +21,78 @@ class MonthlyObjectiveController extends Controller
     }
 
     /**
-     * Vista principal: tabla por tiendas (Objetivo 1, Objetivo 2, Cumplido, Diferencias).
+     * Vista principal: tabla por tiendas (N objetivos, Cumplido, Diferencias).
      */
     public function index(Request $request)
     {
         $year = (int) $request->get('year', now()->year);
         $stores = Store::orderBy('name')->get();
+        $definitions = $stores->isNotEmpty() ? MonthlyObjectiveSetting::getObjectiveDefinitionsForStore($stores->first()->id) : collect([]);
         $storeData = [];
         foreach ($stores as $store) {
             $rows = ObjectiveDailyRow::where('store_id', $store->id)
                 ->where('month', 'like', $year . '-%')
                 ->get();
-            $obj1 = $obj2 = $cumplido = 0;
+            $objectives = array_fill(0, $definitions->count(), 0.0);
+            $cumplido = 0;
             foreach ($rows as $row) {
                 $monthNum = (int) substr($row->month, 5, 2);
-                [$pct1, $pct2] = MonthlyObjectiveSetting::getPercentagesForStoreMonth($store->id, (string) $monthNum, $year);
+                $pcts = MonthlyObjectiveSetting::getPercentagesForStoreMonth($store->id, (string) $monthNum, $year);
                 $base = (float) $row->base_2025;
-                $obj1 += $base * (1 + $pct1 / 100);
-                $obj2 += $base * (1 + $pct2 / 100);
+                foreach ($definitions as $i => $def) {
+                    $pct = $pcts[$i] ?? 0;
+                    $objectives[$i] += $base * (1 + $pct / 100);
+                }
                 $cumplido += $this->getDailyCloseAmount($store->id, $row->date_2026);
             }
+            $diffs = array_map(fn ($obj) => $cumplido - $obj, $objectives);
             $storeData[$store->id] = [
-                'obj1' => $obj1,
-                'obj2' => $obj2,
+                'objectives' => $objectives,
                 'cumplido' => $cumplido,
-                'diff1' => $cumplido - $obj1,
-                'diff2' => $cumplido - $obj2,
+                'diffs' => $diffs,
             ];
         }
         $availableYears = $this->availableYears();
-        return view('objectives.index', compact('stores', 'storeData', 'year', 'availableYears'));
+        return view('objectives.index', compact('stores', 'storeData', 'year', 'availableYears', 'definitions'));
     }
 
     /**
      * Vista por tienda: tabla de los 12 meses del año.
-     * No depende de objective_daily_rows: si no hay filas, se muestran 0.
-     * Las filas diarias se crean solo al entrar en un mes concreto (monthDetail).
      */
     public function storeMonths(Store $store, int $year)
     {
         $this->authorizeStoreAccess($store->id);
+        $definitions = MonthlyObjectiveSetting::getObjectiveDefinitionsForStore($store->id);
         $monthsData = [];
         for ($month = 1; $month <= 12; $month++) {
             $monthStr = sprintf('%04d-%02d', $year, $month);
             $rows = ObjectiveDailyRow::where('store_id', $store->id)->where('month', $monthStr)->get();
 
-            $obj1 = $obj2 = $cumplido = 0;
+            $objectives = array_fill(0, $definitions->count(), 0.0);
+            $cumplido = 0;
             if (! $rows->isEmpty()) {
-                [$pct1, $pct2] = MonthlyObjectiveSetting::getPercentagesForStoreMonth($store->id, (string) $month, $year);
+                $pcts = MonthlyObjectiveSetting::getPercentagesForStoreMonth($store->id, (string) $month, $year);
                 foreach ($rows as $row) {
                     $base = (float) $row->base_2025;
-                    $obj1 += $base * (1 + $pct1 / 100);
-                    $obj2 += $base * (1 + $pct2 / 100);
+                    foreach ($definitions as $i => $def) {
+                        $pct = $pcts[$i] ?? 0;
+                        $objectives[$i] += $base * (1 + $pct / 100);
+                    }
                     $cumplido += $this->getDailyCloseAmount($store->id, $row->date_2026);
                 }
             }
+            $diffs = array_map(fn ($obj) => $cumplido - $obj, $objectives);
 
             $monthsData[] = (object) [
                 'month' => $month,
                 'monthName' => Carbon::createFromDate($year, $month, 1)->locale('es')->monthName,
                 'year' => $year,
-                'obj1' => $obj1,
-                'obj2' => $obj2,
+                'objectives' => $objectives,
                 'cumplido' => $cumplido,
-                'diff1' => $cumplido - $obj1,
-                'diff2' => $cumplido - $obj2,
+                'diffs' => $diffs,
             ];
         }
-        return view('objectives.store-months', compact('store', 'year', 'monthsData'));
+        return view('objectives.store-months', compact('store', 'year', 'monthsData', 'definitions'));
     }
 
     /**
@@ -104,37 +108,39 @@ class MonthlyObjectiveController extends Controller
         }
         // Una sola fila por fecha 2026: evita que dos días muestren el mismo "objetivo cumplido" por duplicados
         $rows = $rows->unique(fn ($r) => $r->date_2026->format('Y-m-d'))->values();
-        [$pct1, $pct2] = MonthlyObjectiveSetting::getPercentagesForStoreMonth($store->id, (string) $month, $year);
+        $definitions = MonthlyObjectiveSetting::getObjectiveDefinitionsForStore($store->id);
+        $pcts = MonthlyObjectiveSetting::getPercentagesForStoreMonth($store->id, (string) $month, $year);
         $monthName = Carbon::createFromDate($year, $month, 1)->locale('es')->monthName;
-        // Cargar todos los cierres diarios del mes y mapear por fecha (Y-m-d) en timezone de la app para que cada día use su total real
         $dailyClosesByDate = $this->getDailyClosesByDateForMonth($store->id, $year, $month);
-        $rowsWithCalcs = $rows->map(function ($row) use ($store, $pct1, $pct2, $dailyClosesByDate) {
+        $rowsWithCalcs = $rows->map(function ($row) use ($store, $pcts, $definitions, $dailyClosesByDate) {
             $base = (float) $row->base_2025;
-            $obj1 = $base * (1 + $pct1 / 100);
-            $obj2 = $base * (1 + $pct2 / 100);
+            $objectives = [];
+            foreach ($definitions as $i => $def) {
+                $pct = $pcts[$i] ?? 0;
+                $objectives[] = $base * (1 + $pct / 100);
+            }
             $dateKey = $row->date_2026->format('Y-m-d');
             $cumplido = $dailyClosesByDate[$dateKey] ?? 0.0;
+            $diffs = array_map(fn ($obj) => $cumplido - $obj, $objectives);
             return (object) [
                 'row' => $row,
-                'obj1' => $obj1,
-                'obj2' => $obj2,
+                'objectives' => $objectives,
                 'cumplido' => $cumplido,
-                'diff1' => $cumplido - $obj1,
-                'diff2' => $cumplido - $obj2,
+                'diffs' => $diffs,
             ];
         });
-        // Resumen mensual (dinámico, misma lógica que vista por meses y por tienda)
-        $totalObj1 = $rowsWithCalcs->sum('obj1');
-        $totalObj2 = $rowsWithCalcs->sum('obj2');
+        $totalObjectives = [];
+        foreach ($definitions as $i => $def) {
+            $totalObjectives[$i] = $rowsWithCalcs->sum(fn ($r) => $r->objectives[$i] ?? 0);
+        }
         $totalCumplido = $rowsWithCalcs->sum('cumplido');
+        $summaryDiffs = array_map(fn ($tot) => $totalCumplido - $tot, $totalObjectives);
         $summary = (object) [
-            'total_obj1' => $totalObj1,
-            'total_obj2' => $totalObj2,
+            'total_objectives' => $totalObjectives,
             'total_cumplido' => $totalCumplido,
-            'diff1' => $totalCumplido - $totalObj1,
-            'diff2' => $totalCumplido - $totalObj2,
+            'diffs' => $summaryDiffs,
         ];
-        return view('objectives.month', compact('store', 'year', 'month', 'monthName', 'rowsWithCalcs', 'pct1', 'pct2', 'summary'));
+        return view('objectives.month', compact('store', 'year', 'month', 'monthName', 'rowsWithCalcs', 'definitions', 'summary'));
     }
 
     /**

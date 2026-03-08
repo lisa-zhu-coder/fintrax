@@ -222,12 +222,12 @@ class DeclaredSalesController extends Controller
 
                 if ($close) {
                     $bankAmount = (float) ($close->tpv ?? 0);
-                    $cashAmount = $close->calculateComputedCashSales();
-                    $efectivoReducido = $cashAmount * (1 - ($cashReductionPercent / 100));
+                    $cashAmountRaw = $close->calculateComputedCashSales();
+                    $efectivoReducido = $cashAmountRaw * (1 - ($cashReductionPercent / 100));
                     $totalWithVat = $bankAmount + $efectivoReducido;
                     $totalWithoutVat = $totalWithVat / 1.21;
                 } else {
-                    $bankAmount = $cashAmount = $totalWithVat = $totalWithoutVat = 0.0;
+                    $bankAmount = $efectivoReducido = $totalWithVat = $totalWithoutVat = 0.0;
                 }
 
                 $rows[] = [
@@ -235,7 +235,7 @@ class DeclaredSalesController extends Controller
                     'store_id' => $storeId,
                     'store_name' => $stores->get($storeId)->name ?? '—',
                     'bank_amount' => round($bankAmount, 2),
-                    'cash_amount' => round($cashAmount, 2),
+                    'cash_amount' => round($efectivoReducido, 2),
                     'cash_reduction_percent' => $cashReductionPercent,
                     'total_with_vat' => round($totalWithVat, 2),
                     'total_without_vat' => round($totalWithoutVat, 2),

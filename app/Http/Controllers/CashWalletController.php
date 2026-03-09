@@ -467,9 +467,12 @@ class CashWalletController extends Controller
         if (empty($storeIds)) {
             return [];
         }
+        $monthExpr = DB::getDriverName() === 'mysql'
+            ? "DATE_FORMAT(date, '%Y-%m') as month_val"
+            : "strftime('%Y-%m', date) as month_val";
         $fromEntries = FinancialEntry::where('type', 'daily_close')
             ->whereIn('store_id', $storeIds)
-            ->selectRaw("DATE_FORMAT(date, '%Y-%m') as month_val")
+            ->selectRaw($monthExpr)
             ->distinct()
             ->pluck('month_val');
         $fromWithdrawals = CashWithdrawal::whereIn('store_id', $storeIds)

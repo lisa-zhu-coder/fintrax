@@ -147,7 +147,17 @@
 
     <!-- Historial de efectivos recogidos del mes -->
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
-        <h2 class="text-md font-semibold text-slate-900 mb-4">Historial de efectivos recogidos del mes</h2>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-md font-semibold text-slate-900">Historial de efectivos recogidos del mes</h2>
+            @if(auth()->user()->hasPermission('treasury.cash_control.create'))
+            <a href="{{ route('financial.cash-withdrawals.create', ['reporting_month' => $monthKey, 'store_id' => $store->id, 'redirect_to' => $cashControlReturnUrl]) }}" class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 5v14m-7-7h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Recoger efectivo
+            </a>
+            @endif
+        </div>
         @if($cashWithdrawals->isEmpty())
             <div class="py-4 text-center text-slate-500 text-sm">
                 No hay efectivos recogidos en este mes

@@ -1753,8 +1753,11 @@ class FinancialController extends Controller
             $month['days_real'] = count($daysReal);
 
             // Efectivo recogido del mes por mes correspondiente (reporting_month)
+            $cashMonthCondition = DB::getDriverName() === 'mysql'
+                ? 'COALESCE(reporting_month, DATE_FORMAT(date, "%Y-%m")) = ?'
+                : "COALESCE(reporting_month, strftime('%Y-%m', date)) = ?";
             $month['cash_collected'] = (float) CashWithdrawal::where('store_id', $storeId)
-                ->whereRaw('COALESCE(reporting_month, DATE_FORMAT(date, "%Y-%m")) = ?', [$monthKey])
+                ->whereRaw($cashMonthCondition, [$monthKey])
                 ->sum('amount');
 
             // Gastos del mes: (1) control_efectivo con procedence_date este mes, (2) otros gastos en efectivo (no cartera) por mes correspondiente (reporting_month), no por fecha
@@ -1988,10 +1991,13 @@ class FinancialController extends Controller
         $monthTotal = $entries->sum('cash_withdrawn');
         
         // Calcular efectivo recogido del mes (retiros de carteras): por mes correspondiente (reporting_month)
+        $cashMonthCondition = DB::getDriverName() === 'mysql'
+            ? 'COALESCE(reporting_month, DATE_FORMAT(date, "%Y-%m")) = ?'
+            : "COALESCE(reporting_month, strftime('%Y-%m', date)) = ?";
         $cashWithdrawalsQuery = CashWithdrawal::with(['cashWallet', 'store'])
             ->where('store_id', $storeId)
-            ->whereRaw('COALESCE(reporting_month, DATE_FORMAT(date, "%Y-%m")) = ?', [$monthKey]);
-        
+            ->whereRaw($cashMonthCondition, [$monthKey]);
+
         $cashWithdrawals = $cashWithdrawalsQuery->orderBy('date', 'desc')->get();
         $totalCashCollected = $cashWithdrawals->sum('amount');
         
@@ -2190,14 +2196,18 @@ class FinancialController extends Controller
         }
     }
 
-    public function createCashWithdrawal()
+    public function createCashWithdrawal(Request $request)
     {
         $this->syncStoresFromBusinesses();
         $stores = $this->getAvailableStores();
         $cashWallets = CashWallet::all();
         $availableMonths = $this->getAvailableMonthsForCashControl();
-        
-        return view('financial.cash-withdrawals.create', compact('stores', 'cashWallets', 'availableMonths'));
+        // Desde la vista de un mes: predeterminar mes correspondiente y tienda
+        $defaultReportingMonth = $request->get('reporting_month');
+        $defaultStoreId = $request->get('store_id');
+        $redirectTo = $request->get('redirect_to');
+
+        return view('financial.cash-withdrawals.create', compact('stores', 'cashWallets', 'availableMonths', 'defaultReportingMonth', 'defaultStoreId', 'redirectTo'));
     }
 
     public function storeCashWithdrawal(Request $request)
@@ -2219,7 +2229,13 @@ class FinancialController extends Controller
             'created_by' => Auth::id(),
         ]);
 
-        $redirect = $request->get('redirect_to') === 'dashboard' ? route('dashboard') : route('financial.cash-control');
+        $redirect = route('financial.cash-control');
+        $redirectTo = $request->get('redirect_to');
+        if ($redirectTo === 'dashboard') {
+            $redirect = route('dashboard');
+        } elseif ($redirectTo && \Illuminate\Support\Str::startsWith($redirectTo, [url('/'), config('app.url')])) {
+            $redirect = $redirectTo;
+        }
         return redirect($redirect)->with('success', 'Retiro de efectivo registrado correctamente');
     }
 
@@ -2232,9 +2248,12 @@ class FinancialController extends Controller
         if (empty($storeIds)) {
             return [];
         }
+        $monthExpr = DB::getDriverName() === 'mysql'
+            ? "DATE_FORMAT(date, '%Y-%m') as month_val"
+            : "strftime('%Y-%m', date) as month_val";
         $fromEntries = FinancialEntry::where('type', 'daily_close')
             ->whereIn('store_id', $storeIds)
-            ->selectRaw("DATE_FORMAT(date, '%Y-%m') as month_val")
+            ->selectRaw($monthExpr)
             ->distinct()
             ->pluck('month_val');
         $fromWithdrawals = CashWithdrawal::whereIn('store_id', $storeIds)

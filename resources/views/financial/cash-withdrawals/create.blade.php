@@ -10,7 +10,7 @@
                 <h1 class="text-lg font-semibold">Recoger Efectivo</h1>
                 <p class="text-sm text-slate-500">Registra un retiro de efectivo de una tienda</p>
             </div>
-            <a href="{{ route('financial.cash-control') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <a href="{{ isset($redirectTo) && $redirectTo ? $redirectTo : route('financial.cash-control') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 ← Volver
             </a>
         </div>
@@ -27,6 +27,9 @@
 
         <form method="POST" action="{{ route('financial.cash-withdrawals.store') }}" class="space-y-6">
             @csrf
+            @if(!empty($redirectTo))
+            <input type="hidden" name="redirect_to" value="{{ $redirectTo }}">
+            @endif
 
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label class="block">
@@ -43,7 +46,8 @@
                     <select name="reporting_month" id="reportingMonth" required class="mt-1 w-full rounded-xl border {{ $errors->has('reporting_month') ? 'border-rose-400' : 'border-slate-200' }} bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                         <option value="">Selecciona el mes al que corresponde</option>
                         @forelse($availableMonths as $m)
-                            <option value="{{ $m }}" {{ old('reporting_month', substr(old('date', now()->format('Y-m-d')), 0, 7)) === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::createFromFormat('Y-m', $m)->locale('es')->isoFormat('MMMM YYYY') }}</option>
+                            @php $defaultMonth = old('reporting_month', isset($defaultReportingMonth) && $defaultReportingMonth ? $defaultReportingMonth : substr(old('date', now()->format('Y-m-d')), 0, 7)); @endphp
+                            <option value="{{ $m }}" {{ $defaultMonth === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::createFromFormat('Y-m', $m)->locale('es')->isoFormat('MMMM YYYY') }}</option>
                         @empty
                             <option value="" disabled>No hay meses con registro en control de efectivo</option>
                         @endforelse
@@ -59,7 +63,7 @@
                     <select name="store_id" required class="mt-1 w-full rounded-xl border {{ $errors->has('store_id') ? 'border-rose-400' : 'border-slate-200' }} bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                         <option value="">Selecciona una tienda</option>
                         @foreach($stores as $store)
-                            <option value="{{ $store->id }}" {{ old('store_id') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
+                            <option value="{{ $store->id }}" {{ old('store_id', $defaultStoreId ?? null) == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
                         @endforeach
                     </select>
                     @error('store_id')
@@ -90,7 +94,7 @@
             </div>
 
             <div class="flex items-center justify-end gap-3 pt-4">
-                <a href="{{ route('financial.cash-control') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <a href="{{ isset($redirectTo) && $redirectTo ? $redirectTo : route('financial.cash-control') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Cancelar
                 </a>
                 <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">

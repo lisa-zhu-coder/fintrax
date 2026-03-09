@@ -61,6 +61,13 @@
                                     @if(auth()->user()->hasPermission('loans.main.edit'))
                                     <a href="{{ route('loans.edit', $loan) }}" class="rounded-lg px-2 py-1 text-slate-600 hover:bg-slate-100">Editar</a>
                                     @endif
+                                    @if(auth()->user()->hasPermission('loans.main.delete'))
+                                    <form method="POST" action="{{ route('loans.destroy', $loan) }}" class="inline" onsubmit="return confirm('¿Eliminar este préstamo y todos sus pagos y cuotas? Esta acción no se puede deshacer.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="rounded-lg px-2 py-1 text-rose-600 hover:bg-rose-50 font-medium">Eliminar</button>
+                                    </form>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach

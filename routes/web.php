@@ -144,6 +144,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::post('/financial/bank-conciliation/{bankMovement}/conciliate-loan-payment', [LoanPaymentController::class, 'conciliateFromBank'])->name('financial.bank-conciliation.conciliate-loan-payment');
     Route::post('/financial/bank-conciliation/{bankMovement}/ignore', [FinancialController::class, 'ignoreBankMovement'])->name('financial.bank-conciliation.ignore');
     Route::delete('/financial/bank-conciliation/{bankMovement}', [FinancialController::class, 'destroyBankMovement'])->name('financial.bank-conciliation.destroy');
+    Route::post('/financial/bank-conciliation/bulk-destroy', [FinancialController::class, 'destroyBulkBankMovements'])->name('financial.bank-conciliation.bulk-destroy');
     Route::get('/financial/bank-movements/available-expenses', [FinancialController::class, 'getAvailableExpenses'])->name('financial.bank-movements.available-expenses');
     Route::get('/financial/bank-movements/available-incomes', [FinancialController::class, 'getAvailableIncomes'])->name('financial.bank-movements.available-incomes');
     Route::put('/financial/bank-movements/{id}/conciliate', [FinancialController::class, 'conciliateBankMovement'])->name('financial.bank-movement.conciliate');

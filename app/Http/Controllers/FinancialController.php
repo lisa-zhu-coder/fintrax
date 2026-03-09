@@ -47,7 +47,7 @@ class FinancialController extends Controller
         $this->middleware('permission:treasury.bank_control.view')->only(['bankControl', 'bankImportForm', 'downloadBankImportTemplate', 'bankImportStore']);
         $this->middleware('permission:treasury.bank_conciliation.view')->only(['bankConciliation', 'getAvailableExpenses', 'getAvailableIncomes']);
         $this->middleware('permission:treasury.bank_conciliation.edit')->only(['editBankMovement', 'updateBankMovement', 'conciliateBankMovement', 'linkBankMovement', 'createExpenseFromBankMovement', 'createExpenseFromBankMovementRoute', 'linkBankMovementToExpense', 'conciliateAsTransfer', 'ignoreBankMovement', 'ignoreBankMovementRoute', 'confirmTransfer', 'linkExpenseFromBankMovement']);
-        $this->middleware('permission:treasury.bank_conciliation.delete')->only(['destroyBankMovement']);
+        $this->middleware('permission:treasury.bank_conciliation.delete')->only(['destroyBankMovement', 'destroyBulkBankMovements']);
         $this->middleware('permission:treasury.cash_control.view')->only(['createCashWithdrawal', 'storeCashWithdrawal']);
         $this->middleware('permission:treasury.cash_wallets.create')->only(['storeCashDeposit']);
     }
@@ -2683,54 +2683,10 @@ class FinancialController extends Controller
     {
         try {
             DB::beginTransaction();
-
-            // 1. Si tiene un Transfer relacionado, verificar si hay otros bank_movements enlazados
-            if ($bankMovement->transfer_id) {
-                $transfer = Transfer::find($bankMovement->transfer_id);
-                if ($transfer) {
-                    // Contar cuántos bank_movements están enlazados a este transfer
-                    $linkedMovementsCount = BankMovement::forCurrentCompany()->where('transfer_id', $transfer->id)->count();
-                    
-                    // Si solo hay este bank_movement enlazado, hacer rollback y eliminar el transfer
-                    if ($linkedMovementsCount === 1) {
-                        // Si está reconciliado, hacer rollback primero
-                        if ($transfer->status === 'reconciled') {
-                            $rollbackResult = $transfer->rollback();
-                            if (!$rollbackResult['success']) {
-                                DB::rollBack();
-                                return back()->with('error', 'Error al revertir el traspaso relacionado: ' . ($rollbackResult['message'] ?? 'Error desconocido'));
-                            }
-                            // Actualizar el status a 'pending' después del rollback
-                            $transfer->update(['status' => 'pending']);
-                        }
-                        // Eliminar el Transfer solo si no hay otros bank_movements enlazados
-                        $transfer->delete();
-                    } else {
-                        // Hay otros bank_movements enlazados, solo desenlazar este
-                        $bankMovement->update(['transfer_id' => null, 'is_conciliated' => false]);
-                    }
-                }
-            }
-
-            // 2. Si tiene un FinancialEntry relacionado, eliminar
-            if ($bankMovement->financial_entry_id) {
-                $financialEntry = FinancialEntry::find($bankMovement->financial_entry_id);
-                if ($financialEntry) {
-                    // Eliminar pagos relacionados si existen
-                    \App\Models\ExpensePayment::where('financial_entry_id', $financialEntry->id)->delete();
-                    // Eliminar el FinancialEntry
-                    $financialEntry->delete();
-                }
-            }
-
-            // 3. Eliminar el BankMovement
-            $bankMovement->delete();
-
+            $this->deleteBankMovementAndRelated($bankMovement);
             DB::commit();
-
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario y todos sus registros relacionados eliminados correctamente.');
-                
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error eliminando movimiento bancario: ' . $e->getMessage(), [
@@ -2739,6 +2695,82 @@ class FinancialController extends Controller
             ]);
             return back()->with('error', 'Error al eliminar el movimiento: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Eliminar varios movimientos bancarios a la vez
+     */
+    public function destroyBulkBankMovements(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer|min:1',
+        ]);
+
+        $movements = BankMovement::forCurrentCompany()
+            ->whereIn('id', $validated['ids'])
+            ->get();
+
+        if ($movements->isEmpty()) {
+            return back()->with('error', 'No se encontraron movimientos válidos para eliminar.');
+        }
+
+        $deleted = 0;
+        try {
+            DB::beginTransaction();
+            foreach ($movements as $bankMovement) {
+                $this->deleteBankMovementAndRelated($bankMovement);
+                $deleted++;
+            }
+            DB::commit();
+            $message = $deleted === 1
+                ? 'Movimiento bancario eliminado correctamente.'
+                : $deleted . ' movimientos bancarios eliminados correctamente.';
+            return redirect()->route('financial.bank-conciliation')->with('success', $message);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error eliminando movimientos bancarios en lote: ' . $e->getMessage(), [
+                'ids' => $validated['ids'],
+                'trace' => $e->getTraceAsString()
+            ]);
+            return back()->with('error', 'Error al eliminar los movimientos: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Lógica interna: eliminar un movimiento bancario y sus registros relacionados (transfer, financial_entry).
+     * Debe ejecutarse dentro de una transacción.
+     */
+    private function deleteBankMovementAndRelated(BankMovement $bankMovement): void
+    {
+        if ($bankMovement->transfer_id) {
+            $transfer = Transfer::find($bankMovement->transfer_id);
+            if ($transfer) {
+                $linkedMovementsCount = BankMovement::forCurrentCompany()->where('transfer_id', $transfer->id)->count();
+                if ($linkedMovementsCount === 1) {
+                    if ($transfer->status === 'reconciled') {
+                        $rollbackResult = $transfer->rollback();
+                        if (!$rollbackResult['success']) {
+                            throw new \RuntimeException('Error al revertir el traspaso relacionado: ' . ($rollbackResult['message'] ?? 'Error desconocido'));
+                        }
+                        $transfer->update(['status' => 'pending']);
+                    }
+                    $transfer->delete();
+                } else {
+                    $bankMovement->update(['transfer_id' => null, 'is_conciliated' => false]);
+                }
+            }
+        }
+
+        if ($bankMovement->financial_entry_id) {
+            $financialEntry = FinancialEntry::find($bankMovement->financial_entry_id);
+            if ($financialEntry) {
+                ExpensePayment::where('financial_entry_id', $financialEntry->id)->delete();
+                $financialEntry->delete();
+            }
+        }
+
+        $bankMovement->delete();
     }
 
     /**

@@ -83,10 +83,28 @@
                 No hay movimientos bancarios para mostrar
             </div>
         @else
+            @if(auth()->user()->hasPermission('treasury.bank_conciliation.delete'))
+            <form id="formBulkDelete" method="POST" action="{{ route('financial.bank-conciliation.bulk-destroy') }}" class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                @csrf
+                <button type="button" id="btnBulkDelete" class="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Selecciona al menos un movimiento">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Eliminar seleccionados (<span id="bulkDeleteCount">0</span>)
+                </button>
+            </form>
+            @endif
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead class="text-xs uppercase text-slate-500 bg-slate-50">
                         <tr>
+                            @if(auth()->user()->hasPermission('treasury.bank_conciliation.delete'))
+                            <th class="w-10 px-2 py-3">
+                                <label class="flex cursor-pointer items-center justify-center">
+                                    <input type="checkbox" id="selectAllMovements" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500" title="Seleccionar todos">
+                                </label>
+                            </th>
+                            @endif
                             <th class="px-3 py-3">Fecha</th>
                             <th class="px-3 py-3">Cuenta bancaria</th>
                             <th class="px-3 py-3">Concepto del banco</th>
@@ -98,6 +116,13 @@
                     <tbody class="divide-y divide-slate-100">
                         @foreach($movements as $movement)
                             <tr class="hover:bg-slate-50">
+                                @if(auth()->user()->hasPermission('treasury.bank_conciliation.delete'))
+                                <td class="w-10 px-2 py-3">
+                                    <label class="flex cursor-pointer items-center justify-center">
+                                        <input type="checkbox" class="cb-movement rounded border-slate-300 text-brand-600 focus:ring-brand-500" value="{{ $movement->id }}" form="formBulkDelete" name="ids[]">
+                                    </label>
+                                </td>
+                                @endif
                                 <td class="px-3 py-3 text-slate-600">
                                     {{ $movement->date->format('d/m/Y') }}
                                 </td>
@@ -767,5 +792,40 @@ document.addEventListener('keydown', function(e) {
         closeTransferModal();
     }
 });
+
+// Eliminación múltiple: seleccionar todos y enviar
+(function() {
+    var form = document.getElementById('formBulkDelete');
+    var btn = document.getElementById('btnBulkDelete');
+    var selectAll = document.getElementById('selectAllMovements');
+    var countEl = document.getElementById('bulkDeleteCount');
+    if (!form || !btn) return;
+
+    function updateBulkState() {
+        var checkboxes = document.querySelectorAll('.cb-movement:checked');
+        var n = checkboxes.length;
+        if (countEl) countEl.textContent = n;
+        btn.disabled = n === 0;
+        if (selectAll) selectAll.checked = n > 0 && document.querySelectorAll('.cb-movement').length === n;
+        selectAll.indeterminate = n > 0 && n < (document.querySelectorAll('.cb-movement').length || 0);
+    }
+
+    document.querySelectorAll('.cb-movement').forEach(function(cb) {
+        cb.addEventListener('change', updateBulkState);
+    });
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            document.querySelectorAll('.cb-movement').forEach(function(cb) { cb.checked = selectAll.checked; });
+            updateBulkState();
+        });
+    }
+
+    btn.addEventListener('click', function() {
+        var n = document.querySelectorAll('.cb-movement:checked').length;
+        if (n === 0) return;
+        if (!confirm('¿Eliminar ' + n + ' movimiento(s) bancario(s) y sus registros relacionados?')) return;
+        form.submit();
+    });
+})();
 </script>
 @endsection

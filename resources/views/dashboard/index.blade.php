@@ -139,6 +139,7 @@
                         <option value="{{ $m['value'] }}" {{ ($month ?? '') === $m['value'] ? 'selected' : '' }}>{{ $m['label'] }}</option>
                     @endforeach
                 </select>
+                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Si eliges un mes: ingresos y gastos son los que tienen ese mes como correspondiente. Beneficio = ingresos − gastos.</p>
             </label>
             
             <label class="block">

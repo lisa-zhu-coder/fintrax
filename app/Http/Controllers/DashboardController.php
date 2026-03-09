@@ -202,17 +202,22 @@ class DashboardController extends Controller
         foreach ($entries as $entry) {
             switch ($entry->type) {
                 case 'income':
-                    // No sumar a total_income: los ingresos del dashboard son solo cierres diarios
+                    // Incluir ingresos manuales u otros (no los de cierre_diario, ya contados en el cierre)
+                    $isFromCierre = ($entry->income_category ?? '') === 'cierre_diario'
+                        || str_contains((string) ($entry->notes ?? ''), 'daily_close_id:');
+                    if (! $isFromCierre) {
+                        $summary['total_income'] += (float) ($entry->income_amount ?? $entry->amount ?? 0);
+                    }
                     break;
                 case 'expense':
-                    $summary['total_expenses'] += $entry->amount;
+                    $summary['total_expenses'] += (float) ($entry->expense_amount ?? $entry->amount ?? 0);
                     break;
                 case 'expense_refund':
-                    $summary['total_refunds'] += $entry->amount;
+                    $summary['total_refunds'] += (float) ($entry->amount ?? 0);
                     break;
                 case 'daily_close':
                     $summary['daily_closes']++;
-                    // Ingresos = suma de los totales de cierres diarios del periodo filtrado
+                    // Ingresos = total del cierre (ventas del día)
                     $summary['total_income'] += (float) ($entry->total_amount ?? $entry->amount ?? 0);
                     break;
             }

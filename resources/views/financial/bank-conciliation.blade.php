@@ -443,6 +443,12 @@
                     </label>
                     
                     <label class="block">
+                        <span class="text-xs font-semibold text-slate-700">Mes al que corresponde el gasto *</span>
+                        <input type="month" name="reporting_month" id="createReportingMonth" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        <p class="mt-1 text-xs text-slate-500">Por defecto es el mes de la fecha del gasto. Puedes cambiarlo si el gasto corresponde a otro mes.</p>
+                    </label>
+                    
+                    <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Tienda *</span>
                         <select name="store_id" id="createStoreId" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                             <option value="">Selecciona...</option>
@@ -566,6 +572,14 @@ document.addEventListener('DOMContentLoaded', function() {
             openCreateModal(movementId, description, amount, date, storeId);
         });
     });
+    // Al cambiar la fecha del gasto, actualizar el mes por defecto al mes de esa fecha (el usuario puede cambiarlo)
+    var createDateEl = document.getElementById('createDate');
+    var createReportingMonthEl = document.getElementById('createReportingMonth');
+    if (createDateEl && createReportingMonthEl) {
+        createDateEl.addEventListener('change', function() {
+            if (this.value) createReportingMonthEl.value = this.value.substring(0, 7);
+        });
+    }
     
     // Botones conciliar como pago de préstamo
     document.querySelectorAll('.btn-conciliate-loan').forEach(button => {
@@ -655,8 +669,9 @@ function openCreateModal(movementId, description, amount, date, storeId) {
     currentMovementId = movementId;
     document.getElementById('createForm').action = baseUrl + '/' + movementId + '/create-expense';
     
-    // Establecer valores por defecto
+    // Establecer valores por defecto (mes al que corresponde = mes de la fecha del movimiento)
     document.getElementById('createDate').value = date;
+    document.getElementById('createReportingMonth').value = date ? date.substring(0, 7) : '';
     document.getElementById('createStoreId').value = storeId;
     document.getElementById('createConcept').value = description;
     document.getElementById('createAmount').value = parseFloat(amount).toFixed(2);

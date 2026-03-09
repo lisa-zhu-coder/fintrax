@@ -2408,6 +2408,7 @@ class FinancialController extends Controller
     {
         $validated = $request->validate([
             'date' => 'required|date',
+            'reporting_month' => 'required|date_format:Y-m',
             'store_id' => 'required|exists:stores,id',
             'expense_category' => 'nullable|string|max:255',
             'expense_concept' => 'required|string|max:255',
@@ -2418,6 +2419,7 @@ class FinancialController extends Controller
             // Crear FinancialEntry (expense)
             $financialEntry = FinancialEntry::create([
                 'date' => $validated['date'],
+                'reporting_month' => $validated['reporting_month'],
                 'store_id' => $validated['store_id'],
                 'supplier_id' => $validated['supplier_id'] ?? null,
                 'type' => 'expense',

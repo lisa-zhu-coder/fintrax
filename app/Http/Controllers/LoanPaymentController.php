@@ -44,6 +44,10 @@ class LoanPaymentController extends Controller
             'is_conciliated' => true,
             'status' => 'conciliado',
         ]);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
         return redirect()->route('financial.bank-conciliation')
             ->with('success', 'Movimiento conciliado como pago del préstamo "' . $loan->name . '".');
     }

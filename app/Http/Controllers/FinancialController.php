@@ -891,6 +891,11 @@ class FinancialController extends Controller
             }
         }
 
+        // Filtro por procedencia (income_category)
+        if ($request->filled('source')) {
+            $query->where('income_category', $request->source);
+        }
+
         $entries = $query->orderBy('date', 'desc')->get();
         $stores = $this->getAvailableStores();
 
@@ -931,6 +936,11 @@ class FinancialController extends Controller
         // Filtro "Solo pendientes"
         if ($request->has('only_pending') && $request->only_pending == '1') {
             $query->whereRaw('(COALESCE(total_amount, 0) - COALESCE(paid_amount, 0)) > 0');
+        }
+
+        // Filtro por procedencia (expense_source)
+        if ($request->filled('source')) {
+            $query->where('expense_source', $request->source);
         }
 
         $entries = $query->orderBy('date', 'desc')->get();
@@ -2391,12 +2401,17 @@ class FinancialController extends Controller
                 'status' => 'conciliado',
                 'financial_entry_id' => $validated['financial_entry_id'],
             ]);
-            
+
+            if ($request->wantsJson()) {
+                return response()->json(['success' => true]);
+            }
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario enlazado correctamente.');
-                
         } catch (\Exception $e) {
             Log::error('Error enlazando movimiento bancario: ' . $e->getMessage());
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
             return back()->with('error', 'Error al enlazar el movimiento: ' . $e->getMessage());
         }
     }
@@ -2446,12 +2461,17 @@ class FinancialController extends Controller
                 'status' => 'conciliado',
                 'financial_entry_id' => $financialEntry->id,
             ]);
-            
+
+            if ($request->wantsJson()) {
+                return response()->json(['success' => true]);
+            }
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Gasto creado y movimiento conciliado correctamente.');
-                
         } catch (\Exception $e) {
             Log::error('Error creando gasto desde movimiento bancario: ' . $e->getMessage());
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
             return back()->with('error', 'Error al crear el gasto: ' . $e->getMessage());
         }
     }

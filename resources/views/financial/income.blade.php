@@ -59,6 +59,17 @@
                         <option value="bank" {{ request('payment_method') === 'bank' ? 'selected' : '' }}>Banco</option>
                     </select>
                 </label>
+                
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Procedencia</span>
+                    <select name="source" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Todas</option>
+                        <option value="cierre_diario" {{ request('source') === 'cierre_diario' ? 'selected' : '' }}>Cierre diario</option>
+                        <option value="ventas" {{ request('source') === 'ventas' ? 'selected' : '' }}>Ventas</option>
+                        <option value="servicios_financieros" {{ request('source') === 'servicios_financieros' ? 'selected' : '' }}>Servicios financieros</option>
+                        <option value="otros" {{ request('source') === 'otros' ? 'selected' : '' }}>Otros</option>
+                    </select>
+                </label>
             </div>
             
             <div id="customDateRange" class="hidden grid grid-cols-1 gap-4 md:grid-cols-2">

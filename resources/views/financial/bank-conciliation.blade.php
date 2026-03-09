@@ -83,22 +83,47 @@
                 No hay movimientos bancarios para mostrar
             </div>
         @else
-            @if(auth()->user()->hasPermission('treasury.bank_conciliation.delete'))
-            <form id="formBulkDelete" method="POST" action="{{ route('financial.bank-conciliation.bulk-destroy') }}" class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                @csrf
-                <button type="button" id="btnBulkDelete" class="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Selecciona al menos un movimiento">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    Eliminar seleccionados (<span id="bulkDeleteCount">0</span>)
+            @php
+                $canBulkActions = auth()->user()->hasPermission('treasury.bank_conciliation.delete') || auth()->user()->hasPermission('treasury.bank_conciliation.edit');
+            @endphp
+            @if($canBulkActions)
+            <div id="bulkActionsBar" class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <form id="formBulkDelete" method="POST" action="{{ route('financial.bank-conciliation.bulk-destroy') }}" class="inline">
+                    @csrf
+                    @if(auth()->user()->hasPermission('treasury.bank_conciliation.delete'))
+                    <button type="button" id="btnBulkDelete" class="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Selecciona al menos un movimiento">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Eliminar seleccionados (<span id="bulkDeleteCount">0</span>)
+                    </button>
+                    @endif
+                </form>
+                @if(auth()->user()->hasPermission('treasury.bank_conciliation.edit'))
+                <button type="button" id="btnBulkLinkExpense" class="inline-flex items-center gap-2 rounded-xl border border-brand-600 bg-white px-3 py-2 text-sm font-semibold text-brand-600 hover:bg-brand-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Selecciona al menos un movimiento">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Enlazar gasto (<span id="bulkLinkCount">0</span>)
                 </button>
-            </form>
+                @endif
+                @if(auth()->user()->hasPermission('financial.expenses.create'))
+                <button type="button" id="btnBulkCreateExpense" class="inline-flex items-center gap-2 rounded-xl border border-emerald-600 bg-white px-3 py-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Selecciona al menos un movimiento">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    Crear gasto (<span id="bulkCreateCount">0</span>)
+                </button>
+                @endif
+                @if(auth()->user()->hasPermission('loans.payments.create'))
+                <button type="button" id="btnBulkLoanPayment" class="inline-flex items-center gap-2 rounded-xl border border-violet-600 bg-white px-3 py-2 text-sm font-semibold text-violet-600 hover:bg-violet-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Selecciona al menos un movimiento">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 8v13M17 8v13M7 8v13M2 8v13M7 8h10a2 2 0 012 2v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a2 2 0 012-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Pago de préstamo (<span id="bulkLoanCount">0</span>)
+                </button>
+                @endif
+            </div>
             @endif
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead class="text-xs uppercase text-slate-500 bg-slate-50">
                         <tr>
-                            @if(auth()->user()->hasPermission('treasury.bank_conciliation.delete'))
+                            @if($canBulkActions ?? (auth()->user()->hasPermission('treasury.bank_conciliation.delete') || auth()->user()->hasPermission('treasury.bank_conciliation.edit')))
                             <th class="w-10 px-2 py-3">
                                 <label class="flex cursor-pointer items-center justify-center">
                                     <input type="checkbox" id="selectAllMovements" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500" title="Seleccionar todos">
@@ -116,10 +141,17 @@
                     <tbody class="divide-y divide-slate-100">
                         @foreach($movements as $movement)
                             <tr class="hover:bg-slate-50">
-                                @if(auth()->user()->hasPermission('treasury.bank_conciliation.delete'))
+                                @if($canBulkActions ?? (auth()->user()->hasPermission('treasury.bank_conciliation.delete') || auth()->user()->hasPermission('treasury.bank_conciliation.edit')))
                                 <td class="w-10 px-2 py-3">
                                     <label class="flex cursor-pointer items-center justify-center">
-                                        <input type="checkbox" class="cb-movement rounded border-slate-300 text-brand-600 focus:ring-brand-500" value="{{ $movement->id }}" form="formBulkDelete" name="ids[]">
+                                        <input type="checkbox" class="cb-movement rounded border-slate-300 text-brand-600 focus:ring-brand-500" value="{{ $movement->id }}" form="formBulkDelete" name="ids[]"
+                                            data-movement-id="{{ $movement->id }}"
+                                            data-description="{{ e($movement->description) }}"
+                                            data-amount="{{ abs($movement->amount) }}"
+                                            data-date="{{ $movement->date->format('Y-m-d') }}"
+                                            data-store-id="{{ $movement->bankAccount->store_id ?? '' }}"
+                                            data-type="{{ $movement->type ?? '' }}"
+                                            data-is-conciliated="{{ $movement->is_conciliated ? '1' : '0' }}">
                                     </label>
                                 </td>
                                 @endif
@@ -315,6 +347,7 @@
         <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onclick="closeLinkModal()"></div>
         
         <div class="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+            <div id="linkModalBulkProgress" class="hidden mb-4 rounded-xl bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-800">Línea <span id="linkModalBulkProgressText">1/1</span></div>
             <div class="mb-4 flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-slate-900">Enlazar gasto existente</h3>
                 <button type="button" onclick="closeLinkModal()" class="text-slate-400 hover:text-slate-600">
@@ -441,6 +474,7 @@
         <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onclick="closeCreateModal()"></div>
         
         <div class="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+            <div id="createModalBulkProgress" class="hidden mb-4 rounded-xl bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-800">Línea <span id="createModalBulkProgressText">1/1</span></div>
             <div class="mb-4 flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-slate-900">Crear nuevo gasto</h3>
                 <button type="button" onclick="closeCreateModal()" class="text-slate-400 hover:text-slate-600">
@@ -528,6 +562,7 @@
     <div class="flex min-h-screen items-center justify-center p-4">
         <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onclick="closeLoanPaymentModal()"></div>
         <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div id="loanModalBulkProgress" class="hidden mb-4 rounded-xl bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-800">Línea <span id="loanModalBulkProgressText">1/1</span></div>
             <div class="mb-4 flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-slate-900">Conciliar como pago de préstamo</h3>
                 <button type="button" onclick="closeLoanPaymentModal()" class="text-slate-400 hover:text-slate-600">
@@ -627,10 +662,92 @@ document.addEventListener('DOMContentLoaded', function() {
             openTransferModal(movementId, storeId, amount, date, sign, storeName);
         });
     });
+
+    // Acciones en lote: Enlazar gasto, Crear gasto, Pago de préstamo
+    var btnBulkLink = document.getElementById('btnBulkLinkExpense');
+    if (btnBulkLink) btnBulkLink.addEventListener('click', function() {
+        var queue = getSelectedMovementData('actionable');
+        if (!queue.length) { alert('Selecciona al menos un movimiento (pendiente, no traspaso).'); return; }
+        openLinkModalBulk(queue, 0);
+    });
+    var btnBulkCreate = document.getElementById('btnBulkCreateExpense');
+    if (btnBulkCreate) btnBulkCreate.addEventListener('click', function() {
+        var queue = getSelectedMovementData('actionable');
+        if (!queue.length) { alert('Selecciona al menos un movimiento (pendiente, no traspaso).'); return; }
+        openCreateModalBulk(queue, 0);
+    });
+    var btnBulkLoan = document.getElementById('btnBulkLoanPayment');
+    if (btnBulkLoan) btnBulkLoan.addEventListener('click', function() {
+        var queue = getSelectedMovementData('actionable');
+        if (!queue.length) { alert('Selecciona al menos un movimiento (pendiente, no traspaso).'); return; }
+        openLoanPaymentModalBulk(queue, 0);
+    });
+
+    // Envío en lote: link
+    var linkForm = document.getElementById('linkForm');
+    if (linkForm) linkForm.addEventListener('submit', function(e) {
+        if (!window.bulkLinkQueue || window.bulkLinkIndex == null) return;
+        e.preventDefault();
+        var form = e.target;
+        var queue = window.bulkLinkQueue;
+        var index = window.bulkLinkIndex;
+        fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+            .then(function(result) {
+                if (result.ok && result.data.success) {
+                    openLinkModalBulk(queue, index + 1);
+                } else {
+                    alert(result.data.message || 'Error al enlazar.');
+                }
+            })
+            .catch(function() { alert('Error de conexión.'); });
+    });
+
+    // Envío en lote: crear gasto
+    var createForm = document.getElementById('createForm');
+    if (createForm) createForm.addEventListener('submit', function(e) {
+        if (!window.bulkCreateQueue || window.bulkCreateIndex == null) return;
+        e.preventDefault();
+        var form = e.target;
+        var queue = window.bulkCreateQueue;
+        var index = window.bulkCreateIndex;
+        fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+            .then(function(result) {
+                if (result.ok && result.data.success) {
+                    openCreateModalBulk(queue, index + 1);
+                } else {
+                    alert(result.data.message || 'Error al crear el gasto.');
+                }
+            })
+            .catch(function() { alert('Error de conexión.'); });
+    });
+
+    // Envío en lote: pago de préstamo
+    var loanForm = document.getElementById('loanPaymentForm');
+    if (loanForm) loanForm.addEventListener('submit', function(e) {
+        if (!window.bulkLoanQueue || window.bulkLoanIndex == null) return;
+        e.preventDefault();
+        var form = e.target;
+        var queue = window.bulkLoanQueue;
+        var index = window.bulkLoanIndex;
+        fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+            .then(function(result) {
+                if (result.ok && result.data.success) {
+                    openLoanPaymentModalBulk(queue, index + 1);
+                } else {
+                    alert(result.data.message || 'Error al conciliar como pago.');
+                }
+            })
+            .catch(function() { alert('Error de conexión.'); });
+    });
 });
 
 function openLinkModal(movementId, storeId, amount) {
     currentMovementId = movementId;
+    var prog = document.getElementById('linkModalBulkProgress');
+    if (prog) prog.classList.add('hidden');
     document.getElementById('linkForm').action = baseUrl + '/' + movementId + '/link-expense';
     
     // Cargar gastos disponibles filtrados por tienda e importe
@@ -665,6 +782,10 @@ function openLinkModal(movementId, storeId, amount) {
 }
 
 function closeLinkModal() {
+    window.bulkLinkQueue = null;
+    window.bulkLinkIndex = null;
+    var prog = document.getElementById('linkModalBulkProgress');
+    if (prog) prog.classList.add('hidden');
     document.getElementById('linkModal').classList.add('hidden');
     document.body.style.overflow = '';
     document.getElementById('linkForm').reset();
@@ -674,6 +795,8 @@ function openLoanPaymentModal(movementId, amount) {
     const modal = document.getElementById('loanPaymentModal');
     const form = document.getElementById('loanPaymentForm');
     if (!modal || !form) return;
+    var prog = document.getElementById('loanModalBulkProgress');
+    if (prog) prog.classList.add('hidden');
     form.action = baseUrl + '/' + movementId + '/conciliate-loan-payment';
     document.getElementById('loanPaymentAmount').value = parseFloat(amount).toFixed(2);
     document.getElementById('loanPaymentModalAmount').textContent = parseFloat(amount).toFixed(2).replace('.', ',');
@@ -683,6 +806,10 @@ function openLoanPaymentModal(movementId, amount) {
 }
 
 function closeLoanPaymentModal() {
+    window.bulkLoanQueue = null;
+    window.bulkLoanIndex = null;
+    var prog = document.getElementById('loanModalBulkProgress');
+    if (prog) prog.classList.add('hidden');
     const modal = document.getElementById('loanPaymentModal');
     if (modal) {
         modal.classList.add('hidden');
@@ -692,6 +819,8 @@ function closeLoanPaymentModal() {
 
 function openCreateModal(movementId, description, amount, date, storeId) {
     currentMovementId = movementId;
+    var prog = document.getElementById('createModalBulkProgress');
+    if (prog) prog.classList.add('hidden');
     document.getElementById('createForm').action = baseUrl + '/' + movementId + '/create-expense';
     
     // Establecer valores por defecto (mes al que corresponde = mes de la fecha del movimiento)
@@ -706,6 +835,10 @@ function openCreateModal(movementId, description, amount, date, storeId) {
 }
 
 function closeCreateModal() {
+    window.bulkCreateQueue = null;
+    window.bulkCreateIndex = null;
+    var prog = document.getElementById('createModalBulkProgress');
+    if (prog) prog.classList.add('hidden');
     document.getElementById('createModal').classList.add('hidden');
     document.body.style.overflow = '';
     document.getElementById('createForm').reset();
@@ -784,28 +917,93 @@ function closeTransferModal() {
     document.getElementById('transferDestinationFund').disabled = false;
 }
 
+function getSelectedMovementData(filter) {
+    var checkboxes = document.querySelectorAll('.cb-movement:checked');
+    var list = [];
+    checkboxes.forEach(function(cb) {
+        var type = (cb.dataset.type || '').toString();
+        var isConciliated = cb.dataset.isConciliated === '1';
+        if (filter === 'actionable' && (type === 'transfer' || isConciliated)) return;
+        list.push({
+            id: cb.value,
+            description: cb.dataset.description || '',
+            amount: cb.dataset.amount || '0',
+            date: cb.dataset.date || '',
+            storeId: cb.dataset.storeId || ''
+        });
+    });
+    return list;
+}
+
+function openLinkModalBulk(queue, index) {
+    if (index >= queue.length) { closeLinkModal(); if (queue.length) location.reload(); return; }
+    var item = queue[index];
+    window.bulkLinkQueue = queue;
+    window.bulkLinkIndex = index;
+    var prog = document.getElementById('linkModalBulkProgress');
+    var text = document.getElementById('linkModalBulkProgressText');
+    if (prog && text) { prog.classList.remove('hidden'); text.textContent = (index + 1) + '/' + queue.length; }
+    openLinkModal(item.id, item.storeId, item.amount);
+}
+
+function openCreateModalBulk(queue, index) {
+    if (index >= queue.length) { closeCreateModal(); if (queue.length) location.reload(); return; }
+    var item = queue[index];
+    window.bulkCreateQueue = queue;
+    window.bulkCreateIndex = index;
+    var prog = document.getElementById('createModalBulkProgress');
+    var text = document.getElementById('createModalBulkProgressText');
+    if (prog && text) { prog.classList.remove('hidden'); text.textContent = (index + 1) + '/' + queue.length; }
+    openCreateModal(item.id, item.description, item.amount, item.date, item.storeId);
+}
+
+function openLoanPaymentModalBulk(queue, index) {
+    if (index >= queue.length) { closeLoanPaymentModal(); if (queue.length) location.reload(); return; }
+    var item = queue[index];
+    window.bulkLoanQueue = queue;
+    window.bulkLoanIndex = index;
+    var prog = document.getElementById('loanModalBulkProgress');
+    var text = document.getElementById('loanModalBulkProgressText');
+    if (prog && text) { prog.classList.remove('hidden'); text.textContent = (index + 1) + '/' + queue.length; }
+    openLoanPaymentModal(item.id, item.amount);
+}
+
 // Cerrar modales con Escape
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeLinkModal();
         closeCreateModal();
         closeTransferModal();
+        closeLoanPaymentModal();
     }
 });
 
-// Eliminación múltiple: seleccionar todos y enviar
+// Eliminación múltiple y estado de botones en lote
 (function() {
     var form = document.getElementById('formBulkDelete');
     var btn = document.getElementById('btnBulkDelete');
     var selectAll = document.getElementById('selectAllMovements');
     var countEl = document.getElementById('bulkDeleteCount');
-    if (!form || !btn) return;
+    var bulkLinkCount = document.getElementById('bulkLinkCount');
+    var bulkCreateCount = document.getElementById('bulkCreateCount');
+    var bulkLoanCount = document.getElementById('bulkLoanCount');
+    var btnBulkLink = document.getElementById('btnBulkLinkExpense');
+    var btnBulkCreate = document.getElementById('btnBulkCreateExpense');
+    var btnBulkLoan = document.getElementById('btnBulkLoanPayment');
 
     function updateBulkState() {
         var checkboxes = document.querySelectorAll('.cb-movement:checked');
         var n = checkboxes.length;
+        var nActionable = typeof getSelectedMovementData === 'function' ? getSelectedMovementData('actionable').length : 0;
+        var showBulk = n > 1;
         if (countEl) countEl.textContent = n;
-        btn.disabled = n === 0;
+        if (btn) { btn.disabled = n === 0; btn.classList.toggle('hidden', !showBulk); }
+        if (bulkLinkCount) bulkLinkCount.textContent = nActionable;
+        if (bulkCreateCount) bulkCreateCount.textContent = nActionable;
+        if (bulkLoanCount) bulkLoanCount.textContent = nActionable;
+        if (btnBulkLink) { btnBulkLink.disabled = nActionable === 0; btnBulkLink.classList.toggle('hidden', !showBulk); }
+        if (btnBulkCreate) { btnBulkCreate.disabled = nActionable === 0; btnBulkCreate.classList.toggle('hidden', !showBulk); }
+        if (btnBulkLoan) { btnBulkLoan.disabled = nActionable === 0; btnBulkLoan.classList.toggle('hidden', !showBulk); }
         if (selectAll) selectAll.checked = n > 0 && document.querySelectorAll('.cb-movement').length === n;
         selectAll.indeterminate = n > 0 && n < (document.querySelectorAll('.cb-movement').length || 0);
     }
@@ -820,12 +1018,14 @@ document.addEventListener('keydown', function(e) {
         });
     }
 
-    btn.addEventListener('click', function() {
+    if (btn && form) btn.addEventListener('click', function() {
         var n = document.querySelectorAll('.cb-movement:checked').length;
         if (n === 0) return;
         if (!confirm('¿Eliminar ' + n + ' movimiento(s) bancario(s) y sus registros relacionados?')) return;
         form.submit();
     });
+
+    updateBulkState();
 })();
 </script>
 @endsection

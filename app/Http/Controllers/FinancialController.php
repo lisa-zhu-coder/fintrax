@@ -874,7 +874,17 @@ class FinancialController extends Controller
         }
 
         $period = $request->get('period', 'last_30');
-        $this->applyPeriodFilter($query, $period, $request);
+        $month = $request->get('month');
+        if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $driver = DB::getDriverName();
+            if ($driver === 'mysql') {
+                $query->whereRaw("COALESCE(reporting_month, DATE_FORMAT(date, '%Y-%m')) = ?", [$month]);
+            } else {
+                $query->whereRaw("COALESCE(reporting_month, strftime('%Y-%m', date)) = ?", [$month]);
+            }
+        } else {
+            $this->applyPeriodFilter($query, $period, $request);
+        }
 
         // Filtro por categoría
         if ($request->has('category') && $request->category) {
@@ -917,7 +927,17 @@ class FinancialController extends Controller
         }
 
         $period = $request->get('period', 'last_30');
-        $this->applyPeriodFilter($query, $period, $request);
+        $month = $request->get('month');
+        if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $driver = DB::getDriverName();
+            if ($driver === 'mysql') {
+                $query->whereRaw("COALESCE(reporting_month, DATE_FORMAT(date, '%Y-%m')) = ?", [$month]);
+            } else {
+                $query->whereRaw("COALESCE(reporting_month, strftime('%Y-%m', date)) = ?", [$month]);
+            }
+        } else {
+            $this->applyPeriodFilter($query, $period, $request);
+        }
 
         // Filtro por categoría
         if ($request->has('category') && $request->category) {

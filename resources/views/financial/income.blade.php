@@ -70,6 +70,12 @@
                         <option value="otros" {{ request('source') === 'otros' ? 'selected' : '' }}>Otros</option>
                     </select>
                 </label>
+                
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Mes correspondiente</span>
+                    <input type="month" name="month" value="{{ request('month') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <p class="mt-1 text-xs text-slate-500">Filtrar por mes al que corresponde el registro (opcional)</p>
+                </label>
             </div>
             
             <div id="customDateRange" class="hidden grid grid-cols-1 gap-4 md:grid-cols-2">

@@ -1752,26 +1752,31 @@ class FinancialController extends Controller
             $month['days_withdrawn'] = count($daysWithdrawn);
             $month['days_real'] = count($daysReal);
 
-            // Efectivo recogido del mes (solo año/mes, sin filtro de período)
+            // Efectivo recogido del mes por mes correspondiente (reporting_month)
             $month['cash_collected'] = (float) CashWithdrawal::where('store_id', $storeId)
-                ->whereYear('date', $year)
-                ->whereMonth('date', $monthNum)
+                ->whereRaw('COALESCE(reporting_month, DATE_FORMAT(date, "%Y-%m")) = ?', [$monthKey])
                 ->sum('amount');
 
-            // Gastos del mes: solo los que se muestran en el cuadro "Gastos del mes" (no los de procedencia por día)
+            // Gastos del mes: (1) control_efectivo con procedence_date este mes, (2) otros gastos en efectivo (no cartera) por mes correspondiente (reporting_month), no por fecha
             $expensesQuery = FinancialEntry::where('type', 'expense')
                 ->where('store_id', $storeId)
                 ->where(function ($q) {
                     $q->where('expense_source', '!=', 'cierre_diario')->orWhereNull('expense_source');
                 })
-                ->where(function ($q) use ($year, $monthNum, $monthKey) {
+                ->where(function ($q) use ($monthKey) {
+                    $driver = DB::getDriverName();
+                    $monthCondition = $driver === 'mysql'
+                        ? "COALESCE(reporting_month, DATE_FORMAT(date, '%Y-%m')) = ?"
+                        : "COALESCE(reporting_month, strftime('%Y-%m', date)) = ?";
                     $q->where(function ($q1) use ($monthKey) {
                         $q1->where('expense_source', 'control_efectivo')
                             ->where('notes', 'like', '%"procedence_date":"' . $monthKey . '%');
-                    })->orWhere(function ($q2) use ($year, $monthNum) {
-                        $q2->where('expense_payment_method', 'cash')
-                            ->whereYear('date', $year)
-                            ->whereMonth('date', $monthNum)
+                    })->orWhere(function ($q2) use ($monthKey, $monthCondition) {
+                        $q2->where(function ($q3) {
+                            $q3->where('expense_source', '!=', 'control_efectivo')->orWhereNull('expense_source');
+                        })
+                            ->where('expense_payment_method', 'cash')
+                            ->whereRaw($monthCondition, [$monthKey])
                             ->whereNotIn('id', CashWalletExpense::select('financial_entry_id')->whereNotNull('financial_entry_id'));
                     });
                 });
@@ -1872,26 +1877,30 @@ class FinancialController extends Controller
         $dateOrder = ($entriesSortDate === 'desc') ? 'desc' : 'asc';
         $entries = $query->orderBy('date', $dateOrder)->orderBy('created_at', $dateOrder)->get();
         
-        // Gastos del mes: (1) añadidos desde "Añadir gasto" con procedencia en este mes, (2) pagados en efectivo con procedencia TIENDA (no cartera) y fecha en este mes
-        // Los pagos en efectivo con procedencia cartera se apuntan en el historial de la cartera, no aquí
-        // Excluir gastos de cierre diario (expense_source=cierre_diario): ya están en cash_expenses del cierre
+        // Gastos del mes: (1) control_efectivo con procedence_date este mes, (2) otros gastos en efectivo (no cartera) por mes correspondiente (reporting_month), no por fecha del gasto
+        $driver = DB::getDriverName();
+        $monthCondition = $driver === 'mysql'
+            ? "COALESCE(reporting_month, DATE_FORMAT(date, '%Y-%m')) = ?"
+            : "COALESCE(reporting_month, strftime('%Y-%m', date)) = ?";
         $expensesQuery = FinancialEntry::where('type', 'expense')
             ->where('store_id', $storeId)
             ->where(function ($q) {
                 $q->where('expense_source', '!=', 'cierre_diario')->orWhereNull('expense_source');
             })
-            ->where(function ($q) use ($year, $month, $monthKey) {
+            ->where(function ($q) use ($monthKey, $monthCondition) {
                 $q->where(function ($q1) use ($monthKey) {
                     $q1->where('expense_source', 'control_efectivo')
                         ->where('notes', 'like', '%"procedence_date":"' . $monthKey . '%');
-                })->orWhere(function ($q2) use ($year, $month) {
-                    $q2->where('expense_payment_method', 'cash')
-                        ->whereYear('date', $year)
-                        ->whereMonth('date', $month)
+                })->orWhere(function ($q2) use ($monthKey, $monthCondition) {
+                    $q2->where(function ($q3) {
+                        $q3->where('expense_source', '!=', 'control_efectivo')->orWhereNull('expense_source');
+                    })
+                        ->where('expense_payment_method', 'cash')
+                        ->whereRaw($monthCondition, [$monthKey])
                         ->whereNotIn('id', CashWalletExpense::select('financial_entry_id')->whereNotNull('financial_entry_id'));
                 });
             });
-            
+
         if ($request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) {
             try {
                 $start = \Carbon\Carbon::parse($request->date_from)->startOfDay();
@@ -1903,7 +1912,7 @@ class FinancialController extends Controller
             } catch (\Exception $e) {
             }
         }
-        
+
         $allExpenses = $expensesQuery->orderBy('date', 'asc')->get();
 
         // Agrupar gastos por día (expensesByDay) y gastos del mes (monthExpenses). Solo los que están en la tabla "Gastos del mes" suman al total.
@@ -1978,20 +1987,10 @@ class FinancialController extends Controller
         $monthLabel = ucfirst(\Carbon\Carbon::create($year, $month, 1)->locale('es')->isoFormat('MMMM YYYY'));
         $monthTotal = $entries->sum('cash_withdrawn');
         
-        // Calcular efectivo recogido del mes (retiros de carteras)
+        // Calcular efectivo recogido del mes (retiros de carteras): por mes correspondiente (reporting_month)
         $cashWithdrawalsQuery = CashWithdrawal::with(['cashWallet', 'store'])
             ->where('store_id', $storeId)
-            ->whereYear('date', $year)
-            ->whereMonth('date', $month);
-        
-        if ($request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) {
-            try {
-                $start = \Carbon\Carbon::parse($request->date_from)->startOfDay();
-                $end = \Carbon\Carbon::parse($request->date_to)->endOfDay();
-                $cashWithdrawalsQuery->whereBetween('date', [$start, $end]);
-            } catch (\Exception $e) {
-            }
-        }
+            ->whereRaw('COALESCE(reporting_month, DATE_FORMAT(date, "%Y-%m")) = ?', [$monthKey]);
         
         $cashWithdrawals = $cashWithdrawalsQuery->orderBy('date', 'desc')->get();
         $totalCashCollected = $cashWithdrawals->sum('amount');
@@ -2196,14 +2195,16 @@ class FinancialController extends Controller
         $this->syncStoresFromBusinesses();
         $stores = $this->getAvailableStores();
         $cashWallets = CashWallet::all();
+        $availableMonths = $this->getAvailableMonthsForCashControl();
         
-        return view('financial.cash-withdrawals.create', compact('stores', 'cashWallets'));
+        return view('financial.cash-withdrawals.create', compact('stores', 'cashWallets', 'availableMonths'));
     }
 
     public function storeCashWithdrawal(Request $request)
     {
         $validated = $request->validate([
             'date' => 'required|date',
+            'reporting_month' => 'required|date_format:Y-m',
             'store_id' => 'required|exists:stores,id',
             'cash_wallet_id' => 'required|exists:cash_wallets,id',
             'amount' => 'required|numeric|min:0.01',
@@ -2211,6 +2212,7 @@ class FinancialController extends Controller
 
         CashWithdrawal::create([
             'date' => $validated['date'],
+            'reporting_month' => $validated['reporting_month'],
             'store_id' => $validated['store_id'],
             'cash_wallet_id' => $validated['cash_wallet_id'],
             'amount' => $validated['amount'],
@@ -2219,6 +2221,27 @@ class FinancialController extends Controller
 
         $redirect = $request->get('redirect_to') === 'dashboard' ? route('dashboard') : route('financial.cash-control');
         return redirect($redirect)->with('success', 'Retiro de efectivo registrado correctamente');
+    }
+
+    /**
+     * Meses con registro en control de efectivo (cierres diarios o recogidas) para las tiendas accesibles.
+     */
+    protected function getAvailableMonthsForCashControl(): array
+    {
+        $storeIds = $this->getAvailableStores()->pluck('id')->toArray();
+        if (empty($storeIds)) {
+            return [];
+        }
+        $fromEntries = FinancialEntry::where('type', 'daily_close')
+            ->whereIn('store_id', $storeIds)
+            ->selectRaw("DATE_FORMAT(date, '%Y-%m') as month_val")
+            ->distinct()
+            ->pluck('month_val');
+        $fromWithdrawals = CashWithdrawal::whereIn('store_id', $storeIds)
+            ->whereNotNull('reporting_month')
+            ->distinct()
+            ->pluck('reporting_month');
+        return $fromEntries->merge($fromWithdrawals)->unique()->sortDesc()->values()->toArray();
     }
 
     /**

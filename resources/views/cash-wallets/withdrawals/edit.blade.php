@@ -28,7 +28,22 @@
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Fecha *</span>
                     <input type="date" name="date" value="{{ old('date', $withdrawal->date->format('Y-m-d')) }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <p class="mt-1 text-xs text-slate-500">Fecha en que se realizó la recogida</p>
                     @error('date')
+                        <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
+                    @enderror
+                </label>
+
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Mes correspondiente *</span>
+                    <select name="reporting_month" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Selecciona el mes al que corresponde</option>
+                        @foreach($availableMonths as $m)
+                            <option value="{{ $m }}" {{ old('reporting_month', $withdrawal->reporting_month ?? $withdrawal->date->format('Y-m')) === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::createFromFormat('Y-m', $m)->locale('es')->isoFormat('MMMM YYYY') }}</option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-slate-500">Mes en el que se contabiliza en el control de efectivo</p>
+                    @error('reporting_month')
                         <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
                     @enderror
                 </label>

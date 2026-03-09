@@ -459,6 +459,27 @@ class CashWalletController extends Controller
     }
 
     /**
+     * Meses con registro en control de efectivo (cierres diarios o recogidas) para las tiendas accesibles.
+     */
+    private function getAvailableMonthsForCashControl(): array
+    {
+        $storeIds = $this->storesForCurrentUser()->pluck('id')->toArray();
+        if (empty($storeIds)) {
+            return [];
+        }
+        $fromEntries = FinancialEntry::where('type', 'daily_close')
+            ->whereIn('store_id', $storeIds)
+            ->selectRaw("DATE_FORMAT(date, '%Y-%m') as month_val")
+            ->distinct()
+            ->pluck('month_val');
+        $fromWithdrawals = CashWithdrawal::whereIn('store_id', $storeIds)
+            ->whereNotNull('reporting_month')
+            ->distinct()
+            ->pluck('reporting_month');
+        return $fromEntries->merge($fromWithdrawals)->unique()->sortDesc()->values()->toArray();
+    }
+
+    /**
      * Mostrar formulario de edición de retiro
      */
     public function editWithdrawal(CashWallet $cashWallet, CashWithdrawal $withdrawal)
@@ -470,8 +491,9 @@ class CashWalletController extends Controller
 
         $withdrawal->load('store');
         $stores = $this->storesForCurrentUser();
+        $availableMonths = $this->getAvailableMonthsForCashControl();
 
-        return view('cash-wallets.withdrawals.edit', compact('cashWallet', 'withdrawal', 'stores'));
+        return view('cash-wallets.withdrawals.edit', compact('cashWallet', 'withdrawal', 'stores', 'availableMonths'));
     }
 
     /**
@@ -486,6 +508,7 @@ class CashWalletController extends Controller
 
         $validated = $request->validate([
             'date' => 'required|date',
+            'reporting_month' => 'required|date_format:Y-m',
             'store_id' => 'required|exists:stores,id',
             'amount' => 'required|numeric|min:0.01',
         ]);
@@ -493,6 +516,7 @@ class CashWalletController extends Controller
         try {
             $withdrawal->update([
                 'date' => $validated['date'],
+                'reporting_month' => $validated['reporting_month'],
                 'store_id' => $validated['store_id'],
                 'amount' => round($validated['amount'], 2),
             ]);

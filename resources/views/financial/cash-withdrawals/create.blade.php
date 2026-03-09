@@ -31,8 +31,25 @@
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Fecha *</span>
-                    <input type="date" name="date" value="{{ old('date', now()->format('Y-m-d')) }}" required class="mt-1 w-full rounded-xl border {{ $errors->has('date') ? 'border-rose-400' : 'border-slate-200' }} bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <input type="date" id="cashWithdrawalDate" name="date" value="{{ old('date', now()->format('Y-m-d')) }}" required class="mt-1 w-full rounded-xl border {{ $errors->has('date') ? 'border-rose-400' : 'border-slate-200' }} bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                    <p class="mt-1 text-xs text-slate-500">Fecha en que se realizó la recogida</p>
                     @error('date')
+                        <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
+                    @enderror
+                </label>
+
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Mes correspondiente *</span>
+                    <select name="reporting_month" id="reportingMonth" required class="mt-1 w-full rounded-xl border {{ $errors->has('reporting_month') ? 'border-rose-400' : 'border-slate-200' }} bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Selecciona el mes al que corresponde</option>
+                        @forelse($availableMonths as $m)
+                            <option value="{{ $m }}" {{ old('reporting_month', substr(old('date', now()->format('Y-m-d')), 0, 7)) === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::createFromFormat('Y-m', $m)->locale('es')->isoFormat('MMMM YYYY') }}</option>
+                        @empty
+                            <option value="" disabled>No hay meses con registro en control de efectivo</option>
+                        @endforelse
+                    </select>
+                    <p class="mt-1 text-xs text-slate-500">Mes en el que se contabiliza esta recogida en el control de efectivo</p>
+                    @error('reporting_month')
                         <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
                     @enderror
                 </label>
@@ -83,5 +100,26 @@
         </form>
     </div>
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var dateInput = document.getElementById('cashWithdrawalDate');
+    var monthSelect = document.getElementById('reportingMonth');
+    if (!dateInput || !monthSelect) return;
+    var options = Array.from(monthSelect.querySelectorAll('option[value]')).map(function(o) { return o.value; });
+    function setDefaultMonth() {
+        var val = dateInput.value;
+        if (!val) return;
+        var y = val.slice(0, 4), m = val.slice(5, 7);
+        var monthVal = y + '-' + m;
+        if (options.indexOf(monthVal) !== -1) {
+            monthSelect.value = monthVal;
+        }
+    }
+    dateInput.addEventListener('change', setDefaultMonth);
+});
+</script>
+@endpush
 
 @endsection

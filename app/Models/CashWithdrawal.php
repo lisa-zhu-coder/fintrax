@@ -9,6 +9,7 @@ class CashWithdrawal extends Model
 {
     protected $fillable = [
         'date',
+        'reporting_month',
         'store_id',
         'cash_wallet_id',
         'amount',

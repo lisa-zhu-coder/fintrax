@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('monthly_objective_setting_values')) {
+            return;
+        }
+
         Schema::create('monthly_objective_setting_values', function (Blueprint $table) {
             $table->id();
             $table->foreignId('monthly_objective_setting_id')->constrained('monthly_objective_settings')->onDelete('cascade');

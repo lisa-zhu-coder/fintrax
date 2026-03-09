@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InterestIndex extends Model
 {
+    protected $table = 'interest_indexes';
+
     protected $fillable = ['index_name', 'date', 'rate'];
 
     protected $casts = [

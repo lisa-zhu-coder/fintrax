@@ -380,7 +380,21 @@
     
     @stack('styles')
 </head>
-<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300">
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300" @if(session('success') || session('error')) data-flash="1" @endif>
+    {{-- Guardar posición del scroll antes de enviar formularios POST para restaurarla tras redirect --}}
+    <script>
+    (function() {
+        document.addEventListener('submit', function(e) {
+            var form = e.target;
+            if (form && form.method && form.method.toLowerCase() === 'post') {
+                try {
+                    localStorage.setItem('scrollRestore', String(window.scrollY || 0));
+                    localStorage.setItem('scrollRestorePath', location.pathname + location.search);
+                } catch (err) {}
+            }
+        }, true);
+    })();
+    </script>
     <div class="flex min-h-screen">
         {{-- Overlay para cerrar sidebar en móvil --}}
         <div id="sidebarOverlay" class="sidebar-overlay fixed inset-0 bg-slate-900/60 z-40 md:hidden" onclick="toggleSidebar()" aria-hidden="true"></div>
@@ -924,6 +938,22 @@
         if (btn) btn.setAttribute('title', collapsed ? 'Desplegar menú' : 'Plegar menú');
     }
     document.addEventListener('DOMContentLoaded', function() {
+        // Restaurar posición del scroll tras redirect con mensaje de éxito/error (misma URL)
+        if (document.body.getAttribute('data-flash') === '1') {
+            try {
+                var pos = localStorage.getItem('scrollRestore');
+                var savedPath = localStorage.getItem('scrollRestorePath');
+                var currentPath = location.pathname + location.search;
+                if (pos !== null && savedPath === currentPath) {
+                    var y = parseInt(pos, 10);
+                    if (!isNaN(y) && y >= 0) {
+                        requestAnimationFrame(function() { window.scrollTo(0, y); });
+                    }
+                }
+                localStorage.removeItem('scrollRestore');
+                localStorage.removeItem('scrollRestorePath');
+            } catch (err) {}
+        }
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
         if (sidebar && localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1' && window.innerWidth >= 768) {

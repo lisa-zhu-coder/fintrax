@@ -448,17 +448,6 @@
     </div>
 </div>
 
-@if(session('success'))
-    <div class="fixed bottom-4 right-4 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg z-50">
-        {{ session('success') }}
-    </div>
-    <script>
-        setTimeout(() => {
-            document.querySelector('.fixed.bottom-4').remove();
-        }, 3000);
-    </script>
-@endif
-
 <script>
 function updateCashReal(entryId, value, expectedCash) {
     // Limpiar el valor y parsearlo correctamente

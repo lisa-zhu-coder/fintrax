@@ -4,12 +4,6 @@
 
 @section('content')
 <div class="space-y-6">
-    @if(session('success'))
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-            {{ session('success') }}
-        </div>
-    @endif
-    
     @if($errors->any())
         <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
             @foreach($errors->all() as $error)

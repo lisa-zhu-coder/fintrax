@@ -19,13 +19,6 @@
         </div>
     </header>
 
-    @if(session('success'))
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-        <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{{ session('error') }}</div>
-    @endif
-
     <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100 space-y-6">
         <section>
             <h2 class="text-sm font-semibold text-slate-700 mb-2">1. Descargar plantilla</h2>

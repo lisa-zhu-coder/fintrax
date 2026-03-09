@@ -19,18 +19,6 @@
         </div>
     </header>
 
-    @if(session('success'))
-        <div class="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-100">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="rounded-xl bg-rose-50 p-4 text-sm text-rose-800 ring-1 ring-rose-100">
-            {{ session('error') }}
-        </div>
-    @endif
-
     <!-- Filtros -->
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <form method="GET" action="{{ route('financial.bank-conciliation') }}" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -747,7 +735,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function openLinkModal(movementId, storeId, amount) {
     currentMovementId = movementId;
     var prog = document.getElementById('linkModalBulkProgress');
-    if (prog) prog.classList.add('hidden');
+    if (prog && !window.bulkLinkQueue) prog.classList.add('hidden');
     document.getElementById('linkForm').action = baseUrl + '/' + movementId + '/link-expense';
     
     // Cargar gastos disponibles filtrados por tienda e importe
@@ -796,7 +784,7 @@ function openLoanPaymentModal(movementId, amount) {
     const form = document.getElementById('loanPaymentForm');
     if (!modal || !form) return;
     var prog = document.getElementById('loanModalBulkProgress');
-    if (prog) prog.classList.add('hidden');
+    if (prog && !window.bulkLoanQueue) prog.classList.add('hidden');
     form.action = baseUrl + '/' + movementId + '/conciliate-loan-payment';
     document.getElementById('loanPaymentAmount').value = parseFloat(amount).toFixed(2);
     document.getElementById('loanPaymentModalAmount').textContent = parseFloat(amount).toFixed(2).replace('.', ',');
@@ -820,7 +808,7 @@ function closeLoanPaymentModal() {
 function openCreateModal(movementId, description, amount, date, storeId) {
     currentMovementId = movementId;
     var prog = document.getElementById('createModalBulkProgress');
-    if (prog) prog.classList.add('hidden');
+    if (prog && !window.bulkCreateQueue) prog.classList.add('hidden');
     document.getElementById('createForm').action = baseUrl + '/' + movementId + '/create-expense';
     
     // Establecer valores por defecto (mes al que corresponde = mes de la fecha del movimiento)

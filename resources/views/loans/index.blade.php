@@ -21,13 +21,6 @@
         </div>
     </header>
 
-    @if(session('success'))
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-        <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{{ session('error') }}</div>
-    @endif
-
     <div class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         @if($loans->isEmpty())
             <div class="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-slate-500">

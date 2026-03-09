@@ -11,12 +11,6 @@
         </div>
     </header>
 
-    @if(session('success'))
-        <div class="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-100">
-            {{ session('success') }}
-        </div>
-    @endif
-
     <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
         <form method="POST" action="{{ route('daily-close-settings.update') }}" class="space-y-6">
             @csrf

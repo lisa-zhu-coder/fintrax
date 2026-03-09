@@ -19,18 +19,6 @@
         </div>
     </header>
 
-    @if(session('success'))
-        <div class="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-100">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="rounded-xl bg-rose-50 p-4 text-sm text-rose-800 ring-1 ring-rose-100">
-            {{ session('error') }}
-        </div>
-    @endif
-
     <!-- Apartado Empresa -->
     <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
         <h2 class="mb-4 text-base font-semibold text-slate-900">Empresa</h2>

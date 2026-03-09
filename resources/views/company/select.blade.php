@@ -58,18 +58,6 @@
         </div>
 
         <!-- Mensajes flash -->
-        @if(session('success'))
-            <div class="mb-6 w-full max-w-2xl rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-100">
-                {{ session('success') }}
-            </div>
-        @endif
-        
-        @if(session('error'))
-            <div class="mb-6 w-full max-w-2xl rounded-xl bg-rose-50 p-4 text-sm text-rose-800 ring-1 ring-rose-100">
-                {{ session('error') }}
-            </div>
-        @endif
-
         @if(session('info'))
             <div class="mb-6 w-full max-w-2xl rounded-xl bg-blue-50 p-4 text-sm text-blue-800 ring-1 ring-blue-100">
                 {{ session('info') }}

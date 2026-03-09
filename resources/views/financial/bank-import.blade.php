@@ -19,18 +19,6 @@
         </div>
     </header>
 
-    @if(session('success'))
-        <div class="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-100">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="rounded-xl bg-rose-50 p-4 text-sm text-rose-800 ring-1 ring-rose-100">
-            {{ session('error') }}
-        </div>
-    @endif
-
     @if(isset($errors) && (is_array($errors) ? !empty($errors) : $errors->any()))
         <div class="rounded-xl bg-rose-50 p-4 text-sm text-rose-800 ring-1 ring-rose-100">
             <ul class="list-disc list-inside space-y-1">

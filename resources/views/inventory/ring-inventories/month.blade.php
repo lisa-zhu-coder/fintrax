@@ -4,12 +4,6 @@
 
 @section('content')
 <div class="space-y-6">
-    @if(session('success'))
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-            {{ session('success') }}
-        </div>
-    @endif
-
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <div class="flex items-center justify-between">
             <div>

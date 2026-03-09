@@ -10,10 +10,6 @@
         <h1 class="text-lg font-semibold">Añadir inventario semanal</h1>
     </header>
 
-    @if(session('error'))
-        <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{{ session('error') }}</div>
-    @endif
-
     <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
         <form method="POST" action="{{ route('inventory.categories.store', $category) }}" class="space-y-4">
             @csrf

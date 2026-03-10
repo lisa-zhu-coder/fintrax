@@ -139,6 +139,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::put('/financial/bank-movements/{bankMovement}', [FinancialController::class, 'updateBankMovement'])->name('financial.bank-movements.update');
     Route::post('/financial/bank-movements/{bankMovement}/confirm-transfer', [FinancialController::class, 'confirmTransfer'])->name('financial.bank-movements.confirm-transfer');
     Route::post('/financial/bank-conciliation/{bankMovement}/link-expense', [FinancialController::class, 'linkBankMovementToExpense'])->name('financial.bank-conciliation.link-expense');
+    Route::post('/financial/bank-conciliation/{bankMovement}/link-income', [FinancialController::class, 'linkBankMovementToIncome'])->name('financial.bank-conciliation.link-income');
     Route::post('/financial/bank-conciliation/{bankMovement}/create-expense', [FinancialController::class, 'createExpenseFromBankMovement'])->name('financial.bank-conciliation.create-expense');
     Route::post('/financial/bank-conciliation/{bankMovement}/conciliate-transfer', [FinancialController::class, 'conciliateAsTransfer'])->name('financial.bank-conciliation.conciliate-transfer');
     Route::post('/financial/bank-conciliation/{bankMovement}/conciliate-loan-payment', [LoanPaymentController::class, 'conciliateFromBank'])->name('financial.bank-conciliation.conciliate-loan-payment');
@@ -156,6 +157,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::post('/financial/cash-control/{store}/{month}/expense', [FinancialController::class, 'storeCashControlExpense'])->name('financial.cash-control-expense');
     Route::post('/financial/cash-control/{store}/day-comment', [FinancialController::class, 'storeCashControlDayComment'])->name('financial.cash-control-day-comment');
     Route::post('/financial/entry/{entry}/cash-real', [FinancialController::class, 'updateCashReal'])->name('financial.update-cash-real');
+    Route::post('/financial/entry/{entry}/tpv-difference-expense', [FinancialController::class, 'storeTpvDifferenceExpense'])->name('financial.store-tpv-difference-expense');
     Route::get('/financial/add-cash-real-column', function() {
         try {
             \Illuminate\Support\Facades\Schema::table('financial_entries', function (\Illuminate\Database\Schema\Blueprint $table) {

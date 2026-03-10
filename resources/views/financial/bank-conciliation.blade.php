@@ -64,6 +64,37 @@
         </form>
     </div>
 
+    @if(isset($partialReconciliationIncomes) && $partialReconciliationIncomes->isNotEmpty() && auth()->user()->hasPermission('financial.expenses.create'))
+    <div class="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-soft ring-1 ring-amber-100">
+        <h2 class="mb-3 text-sm font-semibold text-amber-900">Ingresos con conciliación parcial</h2>
+        <p class="mb-3 text-xs text-amber-800">Estos ingresos tienen movimientos enlazados pero la suma no cubre el total. Puedes crear un gasto por la diferencia (ej. tasa TPV).</p>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="text-xs text-slate-500">
+                    <tr><th class="text-left py-2">Fecha</th><th class="text-left py-2">Concepto</th><th class="text-right py-2">Importe ingreso</th><th class="text-right py-2">Enlazado</th><th class="text-right py-2">Diferencia</th><th class="text-left py-2">Acción</th></tr>
+                </thead>
+                <tbody class="divide-y divide-amber-100">
+                    @foreach($partialReconciliationIncomes as $item)
+                    <tr>
+                        <td class="py-2">{{ $item->entry->date->format('d/m/Y') }}</td>
+                        <td class="py-2">{{ $item->entry->income_concept ?? $item->entry->concept ?? 'Ingreso' }}</td>
+                        <td class="py-2 text-right">{{ number_format($item->income_amount, 2, ',', '.') }} €</td>
+                        <td class="py-2 text-right">{{ number_format($item->linked_sum, 2, ',', '.') }} €</td>
+                        <td class="py-2 text-right font-semibold text-amber-700">{{ number_format($item->difference, 2, ',', '.') }} €</td>
+                        <td class="py-2">
+                            <a href="{{ route('financial.show', $item->entry) }}?return_to={{ urlencode(request()->fullUrl()) }}" class="text-brand-600 hover:text-brand-700 text-xs font-medium">Ver ingreso</a>
+                            <button type="button" class="ml-2 inline rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 btn-create-tpv-diff" data-entry-id="{{ $item->entry->id }}" data-date="{{ $item->entry->date->format('d/m/Y') }}" data-difference="{{ number_format($item->difference, 2, '.', '') }}" data-concept="Tasa TPV {{ $item->entry->date->format('d/m/Y') }}">
+                                Crear gasto por la diferencia
+                            </button>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
+
     <!-- Tabla de movimientos -->
     <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
         @if($movements->isEmpty())
@@ -247,6 +278,18 @@
                                                     </svg>
                                                     Conciliar como traspaso
                                                 </button>
+                                            @elseif($movement->type === 'credit')
+                                                <button type="button" 
+                                                    class="btn-link-income inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-600 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50"
+                                                    data-movement-id="{{ $movement->id }}"
+                                                    data-store-id="{{ $movement->bankAccount->store_id ?? '' }}"
+                                                    data-date="{{ $movement->date->format('Y-m-d') }}"
+                                                    data-amount="{{ abs($movement->amount) }}">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <path d="M12 8v13M17 8v13M7 8v13M2 8v13M7 8h10a2 2 0 012 2v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a2 2 0 012-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                    </svg>
+                                                    Enlazar ingreso
+                                                </button>
                                             @else
                                                 <button type="button" 
                                                     class="btn-link-expense inline-flex items-center justify-center gap-1 rounded-xl border border-brand-600 bg-white px-3 py-1.5 text-xs font-semibold text-brand-600 hover:bg-brand-50"
@@ -297,12 +340,12 @@
                                             </form>
                                         @else
                                             @if($movement->financialEntry)
-                                                <a href="{{ route('financial.show', [$movement->financialEntry->id, 'return_to' => url()->current()]) }}" class="inline-flex items-center justify-center gap-1 rounded-xl border border-brand-600 bg-white px-3 py-1.5 text-xs font-semibold text-brand-600 hover:bg-brand-50">
+                                                <a href="{{ route('financial.show', [$movement->financialEntry->id, 'return_to' => url()->current()]) }}" class="inline-flex items-center justify-center gap-1 rounded-xl border {{ $movement->financialEntry->type === 'income' ? 'border-emerald-600 text-emerald-600 hover:bg-emerald-50' : 'border-brand-600 text-brand-600 hover:bg-brand-50' }} bg-white px-3 py-1.5 text-xs font-semibold">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                         <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" stroke="currentColor" stroke-width="2"/>
                                                         <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke="currentColor" stroke-width="2"/>
                                                     </svg>
-                                                    Ver gasto #{{ $movement->financialEntry->id }}
+                                                    Ver {{ $movement->financialEntry->type === 'income' ? 'ingreso' : 'gasto' }} #{{ $movement->financialEntry->id }}
                                                 </a>
                                             @else
                                                 <span class="text-xs text-slate-400">Sin enlace</span>
@@ -360,6 +403,45 @@
                         Cancelar
                     </button>
                     <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+                        Enlazar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para enlazar ingreso -->
+<div id="linkIncomeModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onclick="closeLinkIncomeModal()"></div>
+        
+        <div class="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+            <div id="linkIncomeModalBulkProgress" class="hidden mb-4 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">Línea <span id="linkIncomeModalBulkProgressText">1/1</span></div>
+            <div class="mb-4 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900">Enlazar ingreso existente</h3>
+                <button type="button" onclick="closeLinkIncomeModal()" class="text-slate-400 hover:text-slate-600">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <form id="linkIncomeForm" method="POST" action="">
+                @csrf
+                
+                <label class="block mb-4">
+                    <span class="text-xs font-semibold text-slate-700">Seleccionar ingreso</span>
+                    <select name="financial_entry_id" id="linkIncomeFinancialEntryId" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Cargando ingresos...</option>
+                    </select>
+                </label>
+                
+                <div class="flex items-center justify-end gap-3">
+                    <button type="button" onclick="closeLinkIncomeModal()" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
                         Enlazar
                     </button>
                 </div>
@@ -591,10 +673,55 @@
 </div>
 @endif
 
+@if(isset($partialReconciliationIncomes) && $partialReconciliationIncomes->isNotEmpty() && auth()->user()->hasPermission('financial.expenses.create'))
+<!-- Modal crear gasto por diferencia TPV (desde sección conciliación parcial) -->
+<div id="tpvDifferenceModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onclick="closeTpvDifferenceModal()"></div>
+        <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div class="mb-4 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900">Crear gasto por la diferencia TPV</h3>
+                <button type="button" onclick="closeTpvDifferenceModal()" class="text-slate-400 hover:text-slate-600">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+            </div>
+            <form id="tpvDifferenceForm" method="POST" action="">
+                @csrf
+                <input type="hidden" name="redirect_to" value="{{ request()->fullUrl() }}">
+                <label class="mb-4 block">
+                    <span class="text-xs font-semibold text-slate-700">Categoría</span>
+                    <select name="expense_category" id="tpvDiffCategory" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                        @foreach($expenseCategories as $cat)
+                        <option value="{{ $cat->name }}" {{ ($cat->name === 'Servicios profesionales') ? 'selected' : '' }}>{{ $cat->name }}</option>
+                        @endforeach
+                        @if(($expenseCategories->where('name', 'Servicios profesionales')->isEmpty()))
+                        <option value="Servicios profesionales" selected>Servicios profesionales</option>
+                        @endif
+                    </select>
+                </label>
+                <label class="mb-4 block">
+                    <span class="text-xs font-semibold text-slate-700">Concepto</span>
+                    <input type="text" name="expense_concept" id="tpvDiffConcept" value="" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                </label>
+                <label class="mb-4 block">
+                    <span class="text-xs font-semibold text-slate-700">Importe (€)</span>
+                    <input type="number" name="amount" id="tpvDiffAmount" step="0.01" min="0.01" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                </label>
+                <div class="flex items-center justify-end gap-3">
+                    <button type="button" onclick="closeTpvDifferenceModal()" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
+                    <button type="submit" class="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">Crear gasto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
 <script>
 let currentMovementId = null;
 const baseUrl = '{{ url("/financial/bank-conciliation") }}';
 const availableExpensesUrl = '{{ url("/financial/bank-movements/available-expenses") }}';
+const availableIncomesUrl = '{{ url("/financial/bank-movements/available-incomes") }}';
 const stores = @json($stores ?? []);
 
 // Event listeners para botones
@@ -608,6 +735,17 @@ document.addEventListener('DOMContentLoaded', function() {
             openLinkModal(movementId, storeId, amount);
         });
     });
+
+    // Botones de enlazar ingreso
+    document.querySelectorAll('.btn-link-income').forEach(button => {
+        button.addEventListener('click', function() {
+            const movementId = this.getAttribute('data-movement-id');
+            const storeId = this.getAttribute('data-store-id');
+            const date = this.getAttribute('data-date');
+            const amount = this.getAttribute('data-amount');
+            openLinkIncomeModal(movementId, storeId, date, amount);
+        });
+    });
     
     // Botones de crear gasto
     document.querySelectorAll('.btn-create-expense').forEach(button => {
@@ -618,6 +756,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const date = this.getAttribute('data-date');
             const storeId = this.getAttribute('data-store-id');
             openCreateModal(movementId, description, amount, date, storeId);
+        });
+    });
+
+    // Crear gasto por diferencia TPV (desde sección conciliación parcial)
+    document.querySelectorAll('.btn-create-tpv-diff').forEach(button => {
+        button.addEventListener('click', function() {
+            const entryId = this.getAttribute('data-entry-id');
+            const concept = this.getAttribute('data-concept');
+            const difference = this.getAttribute('data-difference');
+            openTpvDifferenceModal(entryId, concept, difference);
         });
     });
     // Al cambiar la fecha del gasto, actualizar el mes por defecto al mes de esa fecha (el usuario puede cambiarlo)
@@ -777,6 +925,50 @@ function closeLinkModal() {
     document.getElementById('linkModal').classList.add('hidden');
     document.body.style.overflow = '';
     document.getElementById('linkForm').reset();
+}
+
+function openLinkIncomeModal(movementId, storeId, date, amount) {
+    currentMovementId = movementId;
+    var prog = document.getElementById('linkIncomeModalBulkProgress');
+    if (prog && !window.bulkLinkIncomeQueue) prog.classList.add('hidden');
+    document.getElementById('linkIncomeForm').action = baseUrl + '/' + movementId + '/link-income';
+    var select = document.getElementById('linkIncomeFinancialEntryId');
+    select.innerHTML = '<option value="">Cargando ingresos...</option>';
+    fetch(availableIncomesUrl + '?store_id=' + storeId + '&date=' + encodeURIComponent(date) + '&amount=' + encodeURIComponent(amount))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            select.innerHTML = '<option value="">Selecciona un ingreso...</option>';
+            if (data.incomes && data.incomes.length > 0) {
+                data.incomes.forEach(function(inc) {
+                    var opt = document.createElement('option');
+                    opt.value = inc.id;
+                    opt.textContent = (inc.concept || 'Ingreso') + ' - ' + parseFloat(inc.amount).toFixed(2).replace('.', ',') + ' € (' + inc.date + ')';
+                    select.appendChild(opt);
+                });
+            } else {
+                var opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No hay ingresos disponibles para esta tienda, fecha e importe';
+                opt.disabled = true;
+                select.appendChild(opt);
+            }
+        })
+        .catch(function() {
+            select.innerHTML = '<option value="">Error al cargar ingresos</option>';
+        });
+    document.getElementById('linkIncomeModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeLinkIncomeModal() {
+    window.bulkLinkIncomeQueue = null;
+    window.bulkLinkIncomeIndex = null;
+    var prog = document.getElementById('linkIncomeModalBulkProgress');
+    if (prog) prog.classList.add('hidden');
+    document.getElementById('linkIncomeModal').classList.add('hidden');
+    document.body.style.overflow = '';
+    var f = document.getElementById('linkIncomeForm');
+    if (f) f.reset();
 }
 
 function openLoanPaymentModal(movementId, amount) {
@@ -956,13 +1148,29 @@ function openLoanPaymentModalBulk(queue, index) {
     openLoanPaymentModal(item.id, item.amount);
 }
 
+function openTpvDifferenceModal(entryId, concept, amount) {
+    var form = document.getElementById('tpvDifferenceForm');
+    var modal = document.getElementById('tpvDifferenceModal');
+    if (!form || !modal) return;
+    form.action = '{{ url("/financial/entry") }}/' + entryId + '/tpv-difference-expense';
+    document.getElementById('tpvDiffConcept').value = concept || '';
+    document.getElementById('tpvDiffAmount').value = amount || '';
+    modal.classList.remove('hidden');
+}
+function closeTpvDifferenceModal() {
+    var modal = document.getElementById('tpvDifferenceModal');
+    if (modal) modal.classList.add('hidden');
+}
+
 // Cerrar modales con Escape
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeLinkModal();
+        closeLinkIncomeModal();
         closeCreateModal();
         closeTransferModal();
         closeLoanPaymentModal();
+        closeTpvDifferenceModal();
     }
 });
 

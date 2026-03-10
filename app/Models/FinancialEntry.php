@@ -58,6 +58,7 @@ class FinancialEntry extends Model
         'status',
         'invoice_id',
         'supplier_id',
+        'source_income_id',
     ];
 
     protected $casts = [
@@ -124,6 +125,24 @@ class FinancialEntry extends Model
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class, 'invoice_id');
+    }
+
+    /** Ingreso del que proviene este gasto (solo para gastos creados por diferencia TPV). */
+    public function sourceIncome(): BelongsTo
+    {
+        return $this->belongsTo(FinancialEntry::class, 'source_income_id');
+    }
+
+    /** Gasto creado por la diferencia TPV de este ingreso (máximo uno por ingreso). */
+    public function tpvDifferenceExpense(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(FinancialEntry::class, 'source_income_id')->where('type', 'expense');
+    }
+
+    /** Movimientos bancarios enlazados a este registro (varios movimientos pueden apuntar al mismo entry). */
+    public function bankMovements(): HasMany
+    {
+        return $this->hasMany(BankMovement::class, 'financial_entry_id');
     }
 
     public function getTotalPaidAttribute(): float

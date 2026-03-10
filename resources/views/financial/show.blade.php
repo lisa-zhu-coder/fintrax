@@ -67,6 +67,75 @@
                 </div>
             </div>
 
+            @if($entry->type === 'income' && ($entry->expense_payment_method ?? '') === 'bank')
+            <div class="md:col-span-2 space-y-3">
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <h3 class="mb-3 text-sm font-semibold text-slate-900">Conciliación bancaria</h3>
+                    @if($entry->bankMovements && $entry->bankMovements->isNotEmpty())
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="text-xs text-slate-500">
+                                <tr><th class="text-left py-1">Fecha</th><th class="text-left py-1">Concepto</th><th class="text-right py-1">Importe</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                @foreach($entry->bankMovements as $mov)
+                                <tr>
+                                    <td class="py-1">{{ $mov->date->format('d/m/Y') }}</td>
+                                    <td class="py-1">{{ $mov->description ? \Illuminate\Support\Str::limit($mov->description, 40) : '—' }}</td>
+                                    <td class="py-1 text-right font-semibold text-emerald-700">+{{ number_format($mov->amount, 2, ',', '.') }} €</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-2 flex flex-wrap items-center gap-4 text-sm">
+                        <span>Total enlazado: <strong>{{ number_format($linkedMovementsSum, 2, ',', '.') }} €</strong></span>
+                        <span>Importe del ingreso: <strong>{{ number_format($entry->total_amount ?? $entry->amount ?? 0, 2, ',', '.') }} €</strong></span>
+                        <span class="{{ $tpvDifferenceAmount > 0 ? 'text-amber-700' : 'text-slate-600' }}">Diferencia: <strong>{{ number_format($tpvDifferenceAmount, 2, ',', '.') }} €</strong></span>
+                    </div>
+                    @if($canCreateTpvDifference)
+                    <div class="mt-4 pt-3 border-t border-slate-200">
+                        <p class="text-xs text-slate-600 mb-2">Crear un gasto por la diferencia (ej. tasa TPV):</p>
+                        <form method="POST" action="{{ route('financial.store-tpv-difference-expense', $entry) }}" class="flex flex-wrap items-end gap-3">
+                            @csrf
+                            @if(request('return_to'))
+                            <input type="hidden" name="redirect_to" value="{{ request('return_to') }}">
+                            @endif
+                            <label class="block">
+                                <span class="text-xs font-semibold text-slate-700">Categoría</span>
+                                <select name="expense_category" class="mt-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    @foreach($expenseCategories as $cat)
+                                    <option value="{{ $cat->name }}" {{ (old('expense_category', 'Servicios profesionales') === $cat->name) ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                    @endforeach
+                                    @if($expenseCategories->where('name', 'Servicios profesionales')->isEmpty())
+                                    <option value="Servicios profesionales" selected>Servicios profesionales</option>
+                                    @endif
+                                </select>
+                            </label>
+                            <label class="block min-w-[200px]">
+                                <span class="text-xs font-semibold text-slate-700">Concepto</span>
+                                <input type="text" name="expense_concept" value="{{ old('expense_concept', 'Tasa TPV ' . $entry->date->format('d/m/Y')) }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                            </label>
+                            <label class="block">
+                                <span class="text-xs font-semibold text-slate-700">Importe (€)</span>
+                                <input type="number" name="amount" step="0.01" min="0.01" max="{{ $tpvDifferenceAmount + 0.01 }}" value="{{ old('amount', number_format($tpvDifferenceAmount, 2, '.', '')) }}" class="mt-1 w-24 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                            </label>
+                            <button type="submit" class="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">Crear gasto por la diferencia</button>
+                        </form>
+                    </div>
+                    @elseif($entry->tpvDifferenceExpense)
+                    <div class="mt-3 pt-2 border-t border-slate-200">
+                        <p class="text-xs text-slate-600">Gasto por la diferencia:</p>
+                        <a href="{{ route('financial.show', $entry->tpvDifferenceExpense) }}" class="text-sm font-semibold text-brand-600 hover:text-brand-700">{{ $entry->tpvDifferenceExpense->expense_concept ?? $entry->tpvDifferenceExpense->concept }} — {{ number_format($entry->tpvDifferenceExpense->expense_amount ?? $entry->tpvDifferenceExpense->amount, 2, ',', '.') }} €</a>
+                    </div>
+                    @endif
+                    @else
+                    <p class="text-sm text-slate-500">No hay movimientos bancarios enlazados a este ingreso.</p>
+                    @endif
+                </div>
+            </div>
+            @endif
+
             @if($entry->type === 'daily_close')
                 <!-- Detalles de cierre diario -->
                 <div class="md:col-span-2 space-y-4">

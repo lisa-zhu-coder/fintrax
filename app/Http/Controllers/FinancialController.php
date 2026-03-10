@@ -38,6 +38,7 @@ class FinancialController extends Controller
         $this->middleware('permission:financial.expenses.view')->only(['expenses']);
         $this->middleware('permission:financial.daily_closes.view')->only(['dailyCloses', 'exportDailyCloses']);
         $this->middleware('permission:financial.registros.create')->only(['create', 'store']);
+        $this->middleware('permission:financial.expenses.create')->only(['storeTpvDifferenceExpense']);
         // show, edit, update: autorización por tipo de registro en el propio método
         $this->middleware('permission:financial.registros.delete')->only(['destroy']);
         $this->middleware('permission:financial.registros.export')->only('export');
@@ -46,7 +47,7 @@ class FinancialController extends Controller
         $this->middleware('permission:treasury.cash_control.edit')->only(['updateCashReal', 'storeCashControlDayComment']);
         $this->middleware('permission:treasury.bank_control.view')->only(['bankControl', 'bankImportForm', 'downloadBankImportTemplate', 'bankImportStore']);
         $this->middleware('permission:treasury.bank_conciliation.view')->only(['bankConciliation', 'getAvailableExpenses', 'getAvailableIncomes']);
-        $this->middleware('permission:treasury.bank_conciliation.edit')->only(['editBankMovement', 'updateBankMovement', 'conciliateBankMovement', 'linkBankMovement', 'createExpenseFromBankMovement', 'createExpenseFromBankMovementRoute', 'linkBankMovementToExpense', 'conciliateAsTransfer', 'ignoreBankMovement', 'ignoreBankMovementRoute', 'confirmTransfer', 'linkExpenseFromBankMovement']);
+        $this->middleware('permission:treasury.bank_conciliation.edit')->only(['editBankMovement', 'updateBankMovement', 'conciliateBankMovement', 'linkBankMovement', 'createExpenseFromBankMovement', 'createExpenseFromBankMovementRoute', 'linkBankMovementToExpense', 'linkBankMovementToIncome', 'conciliateAsTransfer', 'ignoreBankMovement', 'ignoreBankMovementRoute', 'confirmTransfer', 'linkExpenseFromBankMovement']);
         $this->middleware('permission:treasury.bank_conciliation.delete')->only(['destroyBankMovement', 'destroyBulkBankMovements']);
         $this->middleware('permission:treasury.cash_control.view')->only(['createCashWithdrawal', 'storeCashWithdrawal']);
         $this->middleware('permission:treasury.cash_wallets.create')->only(['storeCashDeposit']);
@@ -436,7 +437,8 @@ class FinancialController extends Controller
 
     public function show($id)
     {
-        $entry = FinancialEntry::findOrFail($id);
+        $entry = FinancialEntry::with(['bankMovements.bankAccount', 'tpvDifferenceExpense'])->findOrFail($id);
+        $this->authorizeStoreAccess($entry->store_id);
         $canView = $entry->type === 'daily_close'
             ? auth()->user()->hasPermission('financial.daily_closes.view')
             : auth()->user()->hasPermission('financial.registros.view');
@@ -444,7 +446,18 @@ class FinancialController extends Controller
             abort(403, 'No tienes permisos para ver esta acción.');
         }
         $dailyCloseSettings = $this->getDailyCloseSettings($entry->store?->company_id);
-        return view('financial.show', compact('entry', 'dailyCloseSettings'));
+        $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
+        $linkedMovementsSum = 0;
+        $canCreateTpvDifference = false;
+        $tpvDifferenceAmount = 0;
+        if ($entry->type === 'income' && ($entry->expense_payment_method ?? '') === 'bank') {
+            $linkedMovementsSum = (float) $entry->bankMovements->sum('amount');
+            $incomeAmount = (float) ($entry->total_amount ?? $entry->amount ?? $entry->income_amount ?? 0);
+            $tpvDifferenceAmount = round($incomeAmount - $linkedMovementsSum, 2);
+            $hasTpvDifferenceExpense = $entry->tpvDifferenceExpense()->exists();
+            $canCreateTpvDifference = $tpvDifferenceAmount > 0 && !$hasTpvDifferenceExpense && auth()->user()->hasPermission('financial.expenses.create');
+        }
+        return view('financial.show', compact('entry', 'dailyCloseSettings', 'expenseCategories', 'linkedMovementsSum', 'canCreateTpvDifference', 'tpvDifferenceAmount'));
     }
 
     public function edit($id)
@@ -2444,7 +2457,43 @@ class FinancialController extends Controller
         
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
         $loans = \App\Models\Loan::orderBy('name')->get();
-        return view('financial.bank-conciliation', compact('movements', 'bankAccounts', 'stores', 'relatedTransfers', 'movementToTransferMap', 'expenseCategories', 'loans'));
+
+        // Ingresos (datáfono/banco) con conciliación parcial: suma de movimientos < importe y sin gasto por diferencia creado
+        $partialReconciliationIncomes = collect();
+        $incomeIdsWithLinkedMovements = BankMovement::whereNotNull('financial_entry_id')
+            ->whereIn('financial_entry_id', FinancialEntry::where('type', 'income')->where('expense_payment_method', 'bank')->pluck('id'))
+            ->selectRaw('financial_entry_id, SUM(amount) as total_linked')
+            ->groupBy('financial_entry_id')
+            ->get();
+        foreach ($incomeIdsWithLinkedMovements as $row) {
+            $income = FinancialEntry::find($row->financial_entry_id);
+            if (!$income || !$this->userCanAccessStore($income->store_id)) {
+                continue;
+            }
+            $incomeAmount = (float) ($income->total_amount ?? $income->amount ?? $income->income_amount ?? 0);
+            $linkedSum = (float) $row->total_linked;
+            $diff = round($incomeAmount - $linkedSum, 2);
+            $hasTpvDiffExpense = FinancialEntry::where('source_income_id', $income->id)->where('type', 'expense')->exists();
+            if ($diff > 0 && !$hasTpvDiffExpense) {
+                $partialReconciliationIncomes->push((object)[
+                    'entry' => $income,
+                    'linked_sum' => $linkedSum,
+                    'income_amount' => $incomeAmount,
+                    'difference' => $diff,
+                ]);
+            }
+        }
+
+        return view('financial.bank-conciliation', compact('movements', 'bankAccounts', 'stores', 'relatedTransfers', 'movementToTransferMap', 'expenseCategories', 'loans', 'partialReconciliationIncomes'));
+    }
+
+    private function userCanAccessStore($storeId): bool
+    {
+        $enforced = auth()->user()->getEnforcedStoreId();
+        if ($enforced !== null) {
+            return (int) $storeId === (int) $enforced;
+        }
+        return auth()->user()->canAccessStore((int) $storeId);
     }
 
     /**
@@ -2457,6 +2506,13 @@ class FinancialController extends Controller
         ]);
         
         try {
+            $entry = FinancialEntry::findOrFail($validated['financial_entry_id']);
+            if ($entry->type !== 'expense') {
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => 'El registro seleccionado no es un gasto.'], 422);
+                }
+                return back()->with('error', 'El registro seleccionado no es un gasto.');
+            }
             // Marcar bankMovement como conciliado y guardar financial_entry_id
             $bankMovement->update([
                 'is_conciliated' => true,
@@ -2476,6 +2532,113 @@ class FinancialController extends Controller
             }
             return back()->with('error', 'Error al enlazar el movimiento: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Enlazar movimiento bancario (ingreso/crédito) a ingreso existente
+     */
+    public function linkBankMovementToIncome(Request $request, BankMovement $bankMovement)
+    {
+        $validated = $request->validate([
+            'financial_entry_id' => 'required|exists:financial_entries,id',
+        ]);
+
+        try {
+            $entry = FinancialEntry::findOrFail($validated['financial_entry_id']);
+            if ($entry->type !== 'income') {
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => 'El registro seleccionado no es un ingreso.'], 422);
+                }
+                return back()->with('error', 'El registro seleccionado no es un ingreso.');
+            }
+            $bankMovement->update([
+                'is_conciliated' => true,
+                'status' => 'conciliado',
+                'financial_entry_id' => $validated['financial_entry_id'],
+            ]);
+
+            if ($request->wantsJson()) {
+                return response()->json(['success' => true]);
+            }
+            return redirect()->route('financial.bank-conciliation')
+                ->with('success', 'Movimiento bancario enlazado correctamente.');
+        } catch (\Exception $e) {
+            Log::error('Error enlazando movimiento bancario a ingreso: ' . $e->getMessage());
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+            return back()->with('error', 'Error al enlazar el movimiento: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Crear gasto por la diferencia TPV (ingreso datáfono/banco con movimientos conciliados que no cubren el total).
+     * Solo una vez por ingreso; categoría y concepto editables (por defecto Servicios profesionales, Tasa TPV DD/MM/AAAA).
+     */
+    public function storeTpvDifferenceExpense(Request $request, FinancialEntry $entry)
+    {
+        $this->authorizeStoreAccess($entry->store_id);
+
+        if ($entry->type !== 'income' || ($entry->expense_payment_method ?? '') !== 'bank') {
+            return back()->with('error', 'Solo se puede crear el gasto por diferencia en ingresos de datáfono/banco.');
+        }
+
+        $linkedSum = (float) $entry->bankMovements()->sum('amount');
+        $incomeAmount = (float) ($entry->total_amount ?? $entry->amount ?? $entry->income_amount ?? 0);
+        $difference = round($incomeAmount - $linkedSum, 2);
+
+        if ($difference <= 0) {
+            return back()->with('error', 'No hay diferencia pendiente (la suma de movimientos ya cubre o supera el ingreso).');
+        }
+
+        if (FinancialEntry::where('source_income_id', $entry->id)->where('type', 'expense')->exists()) {
+            return back()->with('error', 'Ya existe un gasto por la diferencia de este ingreso. No se puede crear otro.');
+        }
+
+        $validated = $request->validate([
+            'expense_category' => 'required|string|max:255',
+            'expense_concept' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0.01|max:' . ($difference + 0.01),
+        ]);
+
+        $amount = round((float) $validated['amount'], 2);
+        if ($amount > $difference) {
+            return back()->with('error', 'El importe no puede superar la diferencia (' . number_format($difference, 2, ',', '.') . ' €).');
+        }
+
+        try {
+            FinancialEntry::create([
+                'date' => $entry->date,
+                'reporting_month' => $entry->getReportingMonth(),
+                'store_id' => $entry->store_id,
+                'type' => 'expense',
+                'expense_payment_method' => 'bank',
+                'expense_amount' => $amount,
+                'amount' => $amount,
+                'total_amount' => $amount,
+                'status' => 'pagado',
+                'paid_amount' => $amount,
+                'expense_category' => $validated['expense_category'],
+                'expense_source' => 'diferencia_tpv',
+                'expense_concept' => $validated['expense_concept'],
+                'concept' => $validated['expense_concept'],
+                'source_income_id' => $entry->id,
+                'notes' => json_encode(['source' => 'tpv_difference', 'income_id' => $entry->id]),
+                'created_by' => Auth::id(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error creando gasto por diferencia TPV: ' . $e->getMessage());
+            return back()->with('error', 'Error al crear el gasto: ' . $e->getMessage());
+        }
+
+        $redirectTo = $request->get('redirect_to');
+        if ($redirectTo && is_string($redirectTo)) {
+            $host = parse_url($redirectTo, PHP_URL_HOST);
+            if ($host === null && str_starts_with($redirectTo, '/') || ($host !== null && $host === $request->getHost())) {
+                return redirect($redirectTo)->with('success', 'Gasto por la diferencia TPV creado correctamente.');
+            }
+        }
+        return redirect()->route('financial.show', $entry)->with('success', 'Gasto por la diferencia TPV creado correctamente.');
     }
 
     /**
@@ -3016,35 +3179,34 @@ class FinancialController extends Controller
     }
 
     /**
-     * Obtener ingresos disponibles para conciliación (AJAX)
+     * Obtener ingresos disponibles para conciliación (AJAX).
+     * Solo ingresos con método de pago banco (datáfono/TPV).
      */
     public function getAvailableIncomes(Request $request)
     {
         $storeId = $request->get('store_id');
         $date = $request->get('date');
-        $amount = (float) $request->get('amount');
         
-        if (!$storeId || !$date || !$amount) {
+        if (!$storeId || !$date) {
             return response()->json(['incomes' => []]);
         }
         
-        // Buscar ingresos que coincidan con la fecha, tienda e importe
-        $incomes = FinancialEntry::where('store_id', $storeId)
+        $query = FinancialEntry::where('store_id', $storeId)
             ->where('date', $date)
             ->where('type', 'income')
-            ->where(function($query) use ($amount) {
-                $query->whereBetween('amount', [$amount - 0.01, $amount + 0.01])
-                    ->orWhereBetween('total_amount', [$amount - 0.01, $amount + 0.01]);
-            })
+            ->where('expense_payment_method', 'bank')
             ->whereNull('deleted_at')
-            ->select('id', 'date', 'concept', 'amount', 'total_amount')
-            ->get()
+            ->orderBy('amount', 'desc')
+            ->select('id', 'date', 'concept', 'amount', 'total_amount', 'income_concept');
+        
+        $incomes = $query->get()
             ->map(function($entry) {
+                $amt = (float) ($entry->total_amount ?? $entry->amount ?? 0);
                 return [
                     'id' => $entry->id,
                     'date' => $entry->date->format('d/m/Y'),
-                    'concept' => $entry->concept ?? 'Ingreso',
-                    'amount' => $entry->total_amount ?? $entry->amount,
+                    'concept' => $entry->income_concept ?? $entry->concept ?? 'Ingreso',
+                    'amount' => $amt,
                 ];
             });
         

@@ -37,7 +37,11 @@ class DashboardController extends Controller
         $period = $request->get('period', 'this_month');
         $fromDate = $request->get('from_date');
         $toDate = $request->get('to_date');
-        $month = $request->get('month'); // YYYY-MM, cuando se usa filtra por mes correspondiente
+        // Mes correspondiente: por defecto el mes actual
+        $month = $request->get('month');
+        if ($month === null || $month === '') {
+            $month = now()->format('Y-m');
+        }
 
         $selectedStore = $request->get('store', 'all');
         if (!$user->isSuperAdmin() && !$user->isAdmin()) {
@@ -55,8 +59,8 @@ class DashboardController extends Controller
         $chartData = $this->prepareChartData($entries);
         $expensesByCategory = $this->getExpensesByCategory($selectedStore, $period, $user, $fromDate, $toDate, $month);
         $incomeByPaymentMethod = $this->getIncomeByPaymentMethod($selectedStore, $period, $user, $fromDate, $toDate, $month);
-        $ordersPaidVsPending = $this->getOrdersPaidVsPending($selectedStore, $period, $user, $fromDate, $toDate);
-        $overtimeByStore = $this->getOvertimeByStore($selectedStore, $period, $user, $fromDate, $toDate);
+        $ordersPaidVsPending = $this->getOrdersPaidVsPending($selectedStore, $user, $month);
+        $overtimeByStore = $this->getOvertimeByStore($selectedStore, $user, $month);
         $cashWallets = CashWallet::orderBy('name')->get();
 
         $widgetLayout = $this->getWidgetLayoutForUser($user);
@@ -82,11 +86,9 @@ class DashboardController extends Controller
             }
         }
 
-        if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
-            $this->applyMonthFilter($query, $month);
-        } else {
-            $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
-        }
+        // Dashboard siempre filtra por mes correspondiente
+        $monthToUse = (preg_match('/^\d{4}-\d{2}$/', $month ?? '')) ? $month : now()->format('Y-m');
+        $this->applyMonthFilter($query, $monthToUse);
 
         return $query->orderBy('date', 'desc')->orderBy('created_at', 'desc')->get();
     }
@@ -129,7 +131,7 @@ class DashboardController extends Controller
             }
         }
 
-        return $query->pluck('month_val')
+        $months = $query->pluck('month_val')
             ->filter()
             ->map(function ($val) {
                 return [
@@ -137,7 +139,19 @@ class DashboardController extends Controller
                     'label' => ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $val)->locale('es')->isoFormat('MMMM YYYY')),
                 ];
             })
-            ->values();
+            ->values()
+            ->keyBy('value');
+
+        // Asegurar que el mes actual esté siempre disponible en el desplegable
+        $currentMonth = now()->format('Y-m');
+        if (!$months->has($currentMonth)) {
+            $months->prepend([
+                'value' => $currentMonth,
+                'label' => ucfirst(now()->locale('es')->isoFormat('MMMM YYYY')),
+            ], $currentMonth);
+        }
+
+        return $months->sortByDesc('value')->values();
     }
 
     private function getDateRangeForPeriod($period, $fromDate = null, $toDate = null): array
@@ -181,6 +195,13 @@ class DashboardController extends Controller
         }
 
         return [$start, $end];
+    }
+
+    /** Rango de fechas para un mes YYYY-MM (inicio y fin del mes). */
+    private function getDateRangeForMonth(string $month): array
+    {
+        $date = \Carbon\Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+        return [$date->copy()->startOfDay(), $date->copy()->endOfMonth()->endOfDay()];
     }
 
     private function applyPeriodFilter($query, $period, $fromDate = null, $toDate = null)
@@ -299,11 +320,8 @@ class DashboardController extends Controller
             }
         }
 
-        if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
-            $this->applyMonthFilter($query, $month);
-        } else {
-            $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
-        }
+        $monthToUse = (preg_match('/^\d{4}-\d{2}$/', $month ?? '')) ? $month : now()->format('Y-m');
+        $this->applyMonthFilter($query, $monthToUse);
 
         return $query->get();
     }
@@ -341,19 +359,16 @@ class DashboardController extends Controller
             }
         }
 
-        if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
-            $this->applyMonthFilter($query, $month);
-        } else {
-            $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
-        }
+        $monthToUse = (preg_match('/^\d{4}-\d{2}$/', $month ?? '')) ? $month : now()->format('Y-m');
+        $this->applyMonthFilter($query, $monthToUse);
 
         return $query->get();
     }
 
     /**
-     * Pedidos: total pagado vs pendiente en el período.
+     * Pedidos: total pagado vs pendiente en el mes.
      */
-    private function getOrdersPaidVsPending($selectedStore, $period, $user, $fromDate = null, $toDate = null)
+    private function getOrdersPaidVsPending($selectedStore, $user, $month = null)
     {
         $query = Order::query()->with('payments');
 
@@ -369,7 +384,9 @@ class DashboardController extends Controller
             }
         }
 
-        $this->applyPeriodFilter($query, $period, $fromDate, $toDate);
+        $monthToUse = (preg_match('/^\d{4}-\d{2}$/', $month ?? '')) ? $month : now()->format('Y-m');
+        [$start, $end] = $this->getDateRangeForMonth($monthToUse);
+        $query->whereBetween('date', [$start, $end]);
 
         $orders = $query->get();
         $paid = 0;
@@ -387,7 +404,7 @@ class DashboardController extends Controller
     /**
      * Horas extra por tienda (o por empleado si solo hay una tienda). Agrupa por tipo dinámico.
      */
-    private function getOvertimeByStore($selectedStore, $period, $user, $fromDate = null, $toDate = null)
+    private function getOvertimeByStore($selectedStore, $user, $month = null)
     {
         $storeIds = $this->resolveStoreIds($selectedStore, $user);
         if (empty($storeIds)) {
@@ -403,7 +420,8 @@ class DashboardController extends Controller
             return collect();
         }
 
-        [$start, $end] = $this->getDateRangeForPeriod($period, $fromDate, $toDate);
+        $monthToUse = (preg_match('/^\d{4}-\d{2}$/', $month ?? '')) ? $month : now()->format('Y-m');
+        [$start, $end] = $this->getDateRangeForMonth($monthToUse);
         $records = OvertimeRecord::query()
             ->whereIn('employee_id', $employeeIds)
             ->whereBetween('date', [$start, $end])

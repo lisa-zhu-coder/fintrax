@@ -128,44 +128,19 @@
 
     <!-- Filtros -->
     <div class="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
-        <form method="GET" action="{{ route('dashboard') }}" class="grid grid-cols-1 gap-4 md:grid-cols-5">
+        <form method="GET" action="{{ route('dashboard') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3">
             @include('partials.store-filter-select', ['name' => 'store', 'stores' => $stores, 'selected' => $selectedStore, 'label' => 'Tienda', 'showAllOption' => true])
 
             <label class="block">
                 <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Mes correspondiente</span>
                 <select name="month" class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none ring-brand-200 focus:ring-4">
-                    <option value="">— Todos (usar período)</option>
                     @foreach($availableMonths as $m)
                         <option value="{{ $m['value'] }}" {{ ($month ?? '') === $m['value'] ? 'selected' : '' }}>{{ $m['label'] }}</option>
                     @endforeach
                 </select>
-                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Si eliges un mes: ingresos y gastos son los que tienen ese mes como correspondiente. Beneficio = ingresos − gastos.</p>
-            </label>
-            
-            <label class="block">
-                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Período</span>
-                <select name="period" id="periodSelect" class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none ring-brand-200 focus:ring-4">
-                    <option value="this_month" {{ $period === 'this_month' ? 'selected' : '' }}>Este mes</option>
-                    <option value="last_month" {{ $period === 'last_month' ? 'selected' : '' }}>Mes pasado</option>
-                    <option value="this_year" {{ $period === 'this_year' ? 'selected' : '' }}>Este año</option>
-                    <option value="last_year" {{ $period === 'last_year' ? 'selected' : '' }}>Año pasado</option>
-                    <option value="last_7" {{ $period === 'last_7' ? 'selected' : '' }}>Últimos 7 días</option>
-                    <option value="last_30" {{ $period === 'last_30' ? 'selected' : '' }}>Últimos 30 días</option>
-                    <option value="custom" {{ $period === 'custom' ? 'selected' : '' }}>Fecha personalizada</option>
-                </select>
+                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Ingresos y gastos por mes correspondiente. Beneficio = ingresos − gastos.</p>
             </label>
 
-            <div id="customDateRange" class="{{ $period === 'custom' ? 'grid' : 'hidden' }} grid-cols-2 gap-2">
-                <label class="block">
-                    <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Desde</span>
-                    <input type="date" name="from_date" value="{{ $fromDate }}" class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none ring-brand-200 focus:ring-4">
-                </label>
-                <label class="block">
-                    <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Hasta</span>
-                    <input type="date" name="to_date" value="{{ $toDate }}" class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none ring-brand-200 focus:ring-4">
-                </label>
-            </div>
-            
             <div class="flex items-end">
                 <button type="submit" class="w-full rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
                     Filtrar
@@ -263,21 +238,6 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const periodSelect = document.getElementById('periodSelect');
-    const customDateRange = document.getElementById('customDateRange');
-
-    if (periodSelect && customDateRange) {
-        periodSelect.addEventListener('change', function() {
-            if (this.value === 'custom') {
-                customDateRange.classList.remove('hidden');
-                customDateRange.classList.add('grid');
-            } else {
-                customDateRange.classList.add('hidden');
-                customDateRange.classList.remove('grid');
-            }
-        });
-    }
-
     const resetLayoutBtn = document.getElementById('dashboardResetLayoutBtn');
     if (resetLayoutBtn) {
         resetLayoutBtn.addEventListener('click', async function() {
@@ -310,10 +270,8 @@ document.addEventListener('DOMContentLoaded', function() {
     $expenseTotals = $expensesByCategory->map(fn ($r) => (float) $r->total)->values()->toArray();
     $expenseCategories = $expensesByCategory->pluck('category')->values()->toArray();
     $expensesUrlParams = array_filter([
-        'period' => $period,
+        'month' => $month ?? null,
         'store' => $selectedStore,
-        'date_from' => $fromDate,
-        'date_to' => $toDate,
     ], fn ($v) => $v !== null && $v !== '');
 @endphp
 <script>

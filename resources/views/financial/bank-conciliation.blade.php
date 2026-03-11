@@ -123,6 +123,10 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     Enlazar gasto (<span id="bulkLinkCount">0</span>)
                 </button>
+                <button type="button" id="btnBulkLinkIncome" class="inline-flex items-center gap-2 rounded-xl border border-emerald-600 bg-white px-3 py-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Selecciona al menos un movimiento de tipo ingreso (crédito)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    Enlazar ingreso (<span id="bulkLinkIncomeCount">0</span>)
+                </button>
                 @endif
                 @if(auth()->user()->hasPermission('financial.expenses.create'))
                 <button type="button" id="btnBulkCreateExpense" class="inline-flex items-center gap-2 rounded-xl border border-emerald-600 bg-white px-3 py-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Selecciona al menos un movimiento">
@@ -818,6 +822,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!queue.length) { alert('Selecciona al menos un movimiento (pendiente, no traspaso).'); return; }
         openLoanPaymentModalBulk(queue, 0);
     });
+    var btnBulkLinkIncome = document.getElementById('btnBulkLinkIncome');
+    if (btnBulkLinkIncome) btnBulkLinkIncome.addEventListener('click', function() {
+        var queue = getSelectedMovementData('income_linkable');
+        if (!queue.length) { alert('Selecciona al menos un movimiento de tipo ingreso (crédito) pendiente.'); return; }
+        openLinkIncomeModalBulk(queue, 0);
+    });
 
     // Envío en lote: link
     var linkForm = document.getElementById('linkForm');
@@ -874,6 +884,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     openLoanPaymentModalBulk(queue, index + 1);
                 } else {
                     alert(result.data.message || 'Error al conciliar como pago.');
+                }
+            })
+            .catch(function() { alert('Error de conexión.'); });
+    });
+
+    // Envío en lote: enlazar ingreso
+    var linkIncomeForm = document.getElementById('linkIncomeForm');
+    if (linkIncomeForm) linkIncomeForm.addEventListener('submit', function(e) {
+        if (!window.bulkLinkIncomeQueue || window.bulkLinkIncomeIndex == null) return;
+        e.preventDefault();
+        var form = e.target;
+        var queue = window.bulkLinkIncomeQueue;
+        var index = window.bulkLinkIncomeIndex;
+        fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+            .then(function(result) {
+                if (result.ok && result.data.success) {
+                    openLinkIncomeModalBulk(queue, index + 1);
+                } else {
+                    alert(result.data.message || 'Error al enlazar ingreso.');
                 }
             })
             .catch(function() { alert('Error de conexión.'); });
@@ -1104,6 +1134,7 @@ function getSelectedMovementData(filter) {
         var type = (cb.dataset.type || '').toString();
         var isConciliated = cb.dataset.isConciliated === '1';
         if (filter === 'actionable' && (type === 'transfer' || isConciliated)) return;
+        if (filter === 'income_linkable' && (type !== 'credit' || type === 'transfer' || isConciliated)) return; // solo créditos pendientes
         list.push({
             id: cb.value,
             description: cb.dataset.description || '',
@@ -1124,6 +1155,17 @@ function openLinkModalBulk(queue, index) {
     var text = document.getElementById('linkModalBulkProgressText');
     if (prog && text) { prog.classList.remove('hidden'); text.textContent = (index + 1) + '/' + queue.length; }
     openLinkModal(item.id, item.storeId, item.amount);
+}
+
+function openLinkIncomeModalBulk(queue, index) {
+    if (index >= queue.length) { closeLinkIncomeModal(); if (queue.length) location.reload(); return; }
+    var item = queue[index];
+    window.bulkLinkIncomeQueue = queue;
+    window.bulkLinkIncomeIndex = index;
+    var prog = document.getElementById('linkIncomeModalBulkProgress');
+    var text = document.getElementById('linkIncomeModalBulkProgressText');
+    if (prog && text) { prog.classList.remove('hidden'); text.textContent = (index + 1) + '/' + queue.length; }
+    openLinkIncomeModal(item.id, item.storeId, item.date, item.amount);
 }
 
 function openCreateModalBulk(queue, index) {
@@ -1183,23 +1225,28 @@ document.addEventListener('keydown', function(e) {
     var bulkLinkCount = document.getElementById('bulkLinkCount');
     var bulkCreateCount = document.getElementById('bulkCreateCount');
     var bulkLoanCount = document.getElementById('bulkLoanCount');
+    var bulkLinkIncomeCount = document.getElementById('bulkLinkIncomeCount');
     var btnBulkLink = document.getElementById('btnBulkLinkExpense');
     var btnBulkCreate = document.getElementById('btnBulkCreateExpense');
     var btnBulkLoan = document.getElementById('btnBulkLoanPayment');
+    var btnBulkLinkIncome = document.getElementById('btnBulkLinkIncome');
 
     function updateBulkState() {
         var checkboxes = document.querySelectorAll('.cb-movement:checked');
         var n = checkboxes.length;
         var nActionable = typeof getSelectedMovementData === 'function' ? getSelectedMovementData('actionable').length : 0;
+        var nIncomeLinkable = typeof getSelectedMovementData === 'function' ? getSelectedMovementData('income_linkable').length : 0;
         var showBulk = n > 1;
         if (countEl) countEl.textContent = n;
         if (btn) { btn.disabled = n === 0; btn.classList.toggle('hidden', !showBulk); }
         if (bulkLinkCount) bulkLinkCount.textContent = nActionable;
         if (bulkCreateCount) bulkCreateCount.textContent = nActionable;
         if (bulkLoanCount) bulkLoanCount.textContent = nActionable;
+        if (bulkLinkIncomeCount) bulkLinkIncomeCount.textContent = nIncomeLinkable;
         if (btnBulkLink) { btnBulkLink.disabled = nActionable === 0; btnBulkLink.classList.toggle('hidden', !showBulk); }
         if (btnBulkCreate) { btnBulkCreate.disabled = nActionable === 0; btnBulkCreate.classList.toggle('hidden', !showBulk); }
         if (btnBulkLoan) { btnBulkLoan.disabled = nActionable === 0; btnBulkLoan.classList.toggle('hidden', !showBulk); }
+        if (btnBulkLinkIncome) { btnBulkLinkIncome.disabled = nIncomeLinkable === 0; btnBulkLinkIncome.classList.toggle('hidden', !showBulk); }
         if (selectAll) selectAll.checked = n > 0 && document.querySelectorAll('.cb-movement').length === n;
         selectAll.indeterminate = n > 0 && n < (document.querySelectorAll('.cb-movement').length || 0);
     }

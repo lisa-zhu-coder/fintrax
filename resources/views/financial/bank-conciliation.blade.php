@@ -435,10 +435,16 @@
                 @csrf
                 
                 <label class="block mb-4">
-                    <span class="text-xs font-semibold text-slate-700">Seleccionar ingreso</span>
+                    <span class="text-xs font-semibold text-slate-700">Mes de los ingresos</span>
+                    <input type="month" id="linkIncomeMonth" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4" required>
+                </label>
+                
+                <label class="block mb-4">
+                    <span class="text-xs font-semibold text-slate-700">Seleccionar ingreso (datáfono)</span>
                     <select name="financial_entry_id" id="linkIncomeFinancialEntryId" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
-                        <option value="">Cargando ingresos...</option>
+                        <option value="">Elige el mes y se cargará la lista</option>
                     </select>
+                    <p class="mt-1 text-xs text-slate-500">Los ingresos ya conciliados con gasto por diferencia aparecen en gris y no se pueden seleccionar.</p>
                 </label>
                 
                 <div class="flex items-center justify-end gap-3">
@@ -772,6 +778,11 @@ document.addEventListener('DOMContentLoaded', function() {
             openTpvDifferenceModal(entryId, concept, difference);
         });
     });
+    // Al cambiar el mes en el modal de enlazar ingreso, recargar la lista
+    var linkIncomeMonthEl = document.getElementById('linkIncomeMonth');
+    if (linkIncomeMonthEl) linkIncomeMonthEl.addEventListener('change', function() {
+        if (window.linkIncomeStoreId && this.value) loadLinkIncomeList(window.linkIncomeStoreId, this.value);
+    });
     // Al cambiar la fecha del gasto, actualizar el mes por defecto al mes de esa fecha (el usuario puede cambiarlo)
     var createDateEl = document.getElementById('createDate');
     var createReportingMonthEl = document.getElementById('createReportingMonth');
@@ -959,35 +970,55 @@ function closeLinkModal() {
 
 function openLinkIncomeModal(movementId, storeId, date, amount) {
     currentMovementId = movementId;
+    window.linkIncomeStoreId = storeId;
     var prog = document.getElementById('linkIncomeModalBulkProgress');
     if (prog && !window.bulkLinkIncomeQueue) prog.classList.add('hidden');
     document.getElementById('linkIncomeForm').action = baseUrl + '/' + movementId + '/link-income';
+    var monthEl = document.getElementById('linkIncomeMonth');
+    var month = (date && date.length >= 7) ? date.substring(0, 7) : (new Date().toISOString().substring(0, 7));
+    if (monthEl) monthEl.value = month;
     var select = document.getElementById('linkIncomeFinancialEntryId');
     select.innerHTML = '<option value="">Cargando ingresos...</option>';
-    fetch(availableIncomesUrl + '?store_id=' + storeId + '&date=' + encodeURIComponent(date) + '&amount=' + encodeURIComponent(amount))
+    document.getElementById('linkIncomeModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    loadLinkIncomeList(storeId, month);
+}
+
+function loadLinkIncomeList(storeId, month) {
+    var select = document.getElementById('linkIncomeFinancialEntryId');
+    if (!select) return;
+    select.innerHTML = '<option value="">Cargando...</option>';
+    select.disabled = true;
+    fetch(availableIncomesUrl + '?store_id=' + encodeURIComponent(storeId) + '&month=' + encodeURIComponent(month))
         .then(function(r) { return r.json(); })
         .then(function(data) {
+            select.disabled = false;
             select.innerHTML = '<option value="">Selecciona un ingreso...</option>';
             if (data.incomes && data.incomes.length > 0) {
                 data.incomes.forEach(function(inc) {
                     var opt = document.createElement('option');
                     opt.value = inc.id;
-                    opt.textContent = (inc.concept || 'Ingreso') + ' - ' + parseFloat(inc.amount).toFixed(2).replace('.', ',') + ' € (' + inc.date + ')';
+                    var label = (inc.concept || 'Ingreso') + ' - ' + parseFloat(inc.amount).toFixed(2).replace('.', ',') + ' € (' + inc.date + ')';
+                    if (inc.disabled) {
+                        label += ' — ya conciliado (gasto diferencia creado)';
+                        opt.disabled = true;
+                        opt.classList.add('text-slate-400');
+                    }
+                    opt.textContent = label;
                     select.appendChild(opt);
                 });
             } else {
                 var opt = document.createElement('option');
                 opt.value = '';
-                opt.textContent = 'No hay ingresos disponibles para esta tienda, fecha e importe';
+                opt.textContent = 'No hay ingresos de datáfono en este mes para esta tienda';
                 opt.disabled = true;
                 select.appendChild(opt);
             }
         })
         .catch(function() {
+            select.disabled = false;
             select.innerHTML = '<option value="">Error al cargar ingresos</option>';
         });
-    document.getElementById('linkIncomeModal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
 }
 
 function closeLinkIncomeModal() {

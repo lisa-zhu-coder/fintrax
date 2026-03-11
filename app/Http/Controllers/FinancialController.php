@@ -3180,35 +3180,48 @@ class FinancialController extends Controller
 
     /**
      * Obtener ingresos disponibles para conciliación (AJAX).
-     * Solo ingresos con método de pago banco (datáfono/TPV).
+     * Solo ingresos con método de pago banco (datáfono/TPV) del mes indicado.
+     * Si el ingreso ya tiene gasto por la diferencia TPV creado, se devuelve con disabled=true (mostrar en gris, no seleccionable).
      */
     public function getAvailableIncomes(Request $request)
     {
         $storeId = $request->get('store_id');
-        $date = $request->get('date');
+        $month = $request->get('month'); // Y-m
         
-        if (!$storeId || !$date) {
+        if (!$storeId || !$month || !preg_match('/^\d{4}-\d{2}$/', $month)) {
             return response()->json(['incomes' => []]);
         }
         
-        $query = FinancialEntry::where('store_id', $storeId)
-            ->where('date', $date)
+        $start = \Carbon\Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+        $end = $start->copy()->endOfMonth();
+        
+        $entries = FinancialEntry::where('store_id', $storeId)
             ->where('type', 'income')
             ->where('expense_payment_method', 'bank')
+            ->whereBetween('date', [$start, $end])
             ->whereNull('deleted_at')
+            ->orderBy('date')
             ->orderBy('amount', 'desc')
-            ->select('id', 'date', 'concept', 'amount', 'total_amount', 'income_concept');
+            ->select('id', 'date', 'concept', 'amount', 'total_amount', 'income_concept')
+            ->get();
         
-        $incomes = $query->get()
-            ->map(function($entry) {
-                $amt = (float) ($entry->total_amount ?? $entry->amount ?? 0);
-                return [
-                    'id' => $entry->id,
-                    'date' => $entry->date->format('d/m/Y'),
-                    'concept' => $entry->income_concept ?? $entry->concept ?? 'Ingreso',
-                    'amount' => $amt,
-                ];
-            });
+        $incomeIds = $entries->pluck('id')->toArray();
+        $idsWithTpvDiff = $incomeIds ? FinancialEntry::where('type', 'expense')
+            ->whereIn('source_income_id', $incomeIds)
+            ->pluck('source_income_id')
+            ->flip()
+            ->toArray() : [];
+        
+        $incomes = $entries->map(function ($entry) use ($idsWithTpvDiff) {
+            $amt = (float) ($entry->total_amount ?? $entry->amount ?? 0);
+            return [
+                'id' => $entry->id,
+                'date' => $entry->date->format('d/m/Y'),
+                'concept' => $entry->income_concept ?? $entry->concept ?? 'Ingreso',
+                'amount' => $amt,
+                'disabled' => isset($idsWithTpvDiff[$entry->id]),
+            ];
+        });
         
         return response()->json(['incomes' => $incomes]);
     }

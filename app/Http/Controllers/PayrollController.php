@@ -246,6 +246,7 @@ class PayrollController extends Controller
         $body = str_replace(['{{nombre}}', '{{mes}}', '{{empresa}}'], [$name, $monthName, $empresa], $body);
         $fromAddress = $company->rrhh_mail_from_address ?? config('mail.from.address');
         $fromName = $company->rrhh_mail_from_name ?? config('mail.from.name');
+        $mailer = $this->configurePayrollMailer($company);
         $path = null;
         if ($payroll->file_path && Storage::disk('local')->exists($payroll->file_path)) {
             $path = Storage::disk('local')->path($payroll->file_path);
@@ -258,7 +259,7 @@ class PayrollController extends Controller
                 }
             }
         }
-        \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($to, $subject, $body, $path, $payroll, $fromAddress, $fromName) {
+        Mail::mailer($mailer)->send([], [], function ($message) use ($to, $subject, $body, $path, $payroll, $fromAddress, $fromName) {
             $message->from($fromAddress, $fromName)->to($to)->subject($subject)->setBody(new TextPart($body));
             if ($path) {
                 $message->attach($path, ['as' => $payroll->file_name ?? 'nomina.pdf', 'mime' => 'application/pdf']);
@@ -267,6 +268,25 @@ class PayrollController extends Controller
         if ($path && str_starts_with($path, sys_get_temp_dir())) {
             @unlink($path);
         }
+    }
+
+    private function configurePayrollMailer(?Company $company): string
+    {
+        $smtpHost = $company?->rrhh_mail_smtp_host;
+        if (empty($smtpHost)) {
+            return config('mail.default', 'log');
+        }
+
+        Config::set('mail.default', 'smtp');
+        Config::set('mail.mailers.smtp.host', $smtpHost);
+        Config::set('mail.mailers.smtp.port', (int) ($company->rrhh_mail_smtp_port ?: config('mail.mailers.smtp.port', 587)));
+        Config::set('mail.mailers.smtp.encryption', $company->rrhh_mail_encryption ?: config('mail.mailers.smtp.encryption'));
+        Config::set('mail.mailers.smtp.username', $company->rrhh_mail_smtp_username ?: config('mail.mailers.smtp.username'));
+        Config::set('mail.mailers.smtp.password', $company->rrhh_mail_smtp_password ?: config('mail.mailers.smtp.password'));
+        Config::set('mail.from.address', $company->rrhh_mail_from_address ?: config('mail.from.address'));
+        Config::set('mail.from.name', $company->rrhh_mail_from_name ?: config('mail.from.name'));
+
+        return 'smtp';
     }
 
     private function spanishMonth(?int $month): string

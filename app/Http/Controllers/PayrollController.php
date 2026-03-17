@@ -130,6 +130,9 @@ class PayrollController extends Controller
         $pending = [];
         if ($token) {
             $pending = Cache::get('pending_payrolls_' . $token);
+            if ($pending === null) {
+                $pending = $request->session()->get('pending_payrolls_data_' . $token);
+            }
             if ($pending === null && \Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
                 try {
                     $row = DB::table('pending_payroll_uploads')
@@ -139,6 +142,13 @@ class PayrollController extends Controller
                     if ($row && isset($row->payload)) {
                         $decoded = is_string($row->payload) ? json_decode($row->payload, true) : $row->payload;
                         $pending = is_array($decoded) ? $decoded : [];
+                    }
+                    if (!is_array($pending) || empty($pending)) {
+                        $row = DB::table('pending_payroll_uploads')->where('token', $token)->first();
+                        if ($row && isset($row->payload)) {
+                            $decoded = is_string($row->payload) ? json_decode($row->payload, true) : $row->payload;
+                            $pending = is_array($decoded) ? $decoded : [];
+                        }
                     }
                 } catch (\Throwable $e) {
                     // fallback to session below

@@ -582,6 +582,7 @@ class EmployeeController extends Controller
         Cache::put('pending_payrolls_' . $token, $pending, $expiresAt);
         $this->savePendingPayrollsToDb($token, $pending, $expiresAt);
         $request->session()->put('pending_payrolls_token', $token);
+        $request->session()->flash('pending_payrolls_data_' . $token, $pending);
 
         if (!empty($errors)) {
             $request->session()->flash('warning', implode(' ', $errors));
@@ -665,6 +666,7 @@ class EmployeeController extends Controller
             Cache::put('pending_payrolls_' . $token, $pending, $expiresAt);
             $this->savePendingPayrollsToDb($token, $pending, $expiresAt);
             $request->session()->put('pending_payrolls_token', $token);
+            $request->session()->flash('pending_payrolls_data_' . $token, $pending);
 
             if ($saved === 0) {
                 $message = 'No se pudo identificar a ningún empleado en el PDF. ';

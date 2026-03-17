@@ -71,7 +71,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     
     // Nóminas
     Route::get('payrolls/{payroll}/view', [\App\Http\Controllers\PayrollController::class, 'view'])->name('payrolls.view');
-    Route::get('payroll/pending-send', [\App\Http\Controllers\PayrollController::class, 'pendingSend'])->name('payroll.pending-send');
+    Route::get('payroll/pending-send/{token?}', [\App\Http\Controllers\PayrollController::class, 'pendingSend'])->name('payroll.pending-send');
     Route::post('payroll/send-bulk', [\App\Http\Controllers\PayrollController::class, 'sendBulk'])->name('payroll.send-bulk');
     Route::post('payroll/cancel-pending', [\App\Http\Controllers\PayrollController::class, 'cancelPending'])->name('payroll.cancel-pending');
     Route::post('payroll/remove-pending/{index}', [\App\Http\Controllers\PayrollController::class, 'removePending'])->name('payroll.remove-pending');

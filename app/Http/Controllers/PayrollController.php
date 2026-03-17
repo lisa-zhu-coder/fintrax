@@ -124,25 +124,28 @@ class PayrollController extends Controller
         return redirect()->route('payroll.pending-send', $token ? ['token' => $token] : [])->with('success', 'Nómina quitada de la lista.');
     }
 
-    public function pendingSend(Request $request)
+    public function pendingSend(Request $request, $token = null)
     {
-        $token = $request->query('token')
-            ?: $request->cookie('pending_payroll_token')
-            ?: $request->session()->get('pending_payrolls_token');
+        $token = $token ?? $request->query('token') ?? $request->cookie('pending_payroll_token') ?? $request->session()->get('pending_payrolls_token');
         $pending = [];
         if ($token) {
             $pending = Cache::get('pending_payrolls_' . $token);
             if ($pending === null && \Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
-                $row = DB::table('pending_payroll_uploads')
-                    ->where('token', $token)
-                    ->where('expires_at', '>', now())
-                    ->first();
-                if ($row) {
-                    $pending = json_decode($row->payload, true) ?: [];
+                try {
+                    $row = DB::table('pending_payroll_uploads')
+                        ->where('token', $token)
+                        ->where('expires_at', '>', now())
+                        ->first();
+                    if ($row && isset($row->payload)) {
+                        $decoded = is_string($row->payload) ? json_decode($row->payload, true) : $row->payload;
+                        $pending = is_array($decoded) ? $decoded : [];
+                    }
+                } catch (\Throwable $e) {
+                    // fallback to session below
                 }
             }
         }
-        if ($pending === null || $pending === []) {
+        if (!is_array($pending) || empty($pending)) {
             $pending = $request->session()->get('pending_payrolls', []);
         }
         if (empty($pending)) {

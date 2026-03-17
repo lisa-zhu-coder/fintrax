@@ -12,8 +12,8 @@ return new class extends Migration
             return;
         }
         Schema::create('pending_payroll_uploads', function (Blueprint $table) {
-            $table->string('token', 64)->primary();
-            $table->json('payload');
+            $table->string('token', 128)->primary();
+            $table->longText('payload');
             $table->timestamp('expires_at');
         });
     }

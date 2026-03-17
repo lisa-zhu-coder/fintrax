@@ -266,9 +266,16 @@
                                     <div class="text-xs text-slate-500">{{ $payroll->date ? $payroll->date->format('d/m/Y') : '—' }} @if($payroll->sent_at)<span class="text-emerald-600">· Enviado</span>@else<span class="text-amber-600">· Pendiente</span>@endif</div>
                                 </div>
                             </div>
-                            <a href="{{ route('payrolls.view', $payroll) }}" target="_blank" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">
-                                Ver
-                            </a>
+                            <div class="flex items-center gap-2">
+                                <a href="{{ route('payrolls.view', $payroll) }}" target="_blank" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">Ver</a>
+                                @if(auth()->user()->hasPermission('payroll.delete'))
+                                <form method="POST" action="{{ route('payroll.destroy', $payroll) }}" class="inline" onsubmit="return confirm('¿Eliminar esta nómina?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">Eliminar</button>
+                                </form>
+                                @endif
+                            </div>
                         </div>
                     @empty
                         <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-500">

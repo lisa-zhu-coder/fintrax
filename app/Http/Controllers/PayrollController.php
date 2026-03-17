@@ -157,7 +157,7 @@ class PayrollController extends Controller
         return response()->json(['success' => true, 'email' => $newEmployee->email, 'file_name' => $newFileName]);
     }
 
-    public function destroy(Payroll $payroll)
+    public function destroy(Request $request, Payroll $payroll)
     {
         $companyId = session('company_id') ?? Auth::user()?->company_id;
         if (!$payroll->employee || $payroll->employee->company_id != $companyId) {
@@ -167,7 +167,10 @@ class PayrollController extends Controller
             Storage::disk('local')->delete($payroll->file_path);
         }
         $payroll->forceDelete();
-        return response()->json(['success' => true]);
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true]);
+        }
+        return redirect()->back()->with('success', 'Nómina eliminada.');
     }
 
     public function view(Payroll $payroll)

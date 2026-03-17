@@ -20,12 +20,17 @@
             <div class="grid gap-4 md:grid-cols-2">
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Plantilla</span>
-                    <select id="templateSelect" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-                        <option value="">— Sin plantilla —</option>
-                        @foreach($templates as $t)
-                        <option value="{{ $t->id }}" data-subject="{{ e($t->subject) }}" data-body="{{ e($t->body) }}">{{ $t->name }}</option>
-                        @endforeach
-                    </select>
+                    <div class="mt-1 flex gap-2">
+                        <select id="templateSelect" class="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                            <option value="">— Sin plantilla —</option>
+                            @foreach($templates as $t)
+                            <option value="{{ $t->id }}" data-name="{{ e($t->name) }}" data-subject="{{ e($t->subject) }}" data-body="{{ e($t->body) }}">{{ $t->name }}</option>
+                            @endforeach
+                        </select>
+                        @if(auth()->user()->hasPermission('settings.payroll_templates.manage'))
+                        <button type="button" id="btnEditTemplate" class="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" title="Editar plantilla seleccionada" disabled>Editar</button>
+                        @endif
+                    </div>
                 </label>
                 @if(auth()->user()->hasPermission('settings.payroll_templates.manage'))
                 <label class="block flex items-end gap-2">
@@ -108,6 +113,39 @@
     </form>
 </div>
 
+@if(auth()->user()->hasPermission('settings.payroll_templates.manage'))
+{{-- Modal editar plantilla --}}
+<div id="modalEditTemplate" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-modal="true" role="dialog">
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="fixed inset-0 bg-slate-900/50" aria-hidden="true" id="modalEditTemplateBackdrop"></div>
+        <div class="relative z-10 w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
+            <h3 class="text-base font-semibold text-slate-900">Editar plantilla</h3>
+            <form id="formEditTemplate" class="mt-4 space-y-4" data-update-url="{{ route('email-templates-settings.update', ['email_template' => '__ID__']) }}">
+                @csrf
+                <input type="hidden" name="_method" value="PUT">
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Nombre</span>
+                    <input type="text" name="name" id="editTemplateName" required maxlength="255" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Asunto</span>
+                    <input type="text" name="subject" id="editTemplateSubject" required maxlength="500" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Texto del correo</span>
+                    <textarea name="body" id="editTemplateBody" required rows="4" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"></textarea>
+                </label>
+                <input type="hidden" name="type" value="payroll">
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar</button>
+                    <button type="button" id="btnCloseEditTemplate" class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -128,13 +166,59 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     var templateSelect = document.getElementById('templateSelect');
+    var btnEditTemplate = document.getElementById('btnEditTemplate');
     if (templateSelect) {
+        function updateEditButton() {
+            if (btnEditTemplate) btnEditTemplate.disabled = !templateSelect.value;
+        }
         templateSelect.addEventListener('change', function() {
             var opt = this.options[this.selectedIndex];
             if (opt && opt.value) {
                 document.getElementById('subjectInput').value = opt.dataset.subject || '';
                 document.getElementById('bodyInput').value = (opt.dataset.body || '').replace(/&lt;br\s*\/?&gt;/gi, '\n');
             }
+            updateEditButton();
+        });
+        updateEditButton();
+    }
+    var modalEditTemplate = document.getElementById('modalEditTemplate');
+    var formEditTemplate = document.getElementById('formEditTemplate');
+    if (btnEditTemplate && modalEditTemplate && formEditTemplate) {
+        btnEditTemplate.addEventListener('click', function() {
+            var opt = templateSelect && templateSelect.options[templateSelect.selectedIndex];
+            if (!opt || !opt.value) return;
+            document.getElementById('editTemplateName').value = opt.dataset.name || opt.textContent || '';
+            document.getElementById('editTemplateSubject').value = opt.dataset.subject || '';
+            document.getElementById('editTemplateBody').value = (opt.dataset.body || '').replace(/&lt;br\s*\/?&gt;/gi, '\n');
+            formEditTemplate.dataset.templateId = opt.value;
+            modalEditTemplate.classList.remove('hidden');
+        });
+        document.getElementById('btnCloseEditTemplate').addEventListener('click', function() { modalEditTemplate.classList.add('hidden'); });
+        document.getElementById('modalEditTemplateBackdrop').addEventListener('click', function() { modalEditTemplate.classList.add('hidden'); });
+        formEditTemplate.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var id = formEditTemplate.dataset.templateId;
+            if (!id) return;
+            var url = formEditTemplate.getAttribute('data-update-url').replace('__ID__', id);
+            var formData = new FormData(formEditTemplate);
+            formData.append('_token', '{{ csrf_token() }}');
+            fetch(url, { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+                .then(function(r) { return r.json().catch(function() { return {}; }); })
+                .then(function(data) {
+                    if (data.success) {
+                        var opt = templateSelect.options[templateSelect.selectedIndex];
+                        if (opt && opt.value === id) {
+                            opt.textContent = data.name || opt.textContent;
+                            opt.setAttribute('data-name', (data.name || '').replace(/"/g, '&quot;'));
+                            opt.setAttribute('data-subject', (data.subject || '').replace(/"/g, '&quot;'));
+                            opt.setAttribute('data-body', (data.body || '').replace(/<br\s*\/?>/gi, '\n').replace(/"/g, '&quot;'));
+                            document.getElementById('subjectInput').value = data.subject || '';
+                            document.getElementById('bodyInput').value = (data.body || '').replace(/<br\s*\/?>/gi, '\n');
+                        }
+                        modalEditTemplate.classList.add('hidden');
+                    } else if (data.redirect) window.location.href = data.redirect;
+                    else window.location.reload();
+                });
         });
     }
     document.querySelectorAll('.payroll-employee-select').forEach(function(sel) {

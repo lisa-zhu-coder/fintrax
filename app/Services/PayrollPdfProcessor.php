@@ -75,8 +75,7 @@ class PayrollPdfProcessor
             }
             $month = (int) $date->month;
             $year = (int) $date->year;
-            $pageBase = $originalBase . ' p' . $pageNum;
-            $fileName = $this->suggestedPayrollFileName($pageBase, $employee->full_name);
+            $fileName = $this->suggestedPayrollFileName($originalBase, $employee->full_name);
             $tempPath = 'temp_payrolls/' . $uploadId . '/page_' . $pageNum . '.pdf';
             Storage::disk('local')->put($tempPath, base64_decode($singlePageBase64, true));
 
@@ -85,7 +84,7 @@ class PayrollPdfProcessor
                 'temp_path' => $tempPath,
                 'employee_id' => $employee->id,
                 'file_name' => $fileName,
-                'original_base' => $pageBase,
+                'original_base' => $originalBase,
                 'month' => $month,
                 'year' => $year,
                 'date' => $date->format('Y-m-d'),

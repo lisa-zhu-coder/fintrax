@@ -64,6 +64,9 @@ class EmailTemplateController extends Controller
             'type' => 'required|in:payroll,document',
         ]);
         $email_template->update($validated);
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'name' => $email_template->name, 'subject' => $email_template->subject, 'body' => $email_template->body]);
+        }
         return redirect()->route('email-templates-settings.index')->with('success', 'Plantilla actualizada.');
     }
 

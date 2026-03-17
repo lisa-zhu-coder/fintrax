@@ -24,16 +24,23 @@
             </div>
             <div class="flex items-center gap-2">
                 @if(auth()->user()->hasPermission('hr.employees.configure'))
-                <form method="POST" action="{{ route('employees.payrolls.upload') }}" enctype="multipart/form-data" class="inline">
+                <form method="POST" action="{{ route('employees.payrolls.upload') }}" enctype="multipart/form-data" class="inline" id="formPayrollUploadAuto">
                     @csrf
-                    <input type="file" name="payroll" id="payrollFileInputAuto" accept=".pdf" class="hidden" onchange="this.form.submit()"/>
-                    <button type="button" onclick="document.getElementById('payrollFileInputAuto').click()" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" title="Puedes subir un PDF con una o varias nóminas; cada página se asignará al empleado por nombre, DNI o número de la seguridad social.">
+                    <input type="file" name="payroll" id="payrollFileInputAuto" accept=".pdf" class="hidden"/>
+                    <button type="button" id="btnPayrollUploadAuto" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" title="Puedes subir un PDF con una o varias nóminas; cada página se asignará al empleado por nombre, DNI o número de la seguridad social.">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                         Subir nómina
                     </button>
                 </form>
+                <div id="payrollUploadOverlay" class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-slate-900/60">
+                    <div class="rounded-2xl bg-white p-8 shadow-xl text-center max-w-sm">
+                        <div class="inline-block h-10 w-10 animate-spin rounded-full border-2 border-brand-600 border-t-transparent mb-4" aria-hidden="true"></div>
+                        <p class="text-sm font-semibold text-slate-900">Procesando PDF…</p>
+                        <p class="text-xs text-slate-500 mt-1">Puede tardar un momento con varios documentos.</p>
+                    </div>
+                </div>
                 @endif
                 @if(auth()->user()->hasPermission('hr.employees.create'))
                 <a href="{{ route('employees.create') }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
@@ -131,4 +138,23 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var input = document.getElementById('payrollFileInputAuto');
+    var form = document.getElementById('formPayrollUploadAuto');
+    var overlay = document.getElementById('payrollUploadOverlay');
+    var btn = document.getElementById('btnPayrollUploadAuto');
+    if (btn && input) btn.addEventListener('click', function() { input.click(); });
+    if (input && form && overlay) {
+        input.addEventListener('change', function() {
+            if (!this.files || this.files.length === 0) return;
+            overlay.classList.remove('hidden');
+            form.submit();
+        });
+    }
+});
+</script>
+@endpush
 @endsection

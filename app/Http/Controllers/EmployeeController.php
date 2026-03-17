@@ -557,10 +557,8 @@ class EmployeeController extends Controller
         $errors = [];
         foreach ($request->file('payrolls') as $file) {
             $pdfData = $this->processPayrollPDF($file);
+            // Usar la fecha correspondiente a la nómina (extraída del PDF o del nombre del archivo), no el mes actual ni el de inicio del empleado
             $date = $pdfData['date'] ?? now();
-            if ($date->format('Y-m') !== now()->format('Y-m')) {
-                $date = now()->copy()->startOfMonth();
-            }
             $month = (int) $date->month;
             $year = (int) $date->year;
 
@@ -831,7 +829,6 @@ class EmployeeController extends Controller
     {
         try {
             $fileName = $file->getClientOriginalName();
-            $date = $this->extractDateFromFileName($fileName);
             $text = '';
             if (class_exists(PdfParser::class)) {
                 try {
@@ -841,6 +838,13 @@ class EmployeeController extends Controller
                 } catch (\Exception $e) {
                     // Ignorar
                 }
+            }
+            // Prioridad: fecha extraída del contenido del PDF (periodo/nómina), luego del nombre del archivo
+            $dateFromPdf = $this->extractDateFromPageText($text);
+            $dateFromFileName = $this->extractDateFromFileName($fileName);
+            $date = $dateFromPdf ?? $dateFromFileName;
+            if (!$date instanceof \Carbon\Carbon) {
+                $date = now()->copy()->startOfMonth();
             }
             return [
                 'text' => $text,

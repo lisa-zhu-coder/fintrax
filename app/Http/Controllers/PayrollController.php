@@ -17,7 +17,27 @@ class PayrollController extends Controller
         $this->middleware('permission:payroll.view')->only(['view', 'pendingSend']);
         $this->middleware('permission:payroll.send')->only(['sendBulk']);
         $this->middleware('permission:payroll.create')->only(['assignEmployee']);
-        $this->middleware('permission:payroll.delete')->only(['destroy']);
+        $this->middleware('permission:payroll.delete')->only(['destroy', 'cancelPending']);
+    }
+
+    public function cancelPending(Request $request)
+    {
+        $ids = $request->session()->get('pending_payroll_ids', []);
+        if (!empty($ids)) {
+            $companyId = session('company_id') ?? Auth::user()?->company_id;
+            $payrolls = Payroll::with('employee')->whereIn('id', $ids)->get();
+            foreach ($payrolls as $payroll) {
+                if (!$payroll->employee || $payroll->employee->company_id != $companyId) {
+                    continue;
+                }
+                if ($payroll->file_path && Storage::disk('local')->exists($payroll->file_path)) {
+                    Storage::disk('local')->delete($payroll->file_path);
+                }
+                $payroll->forceDelete();
+            }
+        }
+        $request->session()->forget('pending_payroll_ids');
+        return redirect()->route('employees.index')->with('success', 'Envío cancelado. No se ha guardado ninguna nómina.');
     }
 
     public function pendingSend(Request $request)
@@ -57,6 +77,10 @@ class PayrollController extends Controller
             $email = $request->input('email_' . $payroll->id) ?: $payroll->employee->email;
             if (!$email) {
                 continue;
+            }
+            $customFileName = $request->input('file_name_' . $payroll->id);
+            if (is_string($customFileName) && trim($customFileName) !== '') {
+                $payroll->update(['file_name' => trim($customFileName)]);
             }
             $this->sendPayrollEmail($payroll, $email, $subject, $body);
             $payroll->update(['sent_at' => now(), 'sent_by' => Auth::id()]);

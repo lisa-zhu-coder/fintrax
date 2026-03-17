@@ -51,7 +51,12 @@
             <table class="min-w-full text-sm">
                 <thead>
                     <tr class="border-b border-slate-200 text-left text-xs text-slate-500">
-                        <th class="w-12 py-2">Enviar</th>
+                        <th class="w-12 py-2">
+                            <label class="flex cursor-pointer items-center gap-1">
+                                <input type="checkbox" id="cbSelectAll" class="rounded border-slate-300 text-brand-600" title="Seleccionar todas">
+                                <span>Enviar</span>
+                            </label>
+                        </th>
                         <th class="py-2">Archivo</th>
                         <th class="py-2">Empleado</th>
                         <th class="py-2">Email</th>
@@ -69,7 +74,13 @@
                             <span class="text-slate-400">—</span>
                             @endif
                         </td>
-                        <td class="py-3 font-medium">{{ $p->file_name }}</td>
+                        <td class="py-3">
+                            @if(!$p->sent_at)
+                            <input type="text" name="file_name_{{ $p->id }}" value="{{ $p->file_name }}" class="w-full min-w-[180px] max-w-md rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium" placeholder="Nombre del archivo">
+                            @else
+                            <span class="font-medium">{{ $p->file_name }}</span>
+                            @endif
+                        </td>
                         <td class="py-3">
                             @if(!$p->sent_at)
                             <select name="employee_id_{{ $p->id }}" class="payroll-employee-select w-full max-w-[200px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm" data-payroll-id="{{ $p->id }}">
@@ -97,8 +108,11 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
-            <a href="{{ route('employees.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Volver sin enviar</a>
-            <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar y enviar</button>
+            <form method="POST" action="{{ route('payroll.cancel-pending') }}" class="inline" onsubmit="return confirm('¿Cancelar? Se eliminarán las nóminas subidas y no se guardará nada.');">
+                @csrf
+                <button type="submit" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
+            </form>
+            <button type="submit" form="formSendBulk" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar y enviar</button>
         </div>
     </form>
 </div>
@@ -106,6 +120,22 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    var cbSelectAll = document.getElementById('cbSelectAll');
+    var formSendBulk = document.getElementById('formSendBulk');
+    if (cbSelectAll && formSendBulk) {
+        cbSelectAll.addEventListener('change', function() {
+            formSendBulk.querySelectorAll('.cb-send').forEach(function(cb) {
+                cb.checked = cbSelectAll.checked;
+            });
+        });
+        formSendBulk.addEventListener('change', function(e) {
+            if (e.target && e.target.classList.contains('cb-send')) {
+                var all = formSendBulk.querySelectorAll('.cb-send');
+                var checked = formSendBulk.querySelectorAll('.cb-send:checked');
+                cbSelectAll.checked = all.length > 0 && checked.length === all.length;
+            }
+        });
+    }
     var templateSelect = document.getElementById('templateSelect');
     if (templateSelect) {
         templateSelect.addEventListener('change', function() {
@@ -130,8 +160,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (row) {
                         var emailInput = row.querySelector('.payroll-email-input');
                         if (emailInput) emailInput.value = data.email;
-                        var fileCell = row.querySelector('td:nth-child(2)');
-                        if (fileCell && data.file_name) fileCell.textContent = data.file_name;
+                        var fileInput = row.querySelector('input[name^="file_name_"]');
+                        if (fileInput && data.file_name) fileInput.value = data.file_name;
                     }
                 }
             });

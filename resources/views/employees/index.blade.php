@@ -24,7 +24,7 @@
             </div>
             <div class="flex items-center gap-2">
                 @if(auth()->user()->hasPermission('hr.employees.configure'))
-                <form method="POST" action="{{ route('employees.payrolls.upload') }}" enctype="multipart/form-data" class="inline" id="formPayrollUploadAuto">
+                <form method="POST" action="{{ route('employees.payrolls.upload') }}" enctype="multipart/form-data" class="inline" id="formPayrollUploadAuto" data-pending-send-url="{{ route('payroll.pending-send') }}">
                     @csrf
                     <input type="file" name="payroll" id="payrollFileInputAuto" accept=".pdf" class="hidden"/>
                     <button type="button" id="btnPayrollUploadAuto" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" title="Puedes subir un PDF con una o varias nóminas; cada página se asignará al empleado por nombre, DNI o número de la seguridad social.">
@@ -187,17 +187,37 @@ document.addEventListener('DOMContentLoaded', function() {
             if (token) formData.append('_token', token.value);
             var controller = new AbortController();
             var timeoutId = setTimeout(function() { controller.abort(); }, 120000);
+            var pendingSendUrl = form.getAttribute('data-pending-send-url') || '';
             fetch(url, {
                 method: 'POST',
                 body: formData,
                 signal: controller.signal,
+                redirect: 'manual',
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
             }).then(function(r) {
                 clearTimeout(timeoutId);
-                return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }).catch(function() { return { ok: r.ok, status: r.status, data: {} }; });
+                if (r.type === 'opaqueredirect' || (r.status >= 300 && r.status < 400)) {
+                    var loc = r.headers.get('Location');
+                    if (loc) { window.location.href = loc; return; }
+                    if (pendingSendUrl) { window.location.href = pendingSendUrl; return; }
+                }
+                var ct = r.headers.get('Content-Type') || '';
+                if (ct.indexOf('application/json') !== -1) {
+                    return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; });
+                }
+                if (r.ok && pendingSendUrl) {
+                    window.location.href = pendingSendUrl;
+                    return;
+                }
+                return r.text().then(function() { return { ok: r.ok, status: r.status, data: {} }; });
             }).then(function(result) {
-                if (result.ok && result.data.redirect) {
+                if (!result) return;
+                if (result.ok && result.data && result.data.redirect) {
                     window.location.href = result.data.redirect;
+                    return;
+                }
+                if (result.ok && pendingSendUrl) {
+                    window.location.href = pendingSendUrl;
                     return;
                 }
                 var msg = (result.data && result.data.message) || (result.data && result.data.errors && Object.values(result.data.errors).flat().join(' ')) || 'No se pudo procesar el PDF.';

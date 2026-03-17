@@ -177,7 +177,7 @@ class PayrollController extends Controller
         ]);
         $ids = array_values($request->input('ids', []));
         if (empty($ids)) {
-            return redirect()->route('payroll.pending-send')->with('info', 'No se seleccionó ninguna nómina para enviar.');
+            return redirect()->back()->with('error', 'Marca al menos una nómina para enviar.');
         }
         $subject = $request->input('subject');
         $body = $request->input('body');
@@ -185,6 +185,9 @@ class PayrollController extends Controller
         $pending = $request->session()->get('pending_payroll_uploads', []);
         $sent = 0;
         $errors = [];
+        if (empty($pending) && !empty($ids) && max($ids) < 1000) {
+            return redirect()->route('employees.index')->with('error', 'La sesión de las nóminas ha expirado o se perdió. Por favor, sube el PDF de nuevo.');
+        }
         if (!empty($pending)) {
             foreach ($ids as $index) {
                 if (!isset($pending[$index])) {

@@ -53,7 +53,7 @@
                     <tr class="border-b border-slate-200 text-left text-xs text-slate-500">
                         <th class="w-12 py-2">
                             <label class="flex cursor-pointer items-center gap-1">
-                                <input type="checkbox" id="cbSelectAll" class="rounded border-slate-300 text-brand-600" title="Seleccionar todas">
+                                <input type="checkbox" id="cbSelectAll" class="rounded border-slate-300 text-brand-600" title="Seleccionar todas" checked>
                                 <span>Enviar</span>
                             </label>
                         </th>
@@ -68,7 +68,7 @@
                     @foreach($pendingRows as $row)
                     <tr class="border-b border-slate-100" data-pending-index="{{ $row->index }}">
                         <td class="py-3">
-                            <input type="checkbox" name="ids[]" value="{{ $row->index }}" class="cb-send rounded border-slate-300 text-brand-600">
+                            <input type="checkbox" name="ids[]" value="{{ $row->index }}" class="cb-send rounded border-slate-300 text-brand-600" checked>
                         </td>
                         <td class="py-3">
                             <input type="text" name="file_name_{{ $row->index }}" value="{{ $row->file_name }}" class="w-full min-w-[180px] max-w-md rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium" placeholder="Nombre del archivo">

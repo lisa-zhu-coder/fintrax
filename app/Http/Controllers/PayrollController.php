@@ -95,12 +95,11 @@ class PayrollController extends Controller
 
     public function processStatus(string $token)
     {
-        $cache = Cache::store('file');
-        $error = $cache->get('payroll_error_' . $token);
+        $error = Cache::get('payroll_error_' . $token);
         if ($error !== null) {
             return response()->json(['status' => 'error', 'message' => $error['message'] ?? 'Error al procesar el PDF.']);
         }
-        $result = $cache->get('payroll_result_' . $token);
+        $result = Cache::get('payroll_result_' . $token);
         if ($result !== null) {
             return response()->json([
                 'status' => 'done',
@@ -114,17 +113,16 @@ class PayrollController extends Controller
     {
         $token = $request->query('token');
         if ($token !== null && $token !== '') {
-            $cache = Cache::store('file');
-            $error = $cache->get('payroll_error_' . $token);
+            $error = Cache::get('payroll_error_' . $token);
             if ($error !== null) {
-                $cache->forget('payroll_error_' . $token);
+                Cache::forget('payroll_error_' . $token);
                 return redirect()->route('employees.index')->with('error', $error['message'] ?? 'Error al procesar el PDF.');
             }
-            $result = $cache->get('payroll_result_' . $token);
+            $result = Cache::get('payroll_result_' . $token);
             if ($result !== null) {
                 $request->session()->put('pending_payroll_uploads', $result['pending']);
                 $request->session()->put('pending_payroll_upload_id', $result['upload_id']);
-                $cache->forget('payroll_result_' . $token);
+                Cache::forget('payroll_result_' . $token);
                 return redirect()->route('payroll.pending-send')->with('success', $result['message'] ?? '');
             }
             return redirect()->route('employees.index')->with('error', 'No se encontraron los datos del PDF (puede haber expirado). Sube el PDF de nuevo.');

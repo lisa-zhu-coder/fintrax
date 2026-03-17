@@ -268,6 +268,9 @@
                             </div>
                             <div class="flex items-center gap-2">
                                 <a href="{{ route('payrolls.view', $payroll) }}" target="_blank" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">Ver</a>
+                                @if(!$payroll->sent_at && auth()->user()->hasPermission('payroll.send'))
+                                <a href="{{ route('payroll.send', $payroll) }}" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 ring-1 ring-transparent hover:ring-emerald-100">Enviar</a>
+                                @endif
                                 @if(auth()->user()->hasPermission('payroll.delete'))
                                 <form method="POST" action="{{ route('payroll.destroy', $payroll) }}" class="inline" onsubmit="return confirm('¿Eliminar esta nómina?');">
                                     @csrf

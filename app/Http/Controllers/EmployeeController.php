@@ -596,6 +596,11 @@ class EmployeeController extends Controller
 
     public function uploadPayrollAuto(Request $request)
     {
+        set_time_limit(300); // 5 minutos para PDFs con muchas páginas
+        if (ini_get('memory_limit') !== '-1') {
+            @ini_set('memory_limit', '512M');
+        }
+
         $request->validate([
             'payroll' => 'required|file|mimes:pdf|max:51200', // 50 MB para PDFs con muchas nóminas
         ]);

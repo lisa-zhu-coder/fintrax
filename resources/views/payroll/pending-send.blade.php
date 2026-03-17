@@ -65,41 +65,32 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($payrolls as $p)
-                    <tr class="border-b border-slate-100" data-payroll-id="{{ $p->id }}">
+                    @foreach($pendingRows as $p)
+                    <tr class="border-b border-slate-100" data-row-index="{{ $p->index }}">
                         <td class="py-3">
-                            @if(!$p->sent_at)
-                            <input type="checkbox" name="ids[]" value="{{ $p->id }}" class="cb-send rounded border-slate-300 text-brand-600">
-                            @else
-                            <span class="text-slate-400">—</span>
-                            @endif
+                            <input type="checkbox" name="ids[]" value="{{ $p->index }}" class="cb-send rounded border-slate-300 text-brand-600">
                         </td>
                         <td class="py-3">
-                            @if(!$p->sent_at)
-                            <input type="text" name="file_name_{{ $p->id }}" value="{{ $p->file_name }}" class="w-full min-w-[180px] max-w-md rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium" placeholder="Nombre del archivo">
-                            @else
-                            <span class="font-medium">{{ $p->file_name }}</span>
-                            @endif
+                            <input type="text" name="file_name_{{ $p->index }}" value="{{ $p->file_name }}" class="w-full min-w-[180px] max-w-md rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium" placeholder="Nombre del archivo">
                         </td>
                         <td class="py-3">
-                            @if(!$p->sent_at)
-                            <select name="employee_id_{{ $p->id }}" class="payroll-employee-select w-full max-w-[200px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm" data-payroll-id="{{ $p->id }}">
+                            <select name="employee_id_{{ $p->index }}" class="payroll-employee-select w-full max-w-[200px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm" data-row-index="{{ $p->index }}">
                                 @foreach($employees as $emp)
-                                <option value="{{ $emp->id }}" {{ $p->employee_id == $emp->id ? 'selected' : '' }}>{{ $emp->full_name }}</option>
+                                <option value="{{ $emp->id }}" data-email="{{ e($emp->email ?? '') }}" data-full-name="{{ e($emp->full_name) }}" {{ $p->employee_id == $emp->id ? 'selected' : '' }}>{{ $emp->full_name }}</option>
                                 @endforeach
                             </select>
-                            @else
-                            {{ $p->employee->full_name ?? '—' }}
-                            @endif
                         </td>
                         <td class="py-3">
-                            <input type="text" name="email_{{ $p->id }}" value="{{ $p->employee->email ?? '' }}" class="payroll-email-input w-full max-w-[220px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm" placeholder="email@ejemplo.com">
+                            <input type="text" name="email_{{ $p->index }}" value="{{ $p->employee->email ?? '' }}" class="payroll-email-input w-full max-w-[220px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm" placeholder="email@ejemplo.com">
                         </td>
                         <td class="py-3">
-                            <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $p->sent_at ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' }}">{{ $p->status }}</span>
+                            <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700">Pendiente</span>
                         </td>
                         <td class="py-3">
-                            <button type="button" class="btn-delete-payroll text-rose-600 hover:text-rose-700 text-xs font-medium" data-payroll-id="{{ $p->id }}">Borrar</button>
+                            <form method="POST" action="{{ route('payroll.remove-pending', $p->index) }}" class="inline" onsubmit="return confirm('¿Quitar esta nómina de la lista?');">
+                                @csrf
+                                <button type="submit" class="text-rose-600 hover:text-rose-700 text-xs font-medium">Borrar</button>
+                            </form>
                         </td>
                     </tr>
                     @endforeach
@@ -148,38 +139,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     document.querySelectorAll('.payroll-employee-select').forEach(function(sel) {
         sel.addEventListener('change', function() {
-            var payrollId = this.dataset.payrollId;
-            var employeeId = this.value;
-            fetch('{{ url("payroll") }}/' + payrollId + '/assign', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify({ employee_id: employeeId })
-            }).then(function(r) { return r.json(); }).then(function(data) {
-                if (data.success && data.email !== undefined) {
-                    var row = document.querySelector('tr[data-payroll-id="' + payrollId + '"]');
-                    if (row) {
-                        var emailInput = row.querySelector('.payroll-email-input');
-                        if (emailInput) emailInput.value = data.email;
-                        var fileInput = row.querySelector('input[name^="file_name_"]');
-                        if (fileInput && data.file_name) fileInput.value = data.file_name;
-                    }
-                }
-            });
-        });
-    });
-    document.querySelectorAll('.btn-delete-payroll').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            if (!confirm('¿Eliminar esta nómina de la lista?')) return;
-            var id = this.dataset.payrollId;
-            fetch('{{ url("payroll") }}/' + id, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-            }).then(function(r) { return r.json(); }).then(function(data) {
-                if (data.success) {
-                    var row = document.querySelector('tr[data-payroll-id="' + id + '"]');
-                    if (row) row.remove();
-                }
-            });
+            var rowIndex = this.dataset.rowIndex;
+            var row = document.querySelector('tr[data-row-index="' + rowIndex + '"]');
+            if (!row) return;
+            var opt = this.options[this.selectedIndex];
+            if (opt && opt.dataset.email !== undefined) {
+                var emailInput = row.querySelector('.payroll-email-input');
+                if (emailInput) emailInput.value = opt.dataset.email || '';
+            }
         });
     });
     document.getElementById('formSendBulk').addEventListener('submit', function(e) {

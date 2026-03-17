@@ -74,6 +74,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::get('payroll/pending-send', [\App\Http\Controllers\PayrollController::class, 'pendingSend'])->name('payroll.pending-send');
     Route::post('payroll/send-bulk', [\App\Http\Controllers\PayrollController::class, 'sendBulk'])->name('payroll.send-bulk');
     Route::post('payroll/cancel-pending', [\App\Http\Controllers\PayrollController::class, 'cancelPending'])->name('payroll.cancel-pending');
+    Route::post('payroll/remove-pending/{index}', [\App\Http\Controllers\PayrollController::class, 'removePending'])->name('payroll.remove-pending');
     Route::patch('payroll/{payroll}/assign', [\App\Http\Controllers\PayrollController::class, 'assignEmployee'])->name('payroll.assign');
     Route::delete('payroll/{payroll}', [\App\Http\Controllers\PayrollController::class, 'destroy'])->name('payroll.destroy');
     

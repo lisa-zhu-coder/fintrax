@@ -553,45 +553,42 @@ class EmployeeController extends Controller
             'payrolls.*' => 'file|mimes:pdf|max:10240',
         ]);
 
-        $createdIds = [];
+        $token = session('pending_payrolls_token', 'payroll_' . uniqid('', true));
+        if (!session()->has('pending_payrolls_token')) {
+            session(['pending_payrolls_token' => $token]);
+        }
+        $pending = session('pending_payrolls', []);
         $errors = [];
+        $index = count($pending);
         foreach ($request->file('payrolls') as $file) {
             $pdfData = $this->processPayrollPDF($file);
-            // Usar la fecha correspondiente a la nómina (extraída del PDF o del nombre del archivo), no el mes actual ni el de inicio del empleado
             $date = $pdfData['date'] ?? now();
             $month = (int) $date->month;
             $year = (int) $date->year;
-
-            if ($employee->payrolls()->where('month', $month)->where('year', $year)->exists()) {
-                $errors[] = "Ya existe una nómina para {$this->getSpanishMonthName($month)} {$year}. No se sube el archivo duplicado.";
-                continue;
-            }
-
             $fileName = $this->generatePayrollFileName($employee->full_name, $date);
-            $dir = 'payrolls/' . $employee->id;
-            $path = $file->storeAs($dir, $fileName, 'local');
-
-            $matchedBy = $this->matchEmployeeInPDF($pdfData['text'] ?? '', $employee);
-            $payroll = $employee->payrolls()->create([
+            $tempDir = 'temp_payrolls/' . $token;
+            $tempName = $index . '.pdf';
+            $file->storeAs($tempDir, $tempName, 'local');
+            $pending[] = [
+                'employee_id' => $employee->id,
                 'file_name' => $fileName,
-                'date' => $date,
                 'month' => $month,
                 'year' => $year,
-                'file_path' => $path,
-                'base64_content' => null,
-                'matched_by' => $matchedBy,
-            ]);
-            $createdIds[] = $payroll->id;
+                'date' => $date->format('Y-m-d'),
+                'temp_path' => $tempDir . '/' . $tempName,
+            ];
+            $index++;
         }
+        session(['pending_payrolls' => $pending]);
 
         if (!empty($errors)) {
             $request->session()->flash('warning', implode(' ', $errors));
         }
-        if (empty($createdIds)) {
-            return back()->with('error', empty($errors) ? 'No se pudo procesar ningún archivo.' : 'No se subió ninguna nómina nueva.');
+        if (count($pending) === 0 && !empty($errors)) {
+            return back()->with('error', implode(' ', $errors));
         }
-        $request->session()->flash('success', count($createdIds) . ' nómina(s) subida(s) correctamente.');
-        return redirect()->route('payroll.pending-send')->with('pending_payroll_ids', $createdIds);
+        $request->session()->flash('success', count($request->file('payrolls')) . ' nómina(s) listas. Completa la ventana y pulsa "Guardar y enviar" para guardarlas y enviarlas por correo.');
+        return redirect()->route('payroll.pending-send');
     }
 
     public function uploadPayrollAuto(Request $request)
@@ -618,8 +615,12 @@ class EmployeeController extends Controller
                 return back()->withErrors(['payroll' => 'No se pudo procesar el PDF.']);
             }
 
+            $token = session('pending_payrolls_token', 'payroll_' . uniqid('', true));
+            if (!session()->has('pending_payrolls_token')) {
+                session(['pending_payrolls_token' => $token]);
+            }
+            $pending = session('pending_payrolls', []);
             $saved = 0;
-            $createdIds = [];
             $failedPages = [];
             $lastEmployee = null;
 
@@ -644,20 +645,23 @@ class EmployeeController extends Controller
                 $month = (int) $date->month;
                 $year = (int) $date->year;
                 $fileName = $this->generatePayrollFileName($employee->full_name, $date, $originalFileName . '_p' . $pageNum);
-                $matchedBy = $this->matchEmployeeInPDF($pageText, $employee);
-
-                $payroll = $employee->payrolls()->create([
+                $index = count($pending);
+                $tempDir = 'temp_payrolls/' . $token;
+                $tempName = $index . '.pdf';
+                Storage::disk('local')->put($tempDir . '/' . $tempName, base64_decode($singlePageBase64));
+                $pending[] = [
+                    'employee_id' => $employee->id,
                     'file_name' => $fileName,
-                    'date' => $date,
                     'month' => $month,
                     'year' => $year,
-                    'base64_content' => $singlePageBase64,
-                    'matched_by' => $matchedBy,
-                ]);
-                $createdIds[] = $payroll->id;
+                    'date' => $date->format('Y-m-d'),
+                    'temp_path' => $tempDir . '/' . $tempName,
+                ];
                 $saved++;
                 $lastEmployee = $employee;
             }
+
+            session(['pending_payrolls' => $pending]);
 
             if ($saved === 0) {
                 $message = 'No se pudo identificar a ningún empleado en el PDF. ';
@@ -668,13 +672,13 @@ class EmployeeController extends Controller
             }
 
             $message = $saved === 1
-                ? '1 nómina guardada en la ficha de ' . $lastEmployee->full_name . '.'
-                : $saved . ' nóminas guardadas en las fichas de los empleados correspondientes.';
+                ? '1 nómina lista. Completa la ventana y pulsa "Guardar y enviar".'
+                : $saved . ' nóminas listas. Completa la ventana y pulsa "Guardar y enviar".';
             if (!empty($failedPages)) {
                 $message .= ' No se pudo asignar la(s) página(s) ' . implode(', ', $failedPages) . ' (empleado no identificado).';
             }
 
-            return redirect()->route('payroll.pending-send')->with('success', $message)->with('pending_payroll_ids', $createdIds);
+            return redirect()->route('payroll.pending-send')->with('success', $message);
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {

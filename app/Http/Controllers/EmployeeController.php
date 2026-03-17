@@ -596,108 +596,24 @@ class EmployeeController extends Controller
 
     public function uploadPayrollAuto(Request $request)
     {
-        set_time_limit(300); // 5 minutos para PDFs con muchas páginas
-        if (ini_get('memory_limit') !== '-1') {
-            @ini_set('memory_limit', '512M');
-        }
-
         $request->validate([
             'payroll' => 'required|file|mimes:pdf|max:51200', // 50 MB para PDFs con muchas nóminas
         ]);
 
-        try {
-            $file = $request->file('payroll');
-            $path = $file->getRealPath();
-            $originalFileName = $file->getClientOriginalName();
-            $dateFromFileName = $this->extractDateFromFileName($originalFileName);
-
-            // Obtener texto por página (Smalot) para identificar empleado en cada hoja
-            $pagesText = $this->getPayrollPdfTextPerPage($path);
-            if (empty($pagesText)) {
-                return back()->withErrors(['payroll' => 'No se pudo leer el PDF. Comprueba que el archivo no esté corrupto o protegido.']);
-            }
-
-            // Obtener número de páginas (FPDI) para extraer cada página como PDF
-            $pageCount = $this->getPdfPageCount($path);
-            if ($pageCount <= 0) {
-                return back()->withErrors(['payroll' => 'No se pudo procesar el PDF.']);
-            }
-
-            $uploadId = uniqid('payroll_', true);
-            $pending = [];
-            $saved = 0;
-            $failedPages = [];
-            $lastEmployee = null;
-            $originalBase = pathinfo($originalFileName, PATHINFO_FILENAME);
-
-            for ($pageNum = 1; $pageNum <= $pageCount; $pageNum++) {
-                $pageText = $pagesText[$pageNum - 1] ?? '';
-                $employee = $this->findEmployeeByFile($originalFileName, $pageText);
-                if (!$employee) {
-                    $failedPages[] = $pageNum;
-                    continue;
-                }
-
-                $singlePageBase64 = $this->extractSinglePageAsBase64($path, $pageNum);
-                if ($singlePageBase64 === null) {
-                    $failedPages[] = $pageNum;
-                    continue;
-                }
-
-                $date = $this->extractDateFromPageText($pageText) ?? $dateFromFileName;
-                if (!($date instanceof \Carbon\Carbon)) {
-                    $date = $dateFromFileName;
-                }
-                $month = (int) $date->month;
-                $year = (int) $date->year;
-                $pageBase = $originalBase . ' p' . $pageNum;
-                $fileName = $this->suggestedPayrollFileName($pageBase, $employee->full_name);
-                $tempPath = 'temp_payrolls/' . $uploadId . '/page_' . $pageNum . '.pdf';
-                Storage::disk('local')->put($tempPath, base64_decode($singlePageBase64, true));
-
-                $index = count($pending);
-                $pending[$index] = [
-                    'temp_path' => $tempPath,
-                    'employee_id' => $employee->id,
-                    'file_name' => $fileName,
-                    'original_base' => $pageBase,
-                    'month' => $month,
-                    'year' => $year,
-                    'date' => $date->format('Y-m-d'),
-                ];
-                $saved++;
-                $lastEmployee = $employee;
-            }
-
-            if ($saved === 0) {
-                $message = 'No se pudo identificar a ningún empleado en el PDF. ';
-                if (!empty($failedPages)) {
-                    $message .= 'Asegúrate de que cada nómina contenga el nombre, DNI o número de la seguridad social del empleado.';
-                }
-                return back()->withErrors(['payroll' => $message]);
-            }
-
-            $request->session()->put('pending_payroll_uploads', $pending);
-            $request->session()->put('pending_payroll_upload_id', $uploadId);
-            $message = $saved === 1
-                ? '1 nómina lista para enviar a ' . $lastEmployee->full_name . '. Revisa y pulsa Guardar y enviar.'
-                : $saved . ' nóminas listas para enviar. Revisa y pulsa Guardar y enviar.';
-            if (!empty($failedPages)) {
-                $message .= ' No se pudo asignar la(s) página(s) ' . implode(', ', $failedPages) . ' (empleado no identificado).';
-            }
-
-            return redirect()->route('payroll.pending-send')->with('success', $message);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            throw $e;
-        } catch (\Exception $e) {
-            Log::error('Error subiendo nómina(s)', [
-                'message' => $e->getMessage(),
-                'exception' => get_class($e),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return back()->withErrors(['payroll' => 'Error al procesar el PDF. Comprueba que el archivo sea válido y no esté protegido. Si el error continúa, contacta con soporte.']);
+        $file = $request->file('payroll');
+        $originalFileName = $file->getClientOriginalName();
+        $companyId = (int) (session('company_id') ?? Auth::user()?->company_id ?? 0);
+        if ($companyId <= 0) {
+            return back()->withErrors(['payroll' => 'No se pudo determinar la empresa.']);
         }
+
+        $token = uniqid('pdf_', true);
+        $storagePath = 'temp_payroll_uploads/' . $token . '.pdf';
+        $file->storeAs('temp_payroll_uploads', $token . '.pdf', 'local');
+
+        \App\Jobs\ProcessPayrollPdfJob::dispatch($token, $storagePath, $originalFileName, $companyId);
+
+        return view('payroll.processing', ['token' => $token]);
     }
 
     private function findEmployeeByFile($fileName, $pdfText = '')

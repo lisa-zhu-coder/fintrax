@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Payroll;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -17,7 +18,7 @@ class PayrollController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:payroll.view')->only(['view', 'pendingSend']);
+        $this->middleware('permission:payroll.view')->only(['view', 'pendingSend', 'processStatus']);
         $this->middleware('permission:payroll.send')->only(['sendBulk']);
         $this->middleware('permission:payroll.create')->only(['assignEmployee', 'pendingAssignEmployee']);
         $this->middleware('permission:payroll.delete')->only(['destroy', 'cancelPending', 'pendingRemove']);
@@ -92,8 +93,40 @@ class PayrollController extends Controller
         return redirect()->route('employees.index')->with('success', 'Envío cancelado. No se ha guardado ninguna nómina.');
     }
 
+    public function processStatus(string $token)
+    {
+        $error = Cache::get('payroll_error_' . $token);
+        if ($error !== null) {
+            return response()->json(['status' => 'error', 'message' => $error['message'] ?? 'Error al procesar el PDF.']);
+        }
+        $result = Cache::get('payroll_result_' . $token);
+        if ($result !== null) {
+            return response()->json([
+                'status' => 'done',
+                'redirect' => route('payroll.pending-send', ['token' => $token]),
+            ]);
+        }
+        return response()->json(['status' => 'processing']);
+    }
+
     public function pendingSend(Request $request)
     {
+        $token = $request->query('token');
+        if ($token !== null && $token !== '') {
+            $error = Cache::get('payroll_error_' . $token);
+            if ($error !== null) {
+                Cache::forget('payroll_error_' . $token);
+                return redirect()->route('employees.index')->with('error', $error['message'] ?? 'Error al procesar el PDF.');
+            }
+            $result = Cache::get('payroll_result_' . $token);
+            if ($result !== null) {
+                $request->session()->put('pending_payroll_uploads', $result['pending']);
+                $request->session()->put('pending_payroll_upload_id', $result['upload_id']);
+                Cache::forget('payroll_result_' . $token);
+                return redirect()->route('payroll.pending-send')->with('success', $result['message'] ?? '');
+            }
+        }
+
         $pending = $request->session()->get('pending_payroll_uploads', []);
         if (empty($pending)) {
             return redirect()->route('employees.index')->with('info', 'No hay nóminas pendientes de envío.');

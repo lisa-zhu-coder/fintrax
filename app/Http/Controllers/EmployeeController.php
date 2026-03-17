@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use setasign\Fpdi\Fpdi;
 use Smalot\PdfParser\Parser as PdfParser;
@@ -577,7 +578,9 @@ class EmployeeController extends Controller
             ];
             $index++;
         }
-        Cache::put('pending_payrolls_' . $token, $pending, now()->addHours(1));
+        $expiresAt = now()->addHours(1);
+        Cache::put('pending_payrolls_' . $token, $pending, $expiresAt);
+        $this->savePendingPayrollsToDb($token, $pending, $expiresAt);
         $request->session()->put('pending_payrolls_token', $token);
 
         if (!empty($errors)) {
@@ -587,7 +590,8 @@ class EmployeeController extends Controller
             return back()->with('error', implode(' ', $errors));
         }
         $request->session()->flash('success', count($request->file('payrolls')) . ' nómina(s) listas. Completa la ventana y pulsa "Guardar y enviar" para guardarlas y enviarlas por correo.');
-        return redirect()->route('payroll.pending-send', ['token' => $token]);
+        return redirect()->route('payroll.pending-send', ['token' => $token])
+            ->cookie('pending_payroll_token', $token, 10, '/', null, true, true, false, 'lax');
     }
 
     public function uploadPayrollAuto(Request $request)
@@ -657,7 +661,9 @@ class EmployeeController extends Controller
                 $lastEmployee = $employee;
             }
 
-            Cache::put('pending_payrolls_' . $token, $pending, now()->addHours(1));
+            $expiresAt = now()->addHours(1);
+            Cache::put('pending_payrolls_' . $token, $pending, $expiresAt);
+            $this->savePendingPayrollsToDb($token, $pending, $expiresAt);
             $request->session()->put('pending_payrolls_token', $token);
 
             if ($saved === 0) {
@@ -675,7 +681,9 @@ class EmployeeController extends Controller
                 $message .= ' No se pudo asignar la(s) página(s) ' . implode(', ', $failedPages) . ' (empleado no identificado).';
             }
 
-            return redirect()->route('payroll.pending-send', ['token' => $token])->with('success', $message);
+            return redirect()->route('payroll.pending-send', ['token' => $token])
+                ->with('success', $message)
+                ->cookie('pending_payroll_token', $token, 10, '/', null, true, true, false, 'lax');
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
@@ -944,6 +952,18 @@ class EmployeeController extends Controller
         $base = trim(preg_replace('/\s+/', ' ', $base));
         $name = trim(preg_replace('/\s+/', ' ', $employeeName));
         return $base ? ($base . ' ' . $name . '.pdf') : ($name . '.pdf');
+    }
+
+    /** Guarda pendientes en BD para que cualquier instancia/worker pueda leerlos (entornos cloud). */
+    private function savePendingPayrollsToDb(string $token, array $pending, $expiresAt): void
+    {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
+            return;
+        }
+        DB::table('pending_payroll_uploads')->updateOrInsert(
+            ['token' => $token],
+            ['payload' => json_encode($pending), 'expires_at' => $expiresAt]
+        );
     }
 
     private function matchEmployeeInPDF($pdfText, $employee)

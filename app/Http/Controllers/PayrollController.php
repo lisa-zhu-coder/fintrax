@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\Mime\Part\TextPart;
@@ -26,32 +27,54 @@ class PayrollController extends Controller
 
     private function getPendingFromTokenOrSession(Request $request): array
     {
-        $token = $request->input('pending_token') ?: $request->query('token') ?: $request->session()->get('pending_payrolls_token');
+        $token = $request->input('pending_token') ?: $request->query('token') ?: $request->cookie('pending_payroll_token') ?: $request->session()->get('pending_payrolls_token');
         if ($token) {
             $cached = Cache::get('pending_payrolls_' . $token);
             if ($cached !== null) {
                 $request->session()->put('pending_payrolls_token', $token);
                 return $cached;
             }
+            if (\Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
+                $row = DB::table('pending_payroll_uploads')->where('token', $token)->where('expires_at', '>', now())->first();
+                if ($row) {
+                    $request->session()->put('pending_payrolls_token', $token);
+                    return json_decode($row->payload, true) ?: [];
+                }
+            }
         }
         return $request->session()->get('pending_payrolls', []);
+    }
+
+    private function forgetPendingByToken(string $token): void
+    {
+        Cache::forget('pending_payrolls_' . $token);
+        if (\Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
+            DB::table('pending_payroll_uploads')->where('token', $token)->delete();
+        }
     }
 
     private function putPendingAndToken(Request $request, string $token, array $pending): void
     {
         if (empty($pending)) {
-            Cache::forget('pending_payrolls_' . $token);
+            $this->forgetPendingByToken($token);
             $request->session()->forget('pending_payrolls_token');
         } else {
-            Cache::put('pending_payrolls_' . $token, $pending, now()->addHours(1));
+            $expiresAt = now()->addHours(1);
+            Cache::put('pending_payrolls_' . $token, $pending, $expiresAt);
+            if (\Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
+                DB::table('pending_payroll_uploads')->updateOrInsert(
+                    ['token' => $token],
+                    ['payload' => json_encode($pending), 'expires_at' => $expiresAt]
+                );
+            }
             $request->session()->put(['pending_payrolls_token' => $token, 'pending_payrolls' => $pending]);
         }
     }
 
     public function cancelPending(Request $request)
     {
-        $token = $request->input('pending_token') ?: $request->session()->get('pending_payrolls_token');
-        $pending = $token ? (Cache::get('pending_payrolls_' . $token) ?: $request->session()->get('pending_payrolls', [])) : $request->session()->get('pending_payrolls', []);
+        $token = $request->input('pending_token') ?: $request->cookie('pending_payroll_token') ?: $request->session()->get('pending_payrolls_token');
+        $pending = $this->getPendingFromTokenOrSession($request);
         foreach ($pending as $item) {
             $path = $item['temp_path'] ?? null;
             if ($path && Storage::disk('local')->exists($path)) {
@@ -62,10 +85,11 @@ class PayrollController extends Controller
             Storage::disk('local')->deleteDirectory('temp_payrolls/' . $token);
         }
         if ($token) {
-            Cache::forget('pending_payrolls_' . $token);
+            $this->forgetPendingByToken($token);
         }
         $request->session()->forget(['pending_payrolls', 'pending_payrolls_token']);
-        return redirect()->route('employees.index')->with('success', 'Envío cancelado. No se ha guardado ninguna nómina.');
+        return redirect()->route('employees.index')->with('success', 'Envío cancelado. No se ha guardado ninguna nómina.')
+            ->cookie('pending_payroll_token', '', -1, '/');
     }
 
     public function removePending(Request $request, int $index)
@@ -83,13 +107,14 @@ class PayrollController extends Controller
         $token = $request->session()->get('pending_payrolls_token');
         if (empty($pending)) {
             if ($token) {
-                Cache::forget('pending_payrolls_' . $token);
+                $this->forgetPendingByToken($token);
                 if (Storage::disk('local')->exists('temp_payrolls/' . $token)) {
                     Storage::disk('local')->deleteDirectory('temp_payrolls/' . $token);
                 }
             }
             $request->session()->forget(['pending_payrolls', 'pending_payrolls_token']);
-            return redirect()->route('employees.index')->with('info', 'No quedan nóminas pendientes.');
+            return redirect()->route('employees.index')->with('info', 'No quedan nóminas pendientes.')
+                ->cookie('pending_payroll_token', '', -1, '/');
         }
         if ($token) {
             $this->putPendingAndToken($request, $token, $pending);
@@ -101,8 +126,25 @@ class PayrollController extends Controller
 
     public function pendingSend(Request $request)
     {
-        $token = $request->query('token') ?: $request->session()->get('pending_payrolls_token');
-        $pending = $token ? (Cache::get('pending_payrolls_' . $token) ?? $request->session()->get('pending_payrolls', [])) : $request->session()->get('pending_payrolls', []);
+        $token = $request->query('token')
+            ?: $request->cookie('pending_payroll_token')
+            ?: $request->session()->get('pending_payrolls_token');
+        $pending = [];
+        if ($token) {
+            $pending = Cache::get('pending_payrolls_' . $token);
+            if ($pending === null && \Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
+                $row = DB::table('pending_payroll_uploads')
+                    ->where('token', $token)
+                    ->where('expires_at', '>', now())
+                    ->first();
+                if ($row) {
+                    $pending = json_decode($row->payload, true) ?: [];
+                }
+            }
+        }
+        if ($pending === null || $pending === []) {
+            $pending = $request->session()->get('pending_payrolls', []);
+        }
         if (empty($pending)) {
             return redirect()->route('employees.index')->with('info', 'No hay nóminas pendientes de envío.');
         }
@@ -221,7 +263,7 @@ class PayrollController extends Controller
         $remaining = array_diff_key($pending, array_flip($ids));
         if (empty($remaining)) {
             if ($token) {
-                Cache::forget('pending_payrolls_' . $token);
+                $this->forgetPendingByToken($token);
                 if (Storage::disk('local')->exists('temp_payrolls/' . $token)) {
                     Storage::disk('local')->deleteDirectory('temp_payrolls/' . $token);
                 }

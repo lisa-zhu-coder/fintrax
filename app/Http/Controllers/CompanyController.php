@@ -19,8 +19,12 @@ class CompanyController extends Controller
 
     public function show()
     {
-        $company = Company::first();
-        $businesses = CompanyBusiness::all();
+        $companyId = session('company_id');
+        $company = $companyId ? Company::find($companyId) : null;
+        if (!$company) {
+            abort(404, 'Empresa no encontrada. Selecciona una empresa.');
+        }
+        $businesses = CompanyBusiness::all(); // ya filtrado por sesión (BelongsToCompany)
 
         // Sincronizar negocios (empresa) con stores (tiendas usadas por registros/pedidos/empleados)
         // Esto evita que los selects de tienda aparezcan vacíos si solo se han creado negocios en Empresa.
@@ -78,12 +82,12 @@ class CompanyController extends Controller
             'fiscal_email' => 'nullable|email|max:255',
         ]);
 
-        $company = Company::first();
-        if ($company) {
-            $company->update($validated);
-        } else {
-            Company::create($validated);
+        $companyId = session('company_id');
+        $company = $companyId ? Company::find($companyId) : null;
+        if (!$company) {
+            return redirect()->route('company.show')->with('error', 'Empresa no encontrada.');
         }
+        $company->update($validated);
 
         return redirect()->route('company.show')->with('success', 'Datos de la empresa actualizados correctamente.');
     }
@@ -99,9 +103,10 @@ class CompanyController extends Controller
             'rrhh_mail_smtp_password' => 'nullable|string|max:255',
             'rrhh_mail_encryption' => 'nullable|string|in:tls,ssl',
         ]);
-        $company = Company::first();
+        $companyId = session('company_id');
+        $company = $companyId ? Company::find($companyId) : null;
         if (!$company) {
-            return redirect()->route('company.show')->with('error', 'No hay empresa configurada.');
+            return redirect()->route('company.show')->with('error', 'Empresa no encontrada.');
         }
         if (isset($validated['rrhh_mail_smtp_password']) && $validated['rrhh_mail_smtp_password'] === '') {
             unset($validated['rrhh_mail_smtp_password']);

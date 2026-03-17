@@ -175,10 +175,7 @@ class PayrollController extends Controller
             'subject' => 'required|string|max:500',
             'body' => 'required|string',
         ]);
-        $ids = array_values($request->input('ids', []));
-        if (empty($ids)) {
-            return redirect()->back()->with('error', 'Marca al menos una nómina para enviar.');
-        }
+        $ids = array_values($request->input('ids', [])); // Solo las filas marcadas para enviar por correo
         $subject = $request->input('subject');
         $body = $request->input('body');
         $companyId = session('company_id') ?? Auth::user()?->company_id;
@@ -195,17 +192,16 @@ class PayrollController extends Controller
             }
         }
 
+        $saved = 0;
         $sent = 0;
         $errors = [];
         if (empty($pending) && !empty($ids) && max($ids) < 1000) {
             return redirect()->route('employees.index')->with('error', 'La sesión de las nóminas ha expirado o se perdió. Por favor, sube el PDF de nuevo.');
         }
         if (!empty($pending)) {
-            foreach ($ids as $index) {
-                if (!isset($pending[$index])) {
-                    continue;
-                }
-                $item = $pending[$index];
+            $payrollsByIndex = [];
+            // 1) Guardar TODAS las nóminas en la ficha de cada empleado (marcada o no la casilla de envío)
+            foreach ($pending as $index => $item) {
                 $employeeId = (int) $request->input('employee_id_' . $index, $item['employee_id']);
                 $employee = Employee::where('id', $employeeId)->where('company_id', $companyId)->first();
                 if (!$employee) {
@@ -214,11 +210,6 @@ class PayrollController extends Controller
                 }
                 if ($employee->payrolls()->where('month', $item['month'])->where('year', $item['year'])->exists()) {
                     $errors[] = 'Ya existe una nómina de ' . $employee->full_name . ' para ese periodo.';
-                    continue;
-                }
-                $email = trim((string) $request->input('email_' . $index, $employee->email));
-                if ($email === '') {
-                    $errors[] = 'Nómina ' . ($item['file_name'] ?? '') . ': sin email.';
                     continue;
                 }
                 $customFileName = trim((string) $request->input('file_name_' . $index, $item['file_name']));
@@ -230,7 +221,7 @@ class PayrollController extends Controller
                 }
                 $tempPath = $item['temp_path'];
                 if (!Storage::disk('local')->exists($tempPath)) {
-                    $errors[] = 'Archivo temporal no encontrado.';
+                    $errors[] = 'Archivo temporal no encontrado (fila ' . ($index + 1) . ').';
                     continue;
                 }
                 $dir = 'payrolls/' . $employee->id;
@@ -247,13 +238,27 @@ class PayrollController extends Controller
                     'base64_content' => null,
                     'matched_by' => 'manual',
                 ]);
+                $payrollsByIndex[$index] = $payroll;
+                $saved++;
+            }
+            // 2) Enviar correo solo a las filas cuya casilla "Enviar" estaba marcada (y que tengan email)
+            foreach ($ids as $index) {
+                if (!isset($payrollsByIndex[$index])) {
+                    continue;
+                }
+                $payroll = $payrollsByIndex[$index];
+                $email = trim((string) $request->input('email_' . $index, $payroll->employee->email ?? ''));
+                if ($email === '') {
+                    $errors[] = 'Nómina ' . ($payroll->file_name ?? '') . ': sin email, no se envía correo.';
+                    continue;
+                }
                 try {
                     $this->sendPayrollEmail($payroll, $email, $subject, $body);
                     $payroll->update(['sent_at' => now(), 'sent_by' => Auth::id()]);
                     $sent++;
                 } catch (\Throwable $e) {
                     report($e);
-                    $errors[] = 'Nómina ' . $customFileName . ': ' . $e->getMessage();
+                    $errors[] = 'Nómina ' . ($payroll->file_name ?? '') . ': ' . $e->getMessage();
                 }
             }
             if ($uploadId) {
@@ -289,12 +294,16 @@ class PayrollController extends Controller
             $request->session()->forget('pending_payroll_ids');
         }
         if (!empty($errors)) {
-            $msg = $sent > 0
-                ? "Se enviaron {$sent} nómina(s). Errores: " . implode(' ', $errors)
-                : 'No se pudo enviar ningún correo. ' . implode(' ', array_slice($errors, 0, 3));
+            $msg = $saved > 0 || $sent > 0
+                ? ($saved > 0 ? "Se guardaron {$saved} nómina(s) en las fichas. " : '') . ($sent > 0 ? "Se enviaron {$sent} correo(s). " : '') . 'Errores: ' . implode(' ', array_slice($errors, 0, 3))
+                : implode(' ', array_slice($errors, 0, 3));
             return redirect()->route('employees.index')->with('error', $msg);
         }
-        return redirect()->route('employees.index')->with('success', $sent . ' nómina(s) enviada(s) correctamente.');
+        $msg = $saved > 0 ? "Se han guardado {$saved} nómina(s) en las fichas." : '';
+        if ($sent > 0) {
+            $msg .= ($msg ? ' ' : '') . "Se han enviado {$sent} correo(s).";
+        }
+        return redirect()->route('employees.index')->with('success', $msg ?: 'Hecho.');
     }
 
     private function pendingSuggestedFileName(string $originalBase, string $employeeFullName): string

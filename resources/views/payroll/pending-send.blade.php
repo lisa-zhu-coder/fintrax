@@ -6,7 +6,7 @@
 <div class="mx-auto max-w-5xl space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <h1 class="text-lg font-semibold text-slate-900">Envío de nóminas</h1>
-        <p class="text-sm text-slate-500">Marca las nóminas a enviar, revisa empleado y email, y pulsa Guardar y enviar.</p>
+        <p class="text-sm text-slate-500">Todas las nóminas se guardarán en la ficha de cada empleado. Marca la casilla «Enviar» solo en las que quieras enviar por correo (si el empleado no tiene email, déjala desmarcada).</p>
     </header>
 
     <form method="POST" action="{{ route('payroll.send-bulk') }}" id="formSendBulk" class="space-y-6">
@@ -57,7 +57,7 @@
                         <th class="w-12 py-2">
                             <label class="flex cursor-pointer items-center gap-1">
                                 <input type="checkbox" id="cbSelectAll" class="rounded border-slate-300 text-brand-600" title="Seleccionar todas" checked>
-                                <span>Enviar</span>
+                                <span>Enviar por correo</span>
                             </label>
                         </th>
                         <th class="py-2">Archivo</th>
@@ -175,13 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
-    document.getElementById('formSendBulk').addEventListener('submit', function(e) {
-        var checked = document.querySelectorAll('.cb-send:checked');
-        if (checked.length === 0) {
-            e.preventDefault();
-            alert('Marca al menos una nómina para enviar.');
-        }
-    });
+    // Sin validación: se guardan todas las nóminas en las fichas; solo se envían por correo las filas marcadas
     var btnSave = document.getElementById('btnSaveAsTemplate');
     if (btnSave) {
         btnSave.addEventListener('click', function() {

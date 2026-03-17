@@ -265,16 +265,10 @@ class PayrollController extends Controller
                 ->subject($subject);
 
             if ($path) {
-                if ($payroll->file_path && Storage::disk('local')->exists($payroll->file_path)) {
-                    $message->attachFromStorageDisk('local', $payroll->file_path, $payroll->file_name ?? 'nomina.pdf', [
-                        'mime' => 'application/pdf',
-                    ]);
-                } else {
-                    $message->attach($path, [
-                        'as' => $payroll->file_name ?? 'nomina.pdf',
-                        'mime' => 'application/pdf',
-                    ]);
-                }
+                $message->attach($path, [
+                    'as' => $payroll->file_name ?? 'nomina.pdf',
+                    'mime' => 'application/pdf',
+                ]);
             }
         });
         if ($path && str_starts_with($path, sys_get_temp_dir())) {

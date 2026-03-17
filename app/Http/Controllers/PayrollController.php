@@ -8,9 +8,7 @@ use App\Models\Employee;
 use App\Models\Payroll;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\Mime\Part\TextPart;
@@ -21,184 +19,101 @@ class PayrollController extends Controller
     {
         $this->middleware('permission:payroll.view')->only(['view', 'pendingSend']);
         $this->middleware('permission:payroll.send')->only(['sendBulk']);
-        $this->middleware('permission:payroll.create')->only(['assignEmployee']);
-        $this->middleware('permission:payroll.delete')->only(['destroy', 'cancelPending', 'removePending']);
+        $this->middleware('permission:payroll.create')->only(['assignEmployee', 'pendingAssignEmployee']);
+        $this->middleware('permission:payroll.delete')->only(['destroy', 'cancelPending', 'pendingRemove']);
     }
 
-    private function getPendingFromTokenOrSession(Request $request): array
+    public function pendingAssignEmployee(Request $request)
     {
-        $token = $request->input('pending_token') ?: $request->query('token') ?: $request->cookie('pending_payroll_token') ?: $request->session()->get('pending_payrolls_token');
-        if ($token) {
-            $cached = Cache::get('pending_payrolls_' . $token);
-            if ($cached !== null) {
-                $request->session()->put('pending_payrolls_token', $token);
-                return $cached;
-            }
-            if (\Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
-                $row = DB::table('pending_payroll_uploads')->where('token', $token)->where('expires_at', '>', now())->first();
-                if ($row) {
-                    $request->session()->put('pending_payrolls_token', $token);
-                    return json_decode($row->payload, true) ?: [];
-                }
-            }
+        $request->validate(['index' => 'required|integer|min:0', 'employee_id' => 'required|exists:employees,id']);
+        $companyId = session('company_id') ?? Auth::user()?->company_id;
+        $newEmployee = Employee::where('id', $request->employee_id)->where('company_id', $companyId)->first();
+        if (!$newEmployee) {
+            return response()->json(['success' => false], 403);
         }
-        return $request->session()->get('pending_payrolls', []);
-    }
-
-    private function forgetPendingByToken(string $token): void
-    {
-        Cache::forget('pending_payrolls_' . $token);
-        if (\Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
-            DB::table('pending_payroll_uploads')->where('token', $token)->delete();
+        $pending = $request->session()->get('pending_payroll_uploads', []);
+        $index = (int) $request->input('index');
+        if (!isset($pending[$index])) {
+            return response()->json(['success' => false], 404);
         }
+        $pending[$index]['employee_id'] = $newEmployee->id;
+        $pending[$index]['file_name'] = $this->pendingSuggestedFileName($pending[$index]['original_base'] ?? '', $newEmployee->full_name);
+        $request->session()->put('pending_payroll_uploads', $pending);
+        return response()->json(['success' => true, 'email' => $newEmployee->email, 'file_name' => $pending[$index]['file_name']]);
     }
 
-    private function putPendingAndToken(Request $request, string $token, array $pending): void
+    public function pendingRemove(Request $request)
     {
+        $request->validate(['index' => 'required|integer|min:0']);
+        $pending = $request->session()->get('pending_payroll_uploads', []);
+        $index = (int) $request->input('index');
+        if (!isset($pending[$index])) {
+            return response()->json(['success' => false], 404);
+        }
+        $tempPath = $pending[$index]['temp_path'] ?? null;
+        if ($tempPath && Storage::disk('local')->exists($tempPath)) {
+            Storage::disk('local')->delete($tempPath);
+        }
+        unset($pending[$index]);
+        $request->session()->put('pending_payroll_uploads', $pending);
         if (empty($pending)) {
-            $this->forgetPendingByToken($token);
-            $request->session()->forget('pending_payrolls_token');
-        } else {
-            $expiresAt = now()->addHours(1);
-            Cache::put('pending_payrolls_' . $token, $pending, $expiresAt);
-            if (\Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
-                DB::table('pending_payroll_uploads')->updateOrInsert(
-                    ['token' => $token],
-                    ['payload' => json_encode($pending), 'expires_at' => $expiresAt]
-                );
+            $uploadId = $request->session()->get('pending_payroll_upload_id');
+            if ($uploadId) {
+                Storage::disk('local')->deleteDirectory('temp_payrolls/' . $uploadId);
             }
-            $request->session()->put(['pending_payrolls_token' => $token, 'pending_payrolls' => $pending]);
+            $request->session()->forget(['pending_payroll_uploads', 'pending_payroll_upload_id']);
+            return response()->json(['success' => true, 'redirect' => route('employees.index')]);
         }
+        return response()->json(['success' => true]);
     }
 
     public function cancelPending(Request $request)
     {
-        $token = $request->input('pending_token') ?: $request->cookie('pending_payroll_token') ?: $request->session()->get('pending_payrolls_token');
-        $pending = $this->getPendingFromTokenOrSession($request);
-        foreach ($pending as $item) {
-            $path = $item['temp_path'] ?? null;
-            if ($path && Storage::disk('local')->exists($path)) {
-                Storage::disk('local')->delete($path);
+        $uploadId = $request->session()->get('pending_payroll_upload_id');
+        if ($uploadId) {
+            Storage::disk('local')->deleteDirectory('temp_payrolls/' . $uploadId);
+            $request->session()->forget(['pending_payroll_uploads', 'pending_payroll_upload_id']);
+        }
+        $ids = $request->session()->get('pending_payroll_ids', []);
+        if (!empty($ids)) {
+            $companyId = session('company_id') ?? Auth::user()?->company_id;
+            $payrolls = Payroll::with('employee')->whereIn('id', $ids)->get();
+            foreach ($payrolls as $payroll) {
+                if (!$payroll->employee || $payroll->employee->company_id != $companyId) {
+                    continue;
+                }
+                if ($payroll->file_path && Storage::disk('local')->exists($payroll->file_path)) {
+                    Storage::disk('local')->delete($payroll->file_path);
+                }
+                $payroll->forceDelete();
             }
         }
-        if ($token && Storage::disk('local')->exists('temp_payrolls/' . $token)) {
-            Storage::disk('local')->deleteDirectory('temp_payrolls/' . $token);
-        }
-        if ($token) {
-            $this->forgetPendingByToken($token);
-        }
-        $request->session()->forget(['pending_payrolls', 'pending_payrolls_token']);
-        return redirect()->route('employees.index')->with('success', 'Envío cancelado. No se ha guardado ninguna nómina.')
-            ->cookie('pending_payroll_token', '', -1, '/');
+        $request->session()->forget('pending_payroll_ids');
+        return redirect()->route('employees.index')->with('success', 'Envío cancelado. No se ha guardado ninguna nómina.');
     }
 
-    public function removePending(Request $request, int $index)
+    public function pendingSend(Request $request)
     {
-        $pending = $this->getPendingFromTokenOrSession($request);
-        if (!isset($pending[$index])) {
-            $token = $request->session()->get('pending_payrolls_token');
-            return redirect()->route('payroll.pending-send', $token ? ['token' => $token] : [])->with('error', 'Elemento no encontrado.');
-        }
-        $path = $pending[$index]['temp_path'] ?? null;
-        if ($path && Storage::disk('local')->exists($path)) {
-            Storage::disk('local')->delete($path);
-        }
-        array_splice($pending, $index, 1);
-        $token = $request->session()->get('pending_payrolls_token');
-        if (empty($pending)) {
-            if ($token) {
-                $this->forgetPendingByToken($token);
-                if (Storage::disk('local')->exists('temp_payrolls/' . $token)) {
-                    Storage::disk('local')->deleteDirectory('temp_payrolls/' . $token);
-                }
-            }
-            $request->session()->forget(['pending_payrolls', 'pending_payrolls_token']);
-            return redirect()->route('employees.index')->with('info', 'No quedan nóminas pendientes.')
-                ->cookie('pending_payroll_token', '', -1, '/');
-        }
-        if ($token) {
-            $this->putPendingAndToken($request, $token, $pending);
-        } else {
-            $request->session()->put('pending_payrolls', $pending);
-        }
-        return redirect()->route('payroll.pending-send', $token ? ['token' => $token] : [])->with('success', 'Nómina quitada de la lista.');
-    }
-
-    public function pendingSend(Request $request, $token = null)
-    {
-        $token = $token ?? $request->query('token') ?? $request->cookie('pending_payroll_token') ?? $request->session()->get('pending_payrolls_token');
-        $pending = [];
-        if ($token) {
-            $pending = Cache::get('pending_payrolls_' . $token);
-            if ($pending === null) {
-                $pending = $request->session()->get('pending_payrolls_data_' . $token);
-            }
-            if ($pending === null && \Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
-                try {
-                    $row = DB::table('pending_payroll_uploads')
-                        ->where('token', $token)
-                        ->where('expires_at', '>', now())
-                        ->first();
-                    if ($row && isset($row->payload)) {
-                        $decoded = is_string($row->payload) ? json_decode($row->payload, true) : $row->payload;
-                        $pending = is_array($decoded) ? $decoded : [];
-                    }
-                    if (!is_array($pending) || empty($pending)) {
-                        $row = DB::table('pending_payroll_uploads')->where('token', $token)->first();
-                        if ($row && isset($row->payload)) {
-                            $decoded = is_string($row->payload) ? json_decode($row->payload, true) : $row->payload;
-                            $pending = is_array($decoded) ? $decoded : [];
-                        }
-                    }
-                } catch (\Throwable $e) {
-                    // fallback to session below
-                }
-            }
-        }
-        if (!is_array($pending) || empty($pending)) {
-            $pending = $request->session()->get('pending_payrolls', []);
-        }
+        $pending = $request->session()->get('pending_payroll_uploads', []);
         if (empty($pending)) {
             return redirect()->route('employees.index')->with('info', 'No hay nóminas pendientes de envío.');
         }
-        if ($token) {
-            $request->session()->put('pending_payrolls_token', $token);
-        }
         $companyId = session('company_id') ?? Auth::user()?->company_id;
-        if ($companyId === null && !empty($pending)) {
-            foreach ($pending as $item) {
-                $first = Employee::withoutGlobalScope(\App\Models\Scopes\BelongsToCompanyScope::class)->find($item['employee_id'] ?? null);
-                if ($first) {
-                    $companyId = $first->company_id;
-                    $request->session()->put('company_id', $companyId);
-                    break;
-                }
-            }
-        }
-        $employees = $companyId
-            ? Employee::withoutGlobalScope(\App\Models\Scopes\BelongsToCompanyScope::class)->where('company_id', $companyId)->orderBy('full_name')->get(['id', 'full_name', 'email'])
-            : collect();
-        $employeeMap = $employees->keyBy('id');
+        $employees = Employee::where('company_id', $companyId)->orderBy('full_name')->get(['id', 'full_name', 'email']);
         $pendingRows = [];
-        foreach ($pending as $i => $item) {
-            $emp = $employeeMap->get($item['employee_id']) ?? Employee::withoutGlobalScope(\App\Models\Scopes\BelongsToCompanyScope::class)->find($item['employee_id']);
-            if (!$emp || ($companyId !== null && $emp->company_id != $companyId)) {
-                continue;
-            }
+        foreach ($pending as $index => $item) {
+            $employee = $employees->firstWhere('id', $item['employee_id']);
             $pendingRows[] = (object) [
-                'index' => $i,
-                'employee_id' => $item['employee_id'],
+                'index' => $index,
+                'employee' => $employee,
                 'file_name' => $item['file_name'],
-                'month' => $item['month'],
-                'year' => $item['year'],
-                'employee' => $emp,
-                'temp_path' => $item['temp_path'],
+                'email' => $employee ? $employee->email : '',
+                'original_base' => $item['original_base'] ?? '',
             ];
         }
-        $templates = $companyId ? EmailTemplate::where('company_id', $companyId)->where('type', 'payroll')->orderBy('name')->get() : collect();
-        $company = $companyId ? Company::find($companyId) : null;
-        $pendingToken = $token;
-        return view('payroll.pending-send', compact('pendingRows', 'templates', 'company', 'employees', 'pendingToken'));
+        $templates = EmailTemplate::where('company_id', $companyId)->where('type', 'payroll')->orderBy('name')->get();
+        $company = Company::find($companyId);
+        return view('payroll.pending-send', compact('pendingRows', 'templates', 'company', 'employees'));
     }
 
     public function sendBulk(Request $request)
@@ -209,96 +124,116 @@ class PayrollController extends Controller
             'subject' => 'required|string|max:500',
             'body' => 'required|string',
         ]);
-        $ids = array_map('intval', $request->input('ids', []));
+        $ids = array_values($request->input('ids', []));
         if (empty($ids)) {
-            $token = $request->session()->get('pending_payrolls_token');
-            return redirect()->route('payroll.pending-send', $token ? ['token' => $token] : [])->with('info', 'No se seleccionó ninguna nómina para enviar.');
+            return redirect()->route('payroll.pending-send')->with('info', 'No se seleccionó ninguna nómina para enviar.');
         }
-        $pending = $this->getPendingFromTokenOrSession($request);
-        $companyId = session('company_id') ?? Auth::user()?->company_id;
         $subject = $request->input('subject');
         $body = $request->input('body');
+        $companyId = session('company_id') ?? Auth::user()?->company_id;
+        $pending = $request->session()->get('pending_payroll_uploads', []);
         $sent = 0;
         $errors = [];
-        $createdPayrolls = [];
-        foreach ($ids as $index) {
-            if (!isset($pending[$index])) {
-                continue;
-            }
-            $item = $pending[$index];
-            $employeeId = (int) ($request->input('employee_id_' . $index) ?? $item['employee_id']);
-            $email = trim((string) $request->input('email_' . $index));
-            $employee = Employee::where('company_id', $companyId)->find($employeeId);
-            if (!$employee) {
-                $errors[] = 'Fila ' . ($index + 1) . ': empleado no válido.';
-                continue;
-            }
-            if (!$email) {
-                $email = $employee->email;
-            }
-            if (!$email) {
-                $errors[] = 'Nómina ' . ($item['file_name'] ?? $index) . ': sin email.';
-                continue;
-            }
-            $customFileName = trim((string) $request->input('file_name_' . $index));
-            $fileName = $customFileName !== '' ? $customFileName : $item['file_name'];
-            $tempPath = $item['temp_path'];
-            if (!$tempPath || !Storage::disk('local')->exists($tempPath)) {
-                $errors[] = 'Nómina ' . $fileName . ': archivo no encontrado.';
-                continue;
-            }
-            if ($employee->payrolls()->where('month', $item['month'])->where('year', $item['year'])->exists()) {
-                $errors[] = 'Nómina ' . $fileName . ': ya existe una nómina para ese mes/año para ' . $employee->full_name . '.';
-                continue;
-            }
-            $finalDir = 'payrolls/' . $employee->id;
-            $finalPath = $finalDir . '/' . $fileName;
-            $fullPath = Storage::disk('local')->path($tempPath);
-            Storage::disk('local')->put($finalPath, file_get_contents($fullPath));
-            Storage::disk('local')->delete($tempPath);
-            $payroll = $employee->payrolls()->create([
-                'file_name' => $fileName,
-                'date' => $item['date'],
-                'month' => $item['month'],
-                'year' => $item['year'],
-                'file_path' => $finalPath,
-                'base64_content' => null,
-                'matched_by' => null,
-            ]);
-            try {
-                $this->sendPayrollEmail($payroll, $email, $subject, $body);
-                $payroll->update(['sent_at' => now(), 'sent_by' => Auth::id()]);
-                $sent++;
-            } catch (\Throwable $e) {
-                report($e);
-                $errors[] = 'Nómina ' . $fileName . ': ' . $e->getMessage();
-            }
-        }
-        $token = $request->session()->get('pending_payrolls_token');
-        $remaining = array_diff_key($pending, array_flip($ids));
-        if (empty($remaining)) {
-            if ($token) {
-                $this->forgetPendingByToken($token);
-                if (Storage::disk('local')->exists('temp_payrolls/' . $token)) {
-                    Storage::disk('local')->deleteDirectory('temp_payrolls/' . $token);
+        if (!empty($pending)) {
+            foreach ($ids as $index) {
+                if (!isset($pending[$index])) {
+                    continue;
+                }
+                $item = $pending[$index];
+                $employeeId = (int) $request->input('employee_id_' . $index, $item['employee_id']);
+                $employee = Employee::where('id', $employeeId)->where('company_id', $companyId)->first();
+                if (!$employee) {
+                    $errors[] = 'Fila ' . ($index + 1) . ': empleado no válido.';
+                    continue;
+                }
+                if ($employee->payrolls()->where('month', $item['month'])->where('year', $item['year'])->exists()) {
+                    $errors[] = 'Ya existe una nómina de ' . $employee->full_name . ' para ese periodo.';
+                    continue;
+                }
+                $email = trim((string) $request->input('email_' . $index, $employee->email));
+                if ($email === '') {
+                    $errors[] = 'Nómina ' . ($item['file_name'] ?? '') . ': sin email.';
+                    continue;
+                }
+                $customFileName = trim((string) $request->input('file_name_' . $index, $item['file_name']));
+                if ($customFileName === '') {
+                    $customFileName = $this->pendingSuggestedFileName($item['original_base'] ?? '', $employee->full_name);
+                }
+                if (!str_ends_with(strtolower($customFileName), '.pdf')) {
+                    $customFileName .= '.pdf';
+                }
+                $tempPath = $item['temp_path'];
+                if (!Storage::disk('local')->exists($tempPath)) {
+                    $errors[] = 'Archivo temporal no encontrado.';
+                    continue;
+                }
+                $dir = 'payrolls/' . $employee->id;
+                $finalPath = $dir . '/' . $customFileName;
+                Storage::disk('local')->makeDirectory($dir);
+                Storage::disk('local')->move($tempPath, $finalPath);
+                $date = isset($item['date']) ? \Carbon\Carbon::parse($item['date']) : now();
+                $payroll = $employee->payrolls()->create([
+                    'file_name' => $customFileName,
+                    'date' => $date,
+                    'month' => $item['month'],
+                    'year' => $item['year'],
+                    'file_path' => $finalPath,
+                    'base64_content' => null,
+                    'matched_by' => 'manual',
+                ]);
+                try {
+                    $this->sendPayrollEmail($payroll, $email, $subject, $body);
+                    $payroll->update(['sent_at' => now(), 'sent_by' => Auth::id()]);
+                    $sent++;
+                } catch (\Throwable $e) {
+                    report($e);
+                    $errors[] = 'Nómina ' . $customFileName . ': ' . $e->getMessage();
                 }
             }
-            $request->session()->forget(['pending_payrolls', 'pending_payrolls_token']);
-        } else {
-            $remaining = array_values($remaining);
-            if ($token) {
-                $this->putPendingAndToken($request, $token, $remaining);
-            } else {
-                $request->session()->put('pending_payrolls', $remaining);
+            $uploadId = $request->session()->get('pending_payroll_upload_id');
+            if ($uploadId) {
+                Storage::disk('local')->deleteDirectory('temp_payrolls/' . $uploadId);
             }
+            $request->session()->forget(['pending_payroll_uploads', 'pending_payroll_upload_id']);
+        } else {
+            $payrollIds = array_filter($ids, fn ($id) => is_numeric($id));
+            $payrolls = Payroll::with('employee')->whereIn('id', $payrollIds)->whereNull('sent_at')->get();
+            $payrolls = $payrolls->filter(fn ($p) => $p->employee && $p->employee->company_id == $companyId);
+            foreach ($payrolls as $payroll) {
+                $email = $request->input('email_' . $payroll->id) ?: $payroll->employee->email;
+                if (!$email) {
+                    $errors[] = 'Nómina ' . ($payroll->file_name ?? $payroll->id) . ': sin email.';
+                    continue;
+                }
+                $customFileName = $request->input('file_name_' . $payroll->id);
+                if (is_string($customFileName) && trim($customFileName) !== '') {
+                    $payroll->update(['file_name' => trim($customFileName)]);
+                }
+                try {
+                    $this->sendPayrollEmail($payroll, $email, $subject, $body);
+                    $payroll->update(['sent_at' => now(), 'sent_by' => Auth::id()]);
+                    $sent++;
+                } catch (\Throwable $e) {
+                    report($e);
+                    $errors[] = 'Nómina ' . ($payroll->file_name ?? $payroll->id) . ': ' . $e->getMessage();
+                }
+            }
+            $request->session()->forget('pending_payroll_ids');
         }
         if (!empty($errors)) {
             $msg = $sent > 0
-                ? "Se guardaron y enviaron {$sent} nómina(s). Errores: " . implode(' ', $errors)
+                ? "Se enviaron {$sent} nómina(s). Errores: " . implode(' ', $errors)
                 : 'No se pudo enviar ningún correo. ' . implode(' ', array_slice($errors, 0, 3));
-            return redirect()->route($sent > 0 ? 'employees.index' : 'payroll.pending-send', $token ? ['token' => $token] : [])->with('error', $msg);
+            return redirect()->route('employees.index')->with('error', $msg);
         }
-        return redirect()->route('employees.index')->with('success', $sent . ' nómina(s) guardada(s) y enviada(s) correctamente.');
+        return redirect()->route('employees.index')->with('success', $sent . ' nómina(s) enviada(s) correctamente.');
+    }
+
+    private function pendingSuggestedFileName(string $originalBase, string $employeeFullName): string
+    {
+        $base = trim(preg_replace('/[\\\\\/:*?"<>|]/', '', $originalBase));
+        $name = trim(preg_replace('/\s+/', ' ', $employeeFullName));
+        return trim(preg_replace('/\s+/', ' ', $base . ' ' . $name . '.pdf'));
     }
 
     private function sendPayrollEmail(Payroll $payroll, string $to, string $subject, string $body): void
@@ -311,21 +246,6 @@ class PayrollController extends Controller
         $body = str_replace(['{{nombre}}', '{{mes}}', '{{empresa}}'], [$name, $monthName, $empresa], $body);
         $fromAddress = $company->rrhh_mail_from_address ?? config('mail.from.address');
         $fromName = $company->rrhh_mail_from_name ?? config('mail.from.name');
-
-        $mailer = null;
-        if (!empty($company->rrhh_mail_smtp_host)) {
-            Config::set('mail.mailers.rrhh_dynamic', [
-                'transport' => 'smtp',
-                'host' => $company->rrhh_mail_smtp_host,
-                'port' => (int) ($company->rrhh_mail_smtp_port ?? 587),
-                'encryption' => $company->rrhh_mail_encryption ?: 'tls',
-                'username' => $company->rrhh_mail_smtp_username,
-                'password' => $company->rrhh_mail_smtp_password,
-                'timeout' => null,
-            ]);
-            $mailer = 'rrhh_dynamic';
-        }
-
         $path = null;
         if ($payroll->file_path && Storage::disk('local')->exists($payroll->file_path)) {
             $path = Storage::disk('local')->path($payroll->file_path);
@@ -338,24 +258,12 @@ class PayrollController extends Controller
                 }
             }
         }
-
-        $callback = function ($message) use ($to, $subject, $body, $path, $payroll, $fromAddress, $fromName) {
+        \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($to, $subject, $body, $path, $payroll, $fromAddress, $fromName) {
             $message->from($fromAddress, $fromName)->to($to)->subject($subject)->setBody(new TextPart($body));
             if ($path) {
                 $message->attach($path, ['as' => $payroll->file_name ?? 'nomina.pdf', 'mime' => 'application/pdf']);
             }
-        };
-
-        if ($mailer) {
-            Mail::mailer($mailer)->send([], [], $callback);
-        } else {
-            $driver = config('mail.default');
-            if (in_array($driver, ['log', 'array'], true)) {
-                throw new \RuntimeException('Configura la sección "Configuración correo RRHH" en Ajustes → Empresa (SMTP) para poder enviar nóminas por correo.');
-            }
-            Mail::send([], [], $callback);
-        }
-
+        });
         if ($path && str_starts_with($path, sys_get_temp_dir())) {
             @unlink($path);
         }

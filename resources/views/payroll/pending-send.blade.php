@@ -11,9 +11,6 @@
 
     <form method="POST" action="{{ route('payroll.send-bulk') }}" id="formSendBulk" class="space-y-6">
         @csrf
-        @if(!empty($pendingToken))
-        <input type="hidden" name="pending_token" value="{{ $pendingToken }}">
-        @endif
 
         <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
             <h2 class="mb-4 text-base font-semibold text-slate-900">Configuración del envío</h2>
@@ -68,50 +65,44 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($pendingRows as $p)
-                    <tr class="border-b border-slate-100" data-row-index="{{ $p->index }}">
+                    @foreach($pendingRows as $row)
+                    <tr class="border-b border-slate-100" data-pending-index="{{ $row->index }}">
                         <td class="py-3">
-                            <input type="checkbox" name="ids[]" value="{{ $p->index }}" class="cb-send rounded border-slate-300 text-brand-600">
+                            <input type="checkbox" name="ids[]" value="{{ $row->index }}" class="cb-send rounded border-slate-300 text-brand-600">
                         </td>
                         <td class="py-3">
-                            <input type="text" name="file_name_{{ $p->index }}" value="{{ $p->file_name }}" class="w-full min-w-[180px] max-w-md rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium" placeholder="Nombre del archivo">
+                            <input type="text" name="file_name_{{ $row->index }}" value="{{ $row->file_name }}" class="w-full min-w-[180px] max-w-md rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium" placeholder="Nombre del archivo">
                         </td>
                         <td class="py-3">
-                            <select name="employee_id_{{ $p->index }}" class="payroll-employee-select w-full max-w-[200px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm" data-row-index="{{ $p->index }}">
+                            <select name="employee_id_{{ $row->index }}" class="payroll-employee-select w-full max-w-[200px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm" data-pending-index="{{ $row->index }}">
                                 @foreach($employees as $emp)
-                                <option value="{{ $emp->id }}" data-email="{{ e($emp->email ?? '') }}" data-full-name="{{ e($emp->full_name) }}" {{ $p->employee_id == $emp->id ? 'selected' : '' }}>{{ $emp->full_name }}</option>
+                                <option value="{{ $emp->id }}" {{ $row->employee && $row->employee->id == $emp->id ? 'selected' : '' }}>{{ $emp->full_name }}</option>
                                 @endforeach
                             </select>
                         </td>
                         <td class="py-3">
-                            <input type="text" name="email_{{ $p->index }}" value="{{ $p->employee->email ?? '' }}" class="payroll-email-input w-full max-w-[220px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm" placeholder="email@ejemplo.com">
+                            <input type="text" name="email_{{ $row->index }}" value="{{ $row->email ?? '' }}" class="payroll-email-input w-full max-w-[220px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm" placeholder="email@ejemplo.com">
                         </td>
                         <td class="py-3">
                             <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700">Pendiente</span>
                         </td>
                         <td class="py-3">
-                            <form method="POST" action="{{ route('payroll.remove-pending', $p->index) }}" class="inline" onsubmit="return confirm('¿Quitar esta nómina de la lista?');">
-                                @csrf
-                                <button type="submit" class="text-rose-600 hover:text-rose-700 text-xs font-medium">Borrar</button>
-                            </form>
+                            <button type="button" class="btn-delete-payroll text-rose-600 hover:text-rose-700 text-xs font-medium" data-pending-index="{{ $row->index }}">Borrar</button>
                         </td>
                     </tr>
                     @endforeach
                 </tbody>
             </table>
         </div>
-    </form>
 
-    <div class="flex flex-wrap items-center gap-3">
-        <form method="POST" action="{{ route('payroll.cancel-pending') }}" class="inline" onsubmit="return confirm('¿Cancelar? Se eliminarán las nóminas subidas y no se guardará nada.');">
-            @csrf
-            @if(!empty($pendingToken))
-            <input type="hidden" name="pending_token" value="{{ $pendingToken }}">
-            @endif
-            <button type="submit" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
-        </form>
-        <button type="submit" form="formSendBulk" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar y enviar</button>
-    </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <form method="POST" action="{{ route('payroll.cancel-pending') }}" class="inline" onsubmit="return confirm('¿Cancelar? Se eliminarán las nóminas subidas y no se guardará nada.');">
+                @csrf
+                <button type="submit" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
+            </form>
+            <button type="submit" form="formSendBulk" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar y enviar</button>
+        </div>
+    </form>
 </div>
 
 @push('scripts')
@@ -145,14 +136,40 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     document.querySelectorAll('.payroll-employee-select').forEach(function(sel) {
         sel.addEventListener('change', function() {
-            var rowIndex = this.dataset.rowIndex;
-            var row = document.querySelector('tr[data-row-index="' + rowIndex + '"]');
-            if (!row) return;
-            var opt = this.options[this.selectedIndex];
-            if (opt && opt.dataset.email !== undefined) {
-                var emailInput = row.querySelector('.payroll-email-input');
-                if (emailInput) emailInput.value = opt.dataset.email || '';
-            }
+            var index = this.dataset.pendingIndex;
+            var employeeId = this.value;
+            fetch('{{ route("payroll.pending-assign") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ index: parseInt(index, 10), employee_id: parseInt(employeeId, 10) })
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.success && data.email !== undefined) {
+                    var row = document.querySelector('tr[data-pending-index="' + index + '"]');
+                    if (row) {
+                        var emailInput = row.querySelector('.payroll-email-input');
+                        if (emailInput) emailInput.value = data.email;
+                        var fileInput = row.querySelector('input[name^="file_name_"]');
+                        if (fileInput && data.file_name) fileInput.value = data.file_name;
+                    }
+                }
+            });
+        });
+    });
+    document.querySelectorAll('.btn-delete-payroll').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            if (!confirm('¿Eliminar esta nómina de la lista?')) return;
+            var index = this.dataset.pendingIndex;
+            fetch('{{ route("payroll.pending-remove") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ index: parseInt(index, 10) })
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.success) {
+                    var row = document.querySelector('tr[data-pending-index="' + index + '"]');
+                    if (row) row.remove();
+                    if (data.redirect) { window.location.href = data.redirect; return; }
+                }
+            });
         });
     });
     document.getElementById('formSendBulk').addEventListener('submit', function(e) {

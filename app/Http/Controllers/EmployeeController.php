@@ -13,8 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use setasign\Fpdi\Fpdi;
 use Smalot\PdfParser\Parser as PdfParser;
@@ -555,7 +553,7 @@ class EmployeeController extends Controller
             'payrolls.*' => 'file|mimes:pdf|max:10240',
         ]);
 
-        $token = 'payroll_' . uniqid('', true);
+        $uploadId = uniqid('payroll_', true);
         $pending = [];
         $errors = [];
         $index = 0;
@@ -564,35 +562,36 @@ class EmployeeController extends Controller
             $date = $pdfData['date'] ?? now();
             $month = (int) $date->month;
             $year = (int) $date->year;
-            $fileName = $this->generatePayrollFileName($employee->full_name, $file->getClientOriginalName());
-            $tempDir = 'temp_payrolls/' . $token;
-            $tempName = $index . '.pdf';
-            $file->storeAs($tempDir, $tempName, 'local');
-            $pending[] = [
+            $originalBase = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+            $fileName = $this->suggestedPayrollFileName($originalBase, $employee->full_name);
+            $dir = 'temp_payrolls/' . $uploadId;
+            $tempPath = $file->storeAs($dir, $index . '.pdf', 'local');
+            if (!$tempPath) {
+                $errors[] = 'No se pudo guardar temporalmente el archivo.';
+                continue;
+            }
+            $pending[$index] = [
+                'temp_path' => $tempPath,
                 'employee_id' => $employee->id,
                 'file_name' => $fileName,
+                'original_base' => $originalBase,
                 'month' => $month,
                 'year' => $year,
                 'date' => $date->format('Y-m-d'),
-                'temp_path' => $tempDir . '/' . $tempName,
             ];
             $index++;
         }
-        $expiresAt = now()->addHours(1);
-        Cache::put('pending_payrolls_' . $token, $pending, $expiresAt);
-        $this->savePendingPayrollsToDb($token, $pending, $expiresAt);
-        $request->session()->put('pending_payrolls_token', $token);
-        $request->session()->flash('pending_payrolls_data_' . $token, $pending);
 
+        if (empty($pending)) {
+            return back()->with('error', empty($errors) ? 'No se pudo procesar ningún archivo.' : implode(' ', $errors));
+        }
+        $request->session()->put('pending_payroll_uploads', $pending);
+        $request->session()->put('pending_payroll_upload_id', $uploadId);
         if (!empty($errors)) {
             $request->session()->flash('warning', implode(' ', $errors));
         }
-        if (count($pending) === 0 && !empty($errors)) {
-            return back()->with('error', implode(' ', $errors));
-        }
-        $request->session()->flash('success', count($request->file('payrolls')) . ' nómina(s) listas. Completa la ventana y pulsa "Guardar y enviar" para guardarlas y enviarlas por correo.');
-        return redirect()->route('payroll.pending-send', ['token' => $token])
-            ->cookie('pending_payroll_token', $token, 10, '/', null, true, true, false, 'lax');
+        $request->session()->flash('success', ($index - (int) array_key_first($pending)) . ' nómina(s) listas para enviar. Revisa y pulsa Guardar y enviar.');
+        return redirect()->route('payroll.pending-send');
     }
 
     public function uploadPayrollAuto(Request $request)
@@ -619,11 +618,12 @@ class EmployeeController extends Controller
                 return back()->withErrors(['payroll' => 'No se pudo procesar el PDF.']);
             }
 
-            $token = 'payroll_' . uniqid('', true);
+            $uploadId = uniqid('payroll_', true);
             $pending = [];
             $saved = 0;
             $failedPages = [];
             $lastEmployee = null;
+            $originalBase = pathinfo($originalFileName, PATHINFO_FILENAME);
 
             for ($pageNum = 1; $pageNum <= $pageCount; $pageNum++) {
                 $pageText = $pagesText[$pageNum - 1] ?? '';
@@ -645,28 +645,24 @@ class EmployeeController extends Controller
                 }
                 $month = (int) $date->month;
                 $year = (int) $date->year;
-                $fileName = $this->generatePayrollFileName($employee->full_name, $originalFileName);
+                $pageBase = $originalBase . ' p' . $pageNum;
+                $fileName = $this->suggestedPayrollFileName($pageBase, $employee->full_name);
+                $tempPath = 'temp_payrolls/' . $uploadId . '/page_' . $pageNum . '.pdf';
+                Storage::disk('local')->put($tempPath, base64_decode($singlePageBase64, true));
+
                 $index = count($pending);
-                $tempDir = 'temp_payrolls/' . $token;
-                $tempName = $index . '.pdf';
-                Storage::disk('local')->put($tempDir . '/' . $tempName, base64_decode($singlePageBase64));
-                $pending[] = [
+                $pending[$index] = [
+                    'temp_path' => $tempPath,
                     'employee_id' => $employee->id,
                     'file_name' => $fileName,
+                    'original_base' => $pageBase,
                     'month' => $month,
                     'year' => $year,
                     'date' => $date->format('Y-m-d'),
-                    'temp_path' => $tempDir . '/' . $tempName,
                 ];
                 $saved++;
                 $lastEmployee = $employee;
             }
-
-            $expiresAt = now()->addHours(1);
-            Cache::put('pending_payrolls_' . $token, $pending, $expiresAt);
-            $this->savePendingPayrollsToDb($token, $pending, $expiresAt);
-            $request->session()->put('pending_payrolls_token', $token);
-            $request->session()->flash('pending_payrolls_data_' . $token, $pending);
 
             if ($saved === 0) {
                 $message = 'No se pudo identificar a ningún empleado en el PDF. ';
@@ -676,16 +672,16 @@ class EmployeeController extends Controller
                 return back()->withErrors(['payroll' => $message]);
             }
 
+            $request->session()->put('pending_payroll_uploads', $pending);
+            $request->session()->put('pending_payroll_upload_id', $uploadId);
             $message = $saved === 1
-                ? '1 nómina lista. Completa la ventana y pulsa "Guardar y enviar".'
-                : $saved . ' nóminas listas. Completa la ventana y pulsa "Guardar y enviar".';
+                ? '1 nómina lista para enviar a ' . $lastEmployee->full_name . '. Revisa y pulsa Guardar y enviar.'
+                : $saved . ' nóminas listas para enviar. Revisa y pulsa Guardar y enviar.';
             if (!empty($failedPages)) {
                 $message .= ' No se pudo asignar la(s) página(s) ' . implode(', ', $failedPages) . ' (empleado no identificado).';
             }
 
-            return redirect()->route('payroll.pending-send', ['token' => $token])
-                ->with('success', $message)
-                ->cookie('pending_payroll_token', $token, 10, '/', null, true, true, false, 'lax');
+            return redirect()->route('payroll.pending-send')->with('success', $message);
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
@@ -947,25 +943,22 @@ class EmployeeController extends Controller
         return $months[$month] ?? 'Enero';
     }
 
-    /** Nombre: nombre original del PDF (sin extensión) + " " + nombre empleado + ".pdf" (ej: "Nomina Febrero 2026 Lisa Zhu.pdf") */
-    private function generatePayrollFileName($employeeName, $originalFileName)
+    /** Nombre sugerido: nombre original del PDF + nombre del empleado (ej. "Nomina Febrero 2026 Lisa Zhu.pdf") */
+    private function suggestedPayrollFileName(string $originalBase, string $employeeFullName): string
     {
-        $base = pathinfo($originalFileName, PATHINFO_FILENAME);
-        $base = trim(preg_replace('/\s+/', ' ', $base));
-        $name = trim(preg_replace('/\s+/', ' ', $employeeName));
-        return $base ? ($base . ' ' . $name . '.pdf') : ($name . '.pdf');
+        $base = trim(preg_replace('/[\\\\\/:*?"<>|]/', '', $originalBase));
+        $name = trim(preg_replace('/\s+/', ' ', $employeeFullName));
+        $fileName = $base . ' ' . $name . '.pdf';
+        return trim(preg_replace('/\s+/', ' ', $fileName));
     }
 
-    /** Guarda pendientes en BD para que cualquier instancia/worker pueda leerlos (entornos cloud). */
-    private function savePendingPayrollsToDb(string $token, array $pending, $expiresAt): void
+    /** Nombre automático (legacy): Nomina {Nombre completo} {Mes texto} {Año}.pdf */
+    private function generatePayrollFileName($employeeName, $date, $originalName = '')
     {
-        if (!\Illuminate\Support\Facades\Schema::hasTable('pending_payroll_uploads')) {
-            return;
-        }
-        DB::table('pending_payroll_uploads')->updateOrInsert(
-            ['token' => $token],
-            ['payload' => json_encode($pending), 'expires_at' => $expiresAt]
-        );
+        $monthName = $this->getSpanishMonthName($date->month);
+        $year = $date->year;
+        $name = trim(preg_replace('/\s+/', ' ', $employeeName));
+        return "Nomina {$name} {$monthName} {$year}.pdf";
     }
 
     private function matchEmployeeInPDF($pdfText, $employee)

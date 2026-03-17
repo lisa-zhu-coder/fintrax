@@ -11,6 +11,9 @@
 
     <form method="POST" action="{{ route('payroll.send-bulk') }}" id="formSendBulk" class="space-y-6">
         @csrf
+        @if(!empty($pendingToken))
+        <input type="hidden" name="pending_token" value="{{ $pendingToken }}">
+        @endif
 
         <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
             <h2 class="mb-4 text-base font-semibold text-slate-900">Configuración del envío</h2>
@@ -101,6 +104,9 @@
         <div class="flex flex-wrap items-center gap-3">
             <form method="POST" action="{{ route('payroll.cancel-pending') }}" class="inline" onsubmit="return confirm('¿Cancelar? Se eliminarán las nóminas subidas y no se guardará nada.');">
                 @csrf
+                @if(!empty($pendingToken))
+                <input type="hidden" name="pending_token" value="{{ $pendingToken }}">
+                @endif
                 <button type="submit" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
             </form>
             <button type="submit" form="formSendBulk" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar y enviar</button>

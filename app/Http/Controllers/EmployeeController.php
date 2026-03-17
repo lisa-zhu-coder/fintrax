@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use setasign\Fpdi\Fpdi;
 use Smalot\PdfParser\Parser as PdfParser;
@@ -553,13 +554,10 @@ class EmployeeController extends Controller
             'payrolls.*' => 'file|mimes:pdf|max:10240',
         ]);
 
-        $token = session('pending_payrolls_token', 'payroll_' . uniqid('', true));
-        if (!session()->has('pending_payrolls_token')) {
-            session(['pending_payrolls_token' => $token]);
-        }
-        $pending = session('pending_payrolls', []);
+        $token = 'payroll_' . uniqid('', true);
+        $pending = [];
         $errors = [];
-        $index = count($pending);
+        $index = 0;
         foreach ($request->file('payrolls') as $file) {
             $pdfData = $this->processPayrollPDF($file);
             $date = $pdfData['date'] ?? now();
@@ -579,7 +577,8 @@ class EmployeeController extends Controller
             ];
             $index++;
         }
-        session(['pending_payrolls' => $pending]);
+        Cache::put('pending_payrolls_' . $token, $pending, now()->addHours(1));
+        $request->session()->put('pending_payrolls_token', $token);
 
         if (!empty($errors)) {
             $request->session()->flash('warning', implode(' ', $errors));
@@ -588,7 +587,7 @@ class EmployeeController extends Controller
             return back()->with('error', implode(' ', $errors));
         }
         $request->session()->flash('success', count($request->file('payrolls')) . ' nómina(s) listas. Completa la ventana y pulsa "Guardar y enviar" para guardarlas y enviarlas por correo.');
-        return redirect()->route('payroll.pending-send');
+        return redirect()->route('payroll.pending-send', ['token' => $token]);
     }
 
     public function uploadPayrollAuto(Request $request)
@@ -615,11 +614,8 @@ class EmployeeController extends Controller
                 return back()->withErrors(['payroll' => 'No se pudo procesar el PDF.']);
             }
 
-            $token = session('pending_payrolls_token', 'payroll_' . uniqid('', true));
-            if (!session()->has('pending_payrolls_token')) {
-                session(['pending_payrolls_token' => $token]);
-            }
-            $pending = session('pending_payrolls', []);
+            $token = 'payroll_' . uniqid('', true);
+            $pending = [];
             $saved = 0;
             $failedPages = [];
             $lastEmployee = null;
@@ -661,7 +657,8 @@ class EmployeeController extends Controller
                 $lastEmployee = $employee;
             }
 
-            session(['pending_payrolls' => $pending]);
+            Cache::put('pending_payrolls_' . $token, $pending, now()->addHours(1));
+            $request->session()->put('pending_payrolls_token', $token);
 
             if ($saved === 0) {
                 $message = 'No se pudo identificar a ningún empleado en el PDF. ';
@@ -678,7 +675,7 @@ class EmployeeController extends Controller
                 $message .= ' No se pudo asignar la(s) página(s) ' . implode(', ', $failedPages) . ' (empleado no identificado).';
             }
 
-            return redirect()->route('payroll.pending-send')->with('success', $message);
+            return redirect()->route('payroll.pending-send', ['token' => $token])->with('success', $message);
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {

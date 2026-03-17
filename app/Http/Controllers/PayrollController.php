@@ -9,6 +9,7 @@ use App\Models\Payroll;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Mime\Part\TextPart;
 
 class PayrollController extends Controller
 {
@@ -113,7 +114,7 @@ class PayrollController extends Controller
             }
         }
         \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($to, $subject, $body, $path, $payroll, $fromAddress, $fromName) {
-            $message->from($fromAddress, $fromName)->to($to)->subject($subject)->setBody($body, 'text/plain');
+            $message->from($fromAddress, $fromName)->to($to)->subject($subject)->setBody(new TextPart($body));
             if ($path) {
                 $message->attach($path, ['as' => $payroll->file_name ?? 'nomina.pdf', 'mime' => 'application/pdf']);
             }

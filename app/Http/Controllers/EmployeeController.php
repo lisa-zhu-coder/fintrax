@@ -795,33 +795,74 @@ class EmployeeController extends Controller
     /**
      * Intenta extraer la fecha de nómina del texto de una página (periodo, nómina, etc.).
      */
+    /** Meses en español para detectar "Periodo de liquidación del 01 de Febrero al 28 de Febrero de 2026" */
+    private static function getSpanishMonthNamesForRegex(): array
+    {
+        return [
+            'enero' => 1, 'febrero' => 2, 'marzo' => 3, 'abril' => 4, 'mayo' => 5, 'junio' => 6,
+            'julio' => 7, 'agosto' => 8, 'septiembre' => 9, 'octubre' => 10, 'noviembre' => 11, 'diciembre' => 12,
+        ];
+    }
+
+    /**
+     * Extrae la fecha del periodo de liquidación de la nómina (mes de la nómina).
+     * Prioridad: texto "Periodo de liquidación del XX de [Mes] al XX de [Mes] de [Año]" o fechas numéricas justo después.
+     * No se usa la fecha de antigüedad ni otras fechas del documento.
+     */
     private function extractDateFromPageText(string $text): ?\Carbon\Carbon
     {
         if (trim($text) === '') {
             return null;
         }
-        $patterns = [
-            '/periodo[\s:]*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/iu',
-            '/n[oó]mina[\s:]*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/iu',
-            '/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/',
-            '/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/',
-        ];
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $text, $m)) {
-                if (strlen($m[1] ?? '') === 4) {
-                    $year = (int) $m[1];
-                    $month = (int) ($m[2] ?? 1);
-                    $day = (int) ($m[3] ?? 1);
-                } else {
-                    $day = (int) ($m[1] ?? 1);
-                    $month = (int) ($m[2] ?? 1);
-                    $year = (int) ($m[3] ?? now()->year);
-                }
-                if ($month >= 1 && $month <= 12 && $year >= 2000 && $year <= 2100) {
-                    return \Carbon\Carbon::createFromDate($year, $month, min($day, 28));
+        $textNorm = preg_replace('/\s+/', ' ', $text);
+        $monthsMap = self::getSpanishMonthNamesForRegex();
+
+        // 1) Buscar "periodo de liquidación ... del 01 de Febrero al 28 de Febrero de 2026" (mes en español + año)
+        if (preg_match('/periodo\s+de\s+liquidaci[oó]n\s+.*?\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+al\s+\d{1,2}\s+de\s+\2\s+de\s+(\d{4})\b/iu', $textNorm, $m)) {
+            $monthName = mb_strtolower($m[2]);
+            if (isset($monthsMap[$monthName])) {
+                $year = (int) $m[3];
+                if ($year >= 2000 && $year <= 2100) {
+                    return \Carbon\Carbon::createFromDate($year, $monthsMap[$monthName], 1);
                 }
             }
         }
+
+        // 2) "Periodo de liquidación" seguido de fechas numéricas (dd/mm/yyyy o dd-mm-yyyy)
+        if (preg_match('/periodo\s+de\s+liquidaci[oó]n\s+.*?(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/iu', $textNorm, $m)) {
+            $day = (int) $m[1];
+            $month = (int) $m[2];
+            $year = (int) $m[3];
+            if ($month >= 1 && $month <= 12 && $year >= 2000 && $year <= 2100) {
+                return \Carbon\Carbon::createFromDate($year, $month, min($day, 28));
+            }
+        }
+
+        // 3) "periodo" o "liquidación" con fecha numérica cercana (evitar antigüedad)
+        if (preg_match('/periodo[\s:]*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/iu', $textNorm, $m)) {
+            $month = (int) $m[2];
+            $year = (int) $m[3];
+            if ($month >= 1 && $month <= 12 && $year >= 2000 && $year <= 2100) {
+                return \Carbon\Carbon::createFromDate($year, $month, 1);
+            }
+        }
+        if (preg_match('/n[oó]mina[\s:]*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/iu', $textNorm, $m)) {
+            $month = (int) $m[2];
+            $year = (int) $m[3];
+            if ($month >= 1 && $month <= 12 && $year >= 2000 && $year <= 2100) {
+                return \Carbon\Carbon::createFromDate($year, $month, 1);
+            }
+        }
+
+        // 4) No usar fechas genéricas que suelen ser antigüedad u otras; solo si no hay nada específico de periodo
+        if (preg_match('/liquidaci[oó]n\s+.*?(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/iu', $textNorm, $m)) {
+            $year = (int) $m[1];
+            $month = (int) $m[2];
+            if ($month >= 1 && $month <= 12 && $year >= 2000 && $year <= 2100) {
+                return \Carbon\Carbon::createFromDate($year, $month, 1);
+            }
+        }
+
         return null;
     }
 

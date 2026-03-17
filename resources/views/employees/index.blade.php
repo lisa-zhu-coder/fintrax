@@ -196,32 +196,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
             }).then(function(r) {
                 clearTimeout(timeoutId);
-                if (r.type === 'opaqueredirect' || (r.status >= 300 && r.status < 400)) {
+                var status = r.status;
+                if (status >= 200 && status < 300) {
+                    if (pendingSendUrl) {
+                        window.location.href = pendingSendUrl;
+                        return;
+                    }
+                    var ct = (r.headers.get('Content-Type') || '');
+                    if (ct.indexOf('application/json') !== -1) {
+                        return r.json().then(function(data) {
+                            if (data.redirect) { window.location.href = data.redirect; return; }
+                            if (pendingSendUrl) { window.location.href = pendingSendUrl; return; }
+                            showError(data.message || 'No se pudo procesar.');
+                        });
+                    }
+                    if (pendingSendUrl) window.location.href = pendingSendUrl;
+                    return;
+                }
+                if (status >= 300 && status < 400) {
                     var loc = r.headers.get('Location');
-                    if (loc) { window.location.href = loc; return; }
-                    if (pendingSendUrl) { window.location.href = pendingSendUrl; return; }
-                }
-                var ct = r.headers.get('Content-Type') || '';
-                if (ct.indexOf('application/json') !== -1) {
-                    return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; });
-                }
-                if (r.ok && pendingSendUrl) {
-                    window.location.href = pendingSendUrl;
+                    window.location.href = loc || pendingSendUrl || url;
                     return;
                 }
-                return r.text().then(function() { return { ok: r.ok, status: r.status, data: {} }; });
-            }).then(function(result) {
-                if (!result) return;
-                if (result.ok && result.data && result.data.redirect) {
-                    window.location.href = result.data.redirect;
-                    return;
-                }
-                if (result.ok && pendingSendUrl) {
-                    window.location.href = pendingSendUrl;
-                    return;
-                }
-                var msg = (result.data && result.data.message) || (result.data && result.data.errors && Object.values(result.data.errors).flat().join(' ')) || 'No se pudo procesar el PDF.';
-                showError(msg);
+                return r.text().then(function(text) {
+                    var msg = 'No se pudo procesar el PDF.';
+                    try {
+                        var data = JSON.parse(text);
+                        msg = data.message || (data.errors && Object.values(data.errors).flat().join(' ')) || msg;
+                    } catch (_) {}
+                    showError(msg);
+                });
             }).catch(function(e) {
                 clearTimeout(timeoutId);
                 if (e.name === 'AbortError') showError('Tiempo agotado. Prueba con menos páginas o inténtalo más tarde.');

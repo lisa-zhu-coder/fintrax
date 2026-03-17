@@ -13,10 +13,14 @@
     @endif
     
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between flex-wrap gap-4">
             <div>
                 <h1 class="text-lg font-semibold">Empleados</h1>
                 <p class="text-sm text-slate-500">Gestiona la información de todos los empleados</p>
+                <div class="mt-2 flex gap-1">
+                    <a href="{{ route('employees.index') }}" class="rounded-lg px-3 py-1.5 text-sm font-medium {{ !($showArchived ?? false) ? 'bg-brand-100 text-brand-800' : 'text-slate-600 hover:bg-slate-100' }}">Activos</a>
+                    <a href="{{ route('employees.index', ['archived' => 1]) }}" class="rounded-lg px-3 py-1.5 text-sm font-medium {{ $showArchived ?? false ? 'bg-slate-200 text-slate-800' : 'text-slate-600 hover:bg-slate-100' }}">Archivados</a>
+                </div>
             </div>
             <div class="flex items-center gap-2">
                 @if(auth()->user()->hasPermission('hr.employees.configure'))
@@ -94,21 +98,32 @@
                                         Editar
                                     </a>
                                     @endif
-                                    @if(auth()->user()->hasPermission('hr.employees.delete'))
-                                    <form method="POST" action="{{ route('employees.destroy', $employee) }}" class="inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">
-                                            Eliminar
-                                        </button>
-                                    </form>
+                                    @if(($showArchived ?? false))
+                                        @if(auth()->user()->hasPermission('hr.employees.edit') || auth()->user()->hasPermission('hr.employees.delete'))
+                                        <form method="POST" action="{{ route('employees.restore', $employee->id) }}" class="inline">
+                                            @csrf
+                                            <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
+                                                Restaurar
+                                            </button>
+                                        </form>
+                                        @endif
+                                    @else
+                                        @if(auth()->user()->hasPermission('hr.employees.delete'))
+                                        <form method="POST" action="{{ route('employees.destroy', $employee) }}" class="inline" onsubmit="return confirm('¿Archivar a este empleado? No se borrarán sus datos y podrás restaurarlo desde la lista de archivados.');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50">
+                                                Archivar
+                                            </button>
+                                        </form>
+                                        @endif
                                     @endif
                                 </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-3 py-6 text-center text-slate-500">No hay empleados registrados</td>
+                            <td colspan="6" class="px-3 py-6 text-center text-slate-500">{{ $showArchived ?? false ? 'No hay empleados archivados' : 'No hay empleados registrados' }}</td>
                         </tr>
                     @endforelse
                 </tbody>

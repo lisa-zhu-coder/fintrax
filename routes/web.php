@@ -62,6 +62,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     // Empleados (quick-user antes del resource para que no coincida con {employee})
     Route::post('employees/quick-user', [EmployeeController::class, 'storeQuickUser'])->name('employees.quick-user');
     Route::resource('employees', EmployeeController::class);
+    Route::post('employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
     Route::post('employees/{employee}/documents', [EmployeeController::class, 'storeDocument'])->name('employees.documents.store');
     Route::get('employees/{employee}/documents/{document}/download', [EmployeeController::class, 'downloadDocument'])->name('employees.documents.download');
     Route::delete('employees/{employee}/documents/{document}', [EmployeeController::class, 'destroyDocument'])->name('employees.documents.destroy');

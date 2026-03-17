@@ -31,13 +31,17 @@
                     <button type="button" id="btnSaveAsTemplate" class="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Guardar como plantilla</button>
                 </label>
                 @endif
+                @php
+                    $defaultSubject = 'Nómina {{mes}} - {{empresa}}';
+                    $defaultBody = "Hola {{nombre}},\n\nAdjuntamos tu nómina correspondiente al mes de {{mes}}.\n\nUn saludo,\n{{empresa}}";
+                @endphp
                 <label class="block md:col-span-2">
                     <span class="text-xs font-semibold text-slate-700">Asunto</span>
-                    <input type="text" name="subject" id="subjectInput" value="{{ old('subject', 'Nómina {{mes}} - {{empresa}}') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Nómina {{mes}} - {{empresa}}">
+                    <input type="text" name="subject" id="subjectInput" value="{{ old('subject', $defaultSubject) }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ $defaultSubject }}">
                 </label>
                 <label class="block md:col-span-2">
                     <span class="text-xs font-semibold text-slate-700">Texto del correo</span>
-                    <textarea name="body" id="bodyInput" rows="4" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Hola {{nombre}},&#10;Adjuntamos tu nómina de {{mes}}.&#10;Un saludo, {{empresa}}">{{ old('body', "Hola {{nombre}},\n\nAdjuntamos tu nómina correspondiente al mes de {{mes}}.\n\nUn saludo,\n{{empresa}}") }}</textarea>
+                    <textarea name="body" id="bodyInput" rows="4" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">{{ old('body', $defaultBody) }}</textarea>
                 </label>
             </div>
         </div>

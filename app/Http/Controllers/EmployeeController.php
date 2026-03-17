@@ -33,7 +33,7 @@ class EmployeeController extends Controller
         $this->middleware('permission:rrhh.documents.view')->only(['downloadDocument']);
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $this->syncStoresFromBusinesses();
 
@@ -44,7 +44,12 @@ class EmployeeController extends Controller
             abort(403, 'No tienes permiso para ver empleados.');
         }
 
+        $showArchived = $request->boolean('archived');
         $query = Employee::with(['user', 'stores']);
+
+        if ($showArchived) {
+            $query->onlyTrashed();
+        }
 
         if ($user->isSuperAdmin() || $user->isAdmin()) {
             // Sin restricción por tienda a nivel de query (ven toda la empresa)
@@ -63,7 +68,7 @@ class EmployeeController extends Controller
 
         $employees = $query->get();
         $totalStores = Store::count();
-        return view('employees.index', compact('employees', 'totalStores'));
+        return view('employees.index', compact('employees', 'totalStores', 'showArchived'));
     }
 
     /**
@@ -450,7 +455,24 @@ class EmployeeController extends Controller
             }
         }
         $employee->delete();
-        return redirect()->route('employees.index')->with('success', 'Empleado eliminado correctamente.');
+        return redirect()->route('employees.index')->with('success', 'Empleado archivado correctamente. Puedes verlo y restaurarlo en la lista de archivados.');
+    }
+
+    public function restore($employee)
+    {
+        $user = Auth::user();
+        if (!$user->hasPermission('hr.employees.edit') && !$user->hasPermission('hr.employees.delete')) {
+            abort(403, 'No tienes permiso para restaurar empleados.');
+        }
+        $employee = Employee::withTrashed()->findOrFail($employee);
+        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+            $enforcedStoreId = $user->getEnforcedStoreId();
+            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+                abort(403, 'No tienes acceso a este empleado.');
+            }
+        }
+        $employee->restore();
+        return redirect()->route('employees.index')->with('success', 'Empleado restaurado correctamente.');
     }
 
     public function storeDocument(Request $request, Employee $employee)

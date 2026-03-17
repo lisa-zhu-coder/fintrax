@@ -11,17 +11,31 @@
                 <p class="text-sm text-slate-500">Información completa del empleado</p>
             </div>
             <div class="flex items-center gap-2">
+                @if($employee->trashed() && (auth()->user()->hasPermission('hr.employees.edit') || auth()->user()->hasPermission('hr.employees.delete')))
+                <form method="POST" action="{{ route('employees.restore', $employee->id) }}" class="inline">
+                    @csrf
+                    <button type="submit" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">
+                        Restaurar empleado
+                    </button>
+                </form>
+                @endif
                 @if(auth()->user()->hasPermission('hr.employees.configure'))
                 <a href="{{ route('employees.edit', $employee) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Editar
                 </a>
                 @endif
-                <a href="{{ route('employees.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <a href="{{ route('employees.index', $employee->trashed() ? ['archived' => 1] : []) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     ← Volver
                 </a>
             </div>
         </div>
     </header>
+
+    @if($employee->trashed())
+    <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <strong>Empleado archivado.</strong> Ya no está en la empresa. Puedes restaurarlo desde la lista de empleados → Archivados.
+    </div>
+    @endif
 
     <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
         <div class="space-y-6">

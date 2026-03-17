@@ -565,7 +565,7 @@ class EmployeeController extends Controller
             $date = $pdfData['date'] ?? now();
             $month = (int) $date->month;
             $year = (int) $date->year;
-            $fileName = $this->generatePayrollFileName($employee->full_name, $date);
+            $fileName = $this->generatePayrollFileName($employee->full_name, $file->getClientOriginalName());
             $tempDir = 'temp_payrolls/' . $token;
             $tempName = $index . '.pdf';
             $file->storeAs($tempDir, $tempName, 'local');
@@ -644,7 +644,7 @@ class EmployeeController extends Controller
                 }
                 $month = (int) $date->month;
                 $year = (int) $date->year;
-                $fileName = $this->generatePayrollFileName($employee->full_name, $date, $originalFileName . '_p' . $pageNum);
+                $fileName = $this->generatePayrollFileName($employee->full_name, $originalFileName);
                 $index = count($pending);
                 $tempDir = 'temp_payrolls/' . $token;
                 $tempName = $index . '.pdf';
@@ -940,13 +940,13 @@ class EmployeeController extends Controller
         return $months[$month] ?? 'Enero';
     }
 
-    /** Nombre automático: Nomina {Nombre completo} {Mes texto} {Año}.pdf */
-    private function generatePayrollFileName($employeeName, $date, $originalName = '')
+    /** Nombre: nombre original del PDF (sin extensión) + " " + nombre empleado + ".pdf" (ej: "Nomina Febrero 2026 Lisa Zhu.pdf") */
+    private function generatePayrollFileName($employeeName, $originalFileName)
     {
-        $monthName = $this->getSpanishMonthName($date->month);
-        $year = $date->year;
+        $base = pathinfo($originalFileName, PATHINFO_FILENAME);
+        $base = trim(preg_replace('/\s+/', ' ', $base));
         $name = trim(preg_replace('/\s+/', ' ', $employeeName));
-        return "Nomina {$name} {$monthName} {$year}.pdf";
+        return $base ? ($base . ' ' . $name . '.pdf') : ($name . '.pdf');
     }
 
     private function matchEmployeeInPDF($pdfText, $employee)

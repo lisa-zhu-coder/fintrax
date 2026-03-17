@@ -100,18 +100,18 @@
                 </tbody>
             </table>
         </div>
-
-        <div class="flex flex-wrap items-center gap-3">
-            <form method="POST" action="{{ route('payroll.cancel-pending') }}" class="inline" onsubmit="return confirm('¿Cancelar? Se eliminarán las nóminas subidas y no se guardará nada.');">
-                @csrf
-                @if(!empty($pendingToken))
-                <input type="hidden" name="pending_token" value="{{ $pendingToken }}">
-                @endif
-                <button type="submit" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
-            </form>
-            <button type="submit" form="formSendBulk" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar y enviar</button>
-        </div>
     </form>
+
+    <div class="flex flex-wrap items-center gap-3">
+        <form method="POST" action="{{ route('payroll.cancel-pending') }}" class="inline" onsubmit="return confirm('¿Cancelar? Se eliminarán las nóminas subidas y no se guardará nada.');">
+            @csrf
+            @if(!empty($pendingToken))
+            <input type="hidden" name="pending_token" value="{{ $pendingToken }}">
+            @endif
+            <button type="submit" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
+        </form>
+        <button type="submit" form="formSendBulk" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar y enviar</button>
+    </div>
 </div>
 
 @push('scripts')

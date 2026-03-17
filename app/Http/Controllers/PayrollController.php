@@ -110,12 +110,22 @@ class PayrollController extends Controller
             $request->session()->put('pending_payrolls_token', $token);
         }
         $companyId = session('company_id') ?? Auth::user()?->company_id;
-        $employees = Employee::where('company_id', $companyId)->orderBy('full_name')->get(['id', 'full_name', 'email']);
+        if ($companyId === null && !empty($pending)) {
+            foreach ($pending as $item) {
+                $first = Employee::find($item['employee_id'] ?? null);
+                if ($first) {
+                    $companyId = $first->company_id;
+                    $request->session()->put('company_id', $companyId);
+                    break;
+                }
+            }
+        }
+        $employees = $companyId ? Employee::where('company_id', $companyId)->orderBy('full_name')->get(['id', 'full_name', 'email']) : collect();
         $employeeMap = $employees->keyBy('id');
         $pendingRows = [];
         foreach ($pending as $i => $item) {
-            $emp = $employeeMap->get($item['employee_id']);
-            if (!$emp || $emp->company_id != $companyId) {
+            $emp = $employeeMap->get($item['employee_id']) ?? Employee::find($item['employee_id']);
+            if (!$emp || ($companyId !== null && $emp->company_id != $companyId)) {
                 continue;
             }
             $pendingRows[] = (object) [
@@ -128,8 +138,8 @@ class PayrollController extends Controller
                 'temp_path' => $item['temp_path'],
             ];
         }
-        $templates = EmailTemplate::where('company_id', $companyId)->where('type', 'payroll')->orderBy('name')->get();
-        $company = Company::find($companyId);
+        $templates = $companyId ? EmailTemplate::where('company_id', $companyId)->where('type', 'payroll')->orderBy('name')->get() : collect();
+        $company = $companyId ? Company::find($companyId) : null;
         $pendingToken = $token;
         return view('payroll.pending-send', compact('pendingRows', 'templates', 'company', 'employees', 'pendingToken'));
     }

@@ -12,8 +12,11 @@
             </svg>
         </div>
         <h1 class="text-lg font-semibold text-slate-900">Procesando tu PDF</h1>
-        <p class="mt-2 text-sm text-slate-500">Puede tardar 1–2 minutos en PDFs con muchas páginas. No cierres esta pestaña.</p>
+        <p class="mt-2 text-sm text-slate-500">Suele tardar 1–2 minutos en PDFs con muchas páginas. No cierres esta pestaña.</p>
         <p id="statusText" class="mt-2 text-sm text-slate-600">Esperando cola…</p>
+        <p id="longWaitHint" class="mt-3 hidden rounded-lg border border-amber-200 bg-amber-50 p-3 text-left text-sm text-amber-800">
+            <strong>¿Tarda mucho?</strong> El procesamiento se hace en segundo plano. Si pasan más de 2 minutos, abre una terminal en la carpeta del proyecto y ejecuta: <code class="mt-1 block rounded bg-amber-100 px-2 py-1 font-mono text-xs">php artisan queue:work</code> (déjala abierta). Luego vuelve a subir el PDF.
+        </p>
         <p id="errorText" class="mt-3 hidden text-sm text-rose-600"></p>
         <a id="backLink" href="{{ route('employees.index') }}" class="mt-4 hidden inline-block rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Volver a empleados</a>
     </div>
@@ -27,8 +30,15 @@ document.addEventListener('DOMContentLoaded', function() {
     var statusText = document.getElementById('statusText');
     var errorText = document.getElementById('errorText');
     var backLink = document.getElementById('backLink');
+    var longWaitHint = document.getElementById('longWaitHint');
+    var startTime = Date.now();
+    var longWaitShown = false;
 
     function poll() {
+        if (!longWaitShown && (Date.now() - startTime) > 120000) {
+            longWaitShown = true;
+            if (longWaitHint) longWaitHint.classList.remove('hidden');
+        }
         fetch(statusUrl, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
             .then(function(r) { return r.json(); })
             .then(function(data) {

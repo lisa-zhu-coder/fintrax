@@ -123,7 +123,24 @@ class PayrollController extends Controller
                 $request->session()->put('pending_payroll_uploads', $result['pending']);
                 $request->session()->put('pending_payroll_upload_id', $result['upload_id']);
                 Cache::forget('payroll_result_' . $token);
-                return redirect()->route('payroll.pending-send')->with('success', $result['message'] ?? '');
+                // Mostrar la pantalla en esta misma petición (sin segundo redirect) para evitar perder sesión
+                $pending = $result['pending'];
+                $companyId = session('company_id') ?? Auth::user()?->company_id;
+                $employees = Employee::where('company_id', $companyId)->orderBy('full_name')->get(['id', 'full_name', 'email']);
+                $pendingRows = [];
+                foreach ($pending as $index => $item) {
+                    $employee = $employees->firstWhere('id', $item['employee_id']);
+                    $pendingRows[] = (object) [
+                        'index' => $index,
+                        'employee' => $employee,
+                        'file_name' => $item['file_name'],
+                        'email' => $employee ? $employee->email : '',
+                        'original_base' => $item['original_base'] ?? '',
+                    ];
+                }
+                $templates = EmailTemplate::where('company_id', $companyId)->where('type', 'payroll')->orderBy('name')->get();
+                $company = Company::find($companyId);
+                return view('payroll.pending-send', compact('pendingRows', 'templates', 'company', 'employees'))->with('success', $result['message'] ?? '');
             }
             return redirect()->route('employees.index')->with('error', 'No se encontraron los datos del PDF (puede haber expirado). Sube el PDF de nuevo.');
         }

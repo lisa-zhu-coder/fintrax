@@ -611,8 +611,25 @@ class EmployeeController extends Controller
         $storagePath = 'temp_payroll_uploads/' . $token . '.pdf';
         $file->storeAs('temp_payroll_uploads', $token . '.pdf', 'local');
 
-        \App\Jobs\ProcessPayrollPdfJob::dispatch($token, $storagePath, $originalFileName, $companyId);
+        $processor = app(\App\Services\PayrollPdfProcessor::class);
+        $pageCount = $processor->getPageCount($storagePath);
 
+        // PDFs de 3 páginas o menos: procesar en la misma petición (no hace falta queue:work)
+        if ($pageCount > 0 && $pageCount <= 3) {
+            $result = $processor->processMultiPage($storagePath, $originalFileName, $companyId);
+            if (Storage::disk('local')->exists($storagePath)) {
+                Storage::disk('local')->delete($storagePath);
+            }
+            if (isset($result['error'])) {
+                return back()->withErrors(['payroll' => $result['error']]);
+            }
+            $request->session()->put('pending_payroll_uploads', $result['pending']);
+            $request->session()->put('pending_payroll_upload_id', $result['upload_id']);
+            return redirect()->route('payroll.pending-send')->with('success', $result['message'] ?? '');
+        }
+
+        // Más de 3 páginas: procesar en segundo plano (necesita queue:work en marcha)
+        \App\Jobs\ProcessPayrollPdfJob::dispatch($token, $storagePath, $originalFileName, $companyId);
         return view('payroll.processing', ['token' => $token]);
     }
 

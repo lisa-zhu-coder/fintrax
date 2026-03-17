@@ -11,6 +11,15 @@ use Smalot\PdfParser\Parser as PdfParser;
 class PayrollPdfProcessor
 {
     /**
+     * Devuelve el número de páginas del PDF (rápido, sin procesar contenido).
+     */
+    public function getPageCount(string $storagePath): int
+    {
+        $path = Storage::disk('local')->path($storagePath);
+        return is_readable($path) ? $this->getPdfPageCount($path) : 0;
+    }
+
+    /**
      * Procesa un PDF multipágina y devuelve los datos para pending_payroll_uploads.
      * Ejecutar en job para no bloquear la petición.
      *

@@ -32,10 +32,11 @@ class ProcessPayrollPdfJob implements ShouldQueue
             $this->companyId,
         );
 
+        $cache = Cache::store('file');
         if (isset($result['error'])) {
-            Cache::put('payroll_error_' . $this->token, ['message' => $result['error']], 600);
+            $cache->put('payroll_error_' . $this->token, ['message' => $result['error']], 600);
         } else {
-            Cache::put('payroll_result_' . $this->token, [
+            $cache->put('payroll_result_' . $this->token, [
                 'pending' => $result['pending'],
                 'upload_id' => $result['upload_id'],
                 'message' => $result['message'],

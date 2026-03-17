@@ -259,10 +259,22 @@ class PayrollController extends Controller
                 }
             }
         }
-        Mail::mailer($mailer)->send([], [], function ($message) use ($to, $subject, $body, $path, $payroll, $fromAddress, $fromName) {
-            $message->from($fromAddress, $fromName)->to($to)->subject($subject)->setBody(new TextPart($body));
+        Mail::mailer($mailer)->raw($body, function ($message) use ($to, $subject, $path, $payroll, $fromAddress, $fromName) {
+            $message->from($fromAddress, $fromName)
+                ->to($to)
+                ->subject($subject);
+
             if ($path) {
-                $message->attach($path, ['as' => $payroll->file_name ?? 'nomina.pdf', 'mime' => 'application/pdf']);
+                if ($payroll->file_path && Storage::disk('local')->exists($payroll->file_path)) {
+                    $message->attachFromStorageDisk('local', $payroll->file_path, $payroll->file_name ?? 'nomina.pdf', [
+                        'mime' => 'application/pdf',
+                    ]);
+                } else {
+                    $message->attach($path, [
+                        'as' => $payroll->file_name ?? 'nomina.pdf',
+                        'mime' => 'application/pdf',
+                    ]);
+                }
             }
         });
         if ($path && str_starts_with($path, sys_get_temp_dir())) {

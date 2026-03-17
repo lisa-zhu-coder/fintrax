@@ -17,8 +17,8 @@ class PayrollController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:payroll.view')->only(['view', 'pendingSend', 'showSend']);
-        $this->middleware('permission:payroll.send')->only(['sendBulk', 'sendOne']);
+        $this->middleware('permission:payroll.view')->only(['view', 'pendingSend']);
+        $this->middleware('permission:payroll.send')->only(['sendBulk']);
         $this->middleware('permission:payroll.create')->only(['assignEmployee', 'pendingAssignEmployee']);
         $this->middleware('permission:payroll.delete')->only(['destroy', 'cancelPending', 'pendingRemove']);
     }
@@ -327,49 +327,6 @@ class PayrollController extends Controller
             $payroll->update(['file_name' => $newFileName]);
         }
         return response()->json(['success' => true, 'email' => $newEmployee->email, 'file_name' => $newFileName]);
-    }
-
-    public function showSend(Payroll $payroll)
-    {
-        $companyId = session('company_id') ?? Auth::user()?->company_id;
-        if (!$payroll->employee || $payroll->employee->company_id != $companyId) {
-            abort(404);
-        }
-        if ($payroll->sent_at) {
-            return redirect()->route('employees.show', $payroll->employee)->with('info', 'Esta nómina ya fue enviada.');
-        }
-        $templates = EmailTemplate::where('company_id', $companyId)->where('type', 'payroll')->orderBy('name')->get();
-        $company = Company::find($companyId);
-        $defaultSubject = 'Nómina {{mes}} - {{empresa}}';
-        $defaultBody = "Hola {{nombre}},\n\nAdjuntamos tu nómina correspondiente al mes de {{mes}}.\n\nUn saludo,\n{{empresa}}";
-        return view('payroll.send-one', compact('payroll', 'templates', 'company', 'defaultSubject', 'defaultBody'));
-    }
-
-    public function sendOne(Request $request, Payroll $payroll)
-    {
-        $companyId = session('company_id') ?? Auth::user()?->company_id;
-        if (!$payroll->employee || $payroll->employee->company_id != $companyId) {
-            abort(404);
-        }
-        if ($payroll->sent_at) {
-            return redirect()->route('employees.show', $payroll->employee)->with('info', 'Esta nómina ya fue enviada.');
-        }
-        $request->validate([
-            'email' => 'required|email',
-            'subject' => 'required|string|max:500',
-            'body' => 'required|string',
-        ]);
-        $email = $request->input('email');
-        $subject = $request->input('subject');
-        $body = $request->input('body');
-        try {
-            $this->sendPayrollEmail($payroll, $email, $subject, $body);
-            $payroll->update(['sent_at' => now(), 'sent_by' => Auth::id()]);
-        } catch (\Throwable $e) {
-            report($e);
-            return redirect()->route('payroll.send', $payroll)->withInput()->with('error', 'No se pudo enviar el correo: ' . $e->getMessage());
-        }
-        return redirect()->route('employees.show', $payroll->employee)->with('success', 'Nómina enviada correctamente a ' . $email);
     }
 
     public function destroy(Request $request, Payroll $payroll)

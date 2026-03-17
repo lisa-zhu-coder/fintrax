@@ -24,25 +24,16 @@
             </div>
             <div class="flex items-center gap-2">
                 @if(auth()->user()->hasPermission('hr.employees.configure'))
-                <form method="POST" action="{{ route('employees.payrolls.upload') }}" enctype="multipart/form-data" class="inline" id="formPayrollUploadAuto" data-pending-send-url="{{ route('payroll.pending-send') }}">
+                <form method="POST" action="{{ route('employees.payrolls.upload') }}" enctype="multipart/form-data" class="inline">
                     @csrf
-                    <input type="file" name="payroll" id="payrollFileInputAuto" accept=".pdf" class="hidden"/>
-                    <button type="button" id="btnPayrollUploadAuto" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" title="Puedes subir un PDF con una o varias nóminas; cada página se asignará al empleado por nombre, DNI o número de la seguridad social.">
+                    <input type="file" name="payroll" id="payrollFileInputAuto" accept=".pdf" class="hidden" onchange="this.form.submit()"/>
+                    <button type="button" onclick="document.getElementById('payrollFileInputAuto').click()" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" title="Puedes subir un PDF con una o varias nóminas; cada página se asignará al empleado por nombre, DNI o número de la seguridad social.">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                         Subir nómina
                     </button>
                 </form>
-                <div id="payrollUploadOverlay" class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-slate-900/60">
-                    <div id="payrollUploadOverlayContent" class="rounded-2xl bg-white p-8 shadow-xl text-center max-w-sm">
-                        <div class="inline-block h-10 w-10 animate-spin rounded-full border-2 border-brand-600 border-t-transparent mb-4" aria-hidden="true"></div>
-                        <p class="text-sm font-semibold text-slate-900">Procesando PDF…</p>
-                        <p class="text-xs text-slate-500 mt-1">Puede tardar un momento con varios documentos.</p>
-                        <p id="payrollUploadError" class="mt-3 text-sm text-rose-600 hidden"></p>
-                        <button type="button" id="payrollUploadCloseBtn" class="mt-4 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 hidden">Cerrar</button>
-                    </div>
-                </div>
                 @endif
                 @if(auth()->user()->hasPermission('hr.employees.create'))
                 <a href="{{ route('employees.create') }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
@@ -140,101 +131,4 @@
         </div>
     </div>
 </div>
-
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var input = document.getElementById('payrollFileInputAuto');
-    var form = document.getElementById('formPayrollUploadAuto');
-    var overlay = document.getElementById('payrollUploadOverlay');
-    var overlayContent = document.getElementById('payrollUploadOverlayContent');
-    var errEl = document.getElementById('payrollUploadError');
-    var closeBtn = document.getElementById('payrollUploadCloseBtn');
-    var btn = document.getElementById('btnPayrollUploadAuto');
-
-    function showOverlay(loading) {
-        overlay.classList.remove('hidden');
-        if (overlayContent) {
-            overlayContent.querySelector('.animate-spin').classList.toggle('hidden', !loading);
-            overlayContent.querySelector('.text-slate-900').textContent = loading ? 'Procesando PDF…' : '';
-            overlayContent.querySelector('.text-slate-500').textContent = loading ? 'Puede tardar un momento con varios documentos.' : '';
-        }
-        if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
-        if (closeBtn) closeBtn.classList.add('hidden');
-    }
-    function showError(msg) {
-        if (overlayContent) {
-            overlayContent.querySelector('.animate-spin').classList.add('hidden');
-            overlayContent.querySelector('.text-slate-900').textContent = 'Error';
-            overlayContent.querySelector('.text-slate-500').textContent = '';
-        }
-        if (errEl) { errEl.textContent = msg || 'Error al procesar.'; errEl.classList.remove('hidden'); }
-        if (closeBtn) closeBtn.classList.remove('hidden');
-    }
-    function hideOverlay() {
-        overlay.classList.add('hidden');
-        if (input) input.value = '';
-    }
-
-    if (btn && input) btn.addEventListener('click', function() { input.click(); });
-    if (input && form && overlay) {
-        input.addEventListener('change', function() {
-            if (!this.files || this.files.length === 0) return;
-            showOverlay(true);
-            var formData = new FormData(form);
-            var url = form.getAttribute('action');
-            var token = form.querySelector('input[name="_token"]');
-            if (token) formData.append('_token', token.value);
-            var controller = new AbortController();
-            var timeoutId = setTimeout(function() { controller.abort(); }, 120000);
-            var pendingSendUrl = form.getAttribute('data-pending-send-url') || '';
-            fetch(url, {
-                method: 'POST',
-                body: formData,
-                signal: controller.signal,
-                redirect: 'manual',
-                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
-            }).then(function(r) {
-                clearTimeout(timeoutId);
-                var status = r.status;
-                if (status >= 200 && status < 300) {
-                    if (pendingSendUrl) {
-                        window.location.href = pendingSendUrl;
-                        return;
-                    }
-                    var ct = (r.headers.get('Content-Type') || '');
-                    if (ct.indexOf('application/json') !== -1) {
-                        return r.json().then(function(data) {
-                            if (data.redirect) { window.location.href = data.redirect; return; }
-                            if (pendingSendUrl) { window.location.href = pendingSendUrl; return; }
-                            showError(data.message || 'No se pudo procesar.');
-                        });
-                    }
-                    if (pendingSendUrl) window.location.href = pendingSendUrl;
-                    return;
-                }
-                if (status >= 300 && status < 400) {
-                    var loc = r.headers.get('Location');
-                    window.location.href = loc || pendingSendUrl || url;
-                    return;
-                }
-                return r.text().then(function(text) {
-                    var msg = 'No se pudo procesar el PDF.';
-                    try {
-                        var data = JSON.parse(text);
-                        msg = data.message || (data.errors && Object.values(data.errors).flat().join(' ')) || msg;
-                    } catch (_) {}
-                    showError(msg);
-                });
-            }).catch(function(e) {
-                clearTimeout(timeoutId);
-                if (e.name === 'AbortError') showError('Tiempo agotado. Prueba con menos páginas o inténtalo más tarde.');
-                else showError('Error de conexión. Comprueba la red e inténtalo de nuevo.');
-            });
-        });
-    }
-    if (closeBtn) closeBtn.addEventListener('click', hideOverlay);
-});
-</script>
-@endpush
 @endsection

@@ -18,6 +18,10 @@ class Company extends Model
         'address',
         'email',
         'phone',
+        'fiscal_street',
+        'fiscal_postal_code',
+        'fiscal_city',
+        'fiscal_email',
         // Campos para futuro (planes, límites)
         'plan',
         'max_users',

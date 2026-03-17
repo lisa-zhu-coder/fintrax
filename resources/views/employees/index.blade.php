@@ -109,7 +109,7 @@
                                         @endif
                                     @else
                                         @if(auth()->user()->hasPermission('hr.employees.delete'))
-                                        <form method="POST" action="{{ route('employees.destroy', $employee) }}" class="inline" onsubmit="return confirm('¿Archivar a este empleado? No se borrarán sus datos y podrás restaurarlo desde la lista de archivados.');">
+                                        <form method="POST" action="{{ route('employees.destroy', $employee) }}" class="inline" data-confirm-title="Archivar empleado" data-confirm-message="¿Archivar a este empleado? No se borrarán sus datos y podrás restaurarlo desde la lista de archivados." data-confirm-ok="Archivar">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50">

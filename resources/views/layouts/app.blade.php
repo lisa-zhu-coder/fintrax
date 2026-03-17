@@ -1441,6 +1441,7 @@
                 }
             });
 
+            var titleEl = document.getElementById('confirmDeleteTitle');
             document.addEventListener('submit', function(e) {
                 var f = e.target;
                 if (f.tagName !== 'FORM') return;
@@ -1451,11 +1452,20 @@
                 if (f.getAttribute('data-delete-confirmed') === '1') return;
                 e.preventDefault();
                 var formToSubmit = f;
-                confirmDelete('¿Estás seguro de que deseas eliminar este registro?').then(function(ok) {
+                var customMsg = f.getAttribute('data-confirm-message');
+                var customTitle = f.getAttribute('data-confirm-title');
+                var customOk = f.getAttribute('data-confirm-ok');
+                var defaultTitle = 'Eliminar registro';
+                var defaultMsg = '¿Estás seguro de que deseas eliminar este registro?';
+                if (titleEl) titleEl.textContent = customTitle || defaultTitle;
+                if (btnOk && customOk) btnOk.textContent = customOk;
+                confirmDelete(customMsg || defaultMsg).then(function(ok) {
                     if (ok && formToSubmit) {
                         formToSubmit.setAttribute('data-delete-confirmed', '1');
                         formToSubmit.submit();
                     }
+                    if (titleEl) titleEl.textContent = defaultTitle;
+                    if (btnOk) btnOk.textContent = 'Eliminar';
                 });
             }, true);
         })();

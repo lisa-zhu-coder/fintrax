@@ -122,8 +122,7 @@ class PayrollController extends Controller
             if ($result !== null) {
                 $request->session()->put('pending_payroll_uploads', $result['pending']);
                 $request->session()->put('pending_payroll_upload_id', $result['upload_id']);
-                Cache::forget('payroll_result_' . $token);
-                // Mostrar la pantalla en esta misma petición (sin segundo redirect) para evitar perder sesión
+                // No borrar la caché aquí: el POST de "Guardar y enviar" puede ir a otro servidor y no tener sesión; recuperaremos por token
                 $pending = $result['pending'];
                 $companyId = session('company_id') ?? Auth::user()?->company_id;
                 $employees = Employee::where('company_id', $companyId)->orderBy('full_name')->get(['id', 'full_name', 'email']);
@@ -140,7 +139,7 @@ class PayrollController extends Controller
                 }
                 $templates = EmailTemplate::where('company_id', $companyId)->where('type', 'payroll')->orderBy('name')->get();
                 $company = Company::find($companyId);
-                return view('payroll.pending-send', compact('pendingRows', 'templates', 'company', 'employees'))->with('success', $result['message'] ?? '');
+                return view('payroll.pending-send', compact('pendingRows', 'templates', 'company', 'employees', 'token'))->with('success', $result['message'] ?? '');
             }
             return redirect()->route('employees.index')->with('error', 'No se encontraron los datos del PDF (puede haber expirado). Sube el PDF de nuevo.');
         }
@@ -164,7 +163,8 @@ class PayrollController extends Controller
         }
         $templates = EmailTemplate::where('company_id', $companyId)->where('type', 'payroll')->orderBy('name')->get();
         $company = Company::find($companyId);
-        return view('payroll.pending-send', compact('pendingRows', 'templates', 'company', 'employees'));
+        $token = null;
+        return view('payroll.pending-send', compact('pendingRows', 'templates', 'company', 'employees', 'token'));
     }
 
     public function sendBulk(Request $request)
@@ -183,6 +183,18 @@ class PayrollController extends Controller
         $body = $request->input('body');
         $companyId = session('company_id') ?? Auth::user()?->company_id;
         $pending = $request->session()->get('pending_payroll_uploads', []);
+        $uploadId = $request->session()->get('pending_payroll_upload_id');
+
+        // Si la sesión no tiene los datos (p. ej. otro servidor), recuperar desde caché con el token del formulario
+        $payrollToken = $request->input('payroll_token');
+        if (empty($pending) && $payrollToken !== null && $payrollToken !== '') {
+            $result = Cache::get('payroll_result_' . $payrollToken);
+            if ($result !== null) {
+                $pending = $result['pending'];
+                $uploadId = $result['upload_id'];
+            }
+        }
+
         $sent = 0;
         $errors = [];
         if (empty($pending) && !empty($ids) && max($ids) < 1000) {
@@ -244,11 +256,13 @@ class PayrollController extends Controller
                     $errors[] = 'Nómina ' . $customFileName . ': ' . $e->getMessage();
                 }
             }
-            $uploadId = $request->session()->get('pending_payroll_upload_id');
             if ($uploadId) {
                 Storage::disk('local')->deleteDirectory('temp_payrolls/' . $uploadId);
             }
             $request->session()->forget(['pending_payroll_uploads', 'pending_payroll_upload_id']);
+            if ($payrollToken !== null && $payrollToken !== '') {
+                Cache::forget('payroll_result_' . $payrollToken);
+            }
         } else {
             $payrollIds = array_filter($ids, fn ($id) => is_numeric($id));
             $payrolls = Payroll::with('employee')->whereIn('id', $payrollIds)->whereNull('sent_at')->get();

@@ -600,6 +600,11 @@ class EmployeeController extends Controller
             'payroll' => 'required|file|mimes:pdf|max:51200', // 50 MB para PDFs con muchas nóminas
         ]);
 
+        set_time_limit(300); // 5 minutos: todo se procesa en esta petición (no hace falta queue:work)
+        if (ini_get('memory_limit') !== '-1') {
+            @ini_set('memory_limit', '512M');
+        }
+
         $file = $request->file('payroll');
         $originalFileName = $file->getClientOriginalName();
         $companyId = (int) (session('company_id') ?? Auth::user()?->company_id ?? 0);
@@ -612,25 +617,27 @@ class EmployeeController extends Controller
         $file->storeAs('temp_payroll_uploads', $token . '.pdf', 'local');
 
         $processor = app(\App\Services\PayrollPdfProcessor::class);
-        $pageCount = $processor->getPageCount($storagePath);
+        $result = $processor->processMultiPage($storagePath, $originalFileName, $companyId);
 
-        // PDFs de 3 páginas o menos: procesar en la misma petición (no hace falta queue:work)
-        if ($pageCount > 0 && $pageCount <= 3) {
-            $result = $processor->processMultiPage($storagePath, $originalFileName, $companyId);
-            if (Storage::disk('local')->exists($storagePath)) {
-                Storage::disk('local')->delete($storagePath);
-            }
-            if (isset($result['error'])) {
-                return back()->withErrors(['payroll' => $result['error']]);
-            }
-            $request->session()->put('pending_payroll_uploads', $result['pending']);
-            $request->session()->put('pending_payroll_upload_id', $result['upload_id']);
-            return redirect()->route('payroll.pending-send')->with('success', $result['message'] ?? '');
+        if (Storage::disk('local')->exists($storagePath)) {
+            Storage::disk('local')->delete($storagePath);
         }
 
-        // Más de 3 páginas: procesar en segundo plano (necesita queue:work en marcha)
-        \App\Jobs\ProcessPayrollPdfJob::dispatch($token, $storagePath, $originalFileName, $companyId);
-        return view('payroll.processing', ['token' => $token]);
+        if (isset($result['error'])) {
+            return back()->withErrors(['payroll' => $result['error']]);
+        }
+
+        // Guardar en caché para que "Guardar y enviar" funcione aunque la sesión no persista (varios servidores)
+        \Illuminate\Support\Facades\Cache::put('payroll_result_' . $token, [
+            'pending' => $result['pending'],
+            'upload_id' => $result['upload_id'],
+            'message' => $result['message'] ?? '',
+        ], 600);
+
+        $request->session()->put('pending_payroll_uploads', $result['pending']);
+        $request->session()->put('pending_payroll_upload_id', $result['upload_id']);
+
+        return redirect()->route('payroll.pending-send', ['token' => $token])->with('success', $result['message'] ?? '');
     }
 
     private function findEmployeeByFile($fileName, $pdfText = '')

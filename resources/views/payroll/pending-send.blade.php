@@ -11,6 +11,9 @@
 
     <form method="POST" action="{{ route('payroll.send-bulk') }}" id="formSendBulk" class="space-y-6">
         @csrf
+        @if(!empty($token ?? null))
+        <input type="hidden" name="payroll_token" value="{{ $token }}">
+        @endif
 
         <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
             <h2 class="mb-4 text-base font-semibold text-slate-900">Configuración del envío</h2>

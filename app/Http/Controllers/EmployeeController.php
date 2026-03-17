@@ -670,6 +670,9 @@ class EmployeeController extends Controller
                 if (!empty($failedPages)) {
                     $message .= 'Asegúrate de que cada nómina contenga el nombre, DNI o número de la seguridad social del empleado.';
                 }
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json(['success' => false, 'message' => $message], 422);
+                }
                 return back()->withErrors(['payroll' => $message]);
             }
 
@@ -681,7 +684,15 @@ class EmployeeController extends Controller
             if (!empty($failedPages)) {
                 $message .= ' No se pudo asignar la(s) página(s) ' . implode(', ', $failedPages) . ' (empleado no identificado).';
             }
+            $request->session()->flash('success', $message);
 
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'redirect' => route('payroll.pending-send'),
+                    'message' => $message,
+                ]);
+            }
             return redirect()->route('payroll.pending-send')->with('success', $message);
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
@@ -692,7 +703,11 @@ class EmployeeController extends Controller
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            return back()->withErrors(['payroll' => 'Error al procesar el PDF. Comprueba que el archivo sea válido y no esté protegido. Si el error continúa, contacta con soporte.']);
+            $errorMessage = 'Error al procesar el PDF. Comprueba que el archivo sea válido y no esté protegido. Si el error continúa, contacta con soporte.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $errorMessage], 500);
+            }
+            return back()->withErrors(['payroll' => $errorMessage]);
         }
     }
 

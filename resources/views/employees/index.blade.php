@@ -35,10 +35,12 @@
                     </button>
                 </form>
                 <div id="payrollUploadOverlay" class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-slate-900/60">
-                    <div class="rounded-2xl bg-white p-8 shadow-xl text-center max-w-sm">
+                    <div id="payrollUploadOverlayContent" class="rounded-2xl bg-white p-8 shadow-xl text-center max-w-sm">
                         <div class="inline-block h-10 w-10 animate-spin rounded-full border-2 border-brand-600 border-t-transparent mb-4" aria-hidden="true"></div>
                         <p class="text-sm font-semibold text-slate-900">Procesando PDF…</p>
                         <p class="text-xs text-slate-500 mt-1">Puede tardar un momento con varios documentos.</p>
+                        <p id="payrollUploadError" class="mt-3 text-sm text-rose-600 hidden"></p>
+                        <button type="button" id="payrollUploadCloseBtn" class="mt-4 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 hidden">Cerrar</button>
                     </div>
                 </div>
                 @endif
@@ -145,15 +147,69 @@ document.addEventListener('DOMContentLoaded', function() {
     var input = document.getElementById('payrollFileInputAuto');
     var form = document.getElementById('formPayrollUploadAuto');
     var overlay = document.getElementById('payrollUploadOverlay');
+    var overlayContent = document.getElementById('payrollUploadOverlayContent');
+    var errEl = document.getElementById('payrollUploadError');
+    var closeBtn = document.getElementById('payrollUploadCloseBtn');
     var btn = document.getElementById('btnPayrollUploadAuto');
+
+    function showOverlay(loading) {
+        overlay.classList.remove('hidden');
+        if (overlayContent) {
+            overlayContent.querySelector('.animate-spin').classList.toggle('hidden', !loading);
+            overlayContent.querySelector('.text-slate-900').textContent = loading ? 'Procesando PDF…' : '';
+            overlayContent.querySelector('.text-slate-500').textContent = loading ? 'Puede tardar un momento con varios documentos.' : '';
+        }
+        if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+        if (closeBtn) closeBtn.classList.add('hidden');
+    }
+    function showError(msg) {
+        if (overlayContent) {
+            overlayContent.querySelector('.animate-spin').classList.add('hidden');
+            overlayContent.querySelector('.text-slate-900').textContent = 'Error';
+            overlayContent.querySelector('.text-slate-500').textContent = '';
+        }
+        if (errEl) { errEl.textContent = msg || 'Error al procesar.'; errEl.classList.remove('hidden'); }
+        if (closeBtn) closeBtn.classList.remove('hidden');
+    }
+    function hideOverlay() {
+        overlay.classList.add('hidden');
+        if (input) input.value = '';
+    }
+
     if (btn && input) btn.addEventListener('click', function() { input.click(); });
     if (input && form && overlay) {
         input.addEventListener('change', function() {
             if (!this.files || this.files.length === 0) return;
-            overlay.classList.remove('hidden');
-            form.submit();
+            showOverlay(true);
+            var formData = new FormData(form);
+            var url = form.getAttribute('action');
+            var token = form.querySelector('input[name="_token"]');
+            if (token) formData.append('_token', token.value);
+            var controller = new AbortController();
+            var timeoutId = setTimeout(function() { controller.abort(); }, 120000);
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                signal: controller.signal,
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            }).then(function(r) {
+                clearTimeout(timeoutId);
+                return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }).catch(function() { return { ok: r.ok, status: r.status, data: {} }; });
+            }).then(function(result) {
+                if (result.ok && result.data.redirect) {
+                    window.location.href = result.data.redirect;
+                    return;
+                }
+                var msg = (result.data && result.data.message) || (result.data && result.data.errors && Object.values(result.data.errors).flat().join(' ')) || 'No se pudo procesar el PDF.';
+                showError(msg);
+            }).catch(function(e) {
+                clearTimeout(timeoutId);
+                if (e.name === 'AbortError') showError('Tiempo agotado. Prueba con menos páginas o inténtalo más tarde.');
+                else showError('Error de conexión. Comprueba la red e inténtalo de nuevo.');
+            });
         });
     }
+    if (closeBtn) closeBtn.addEventListener('click', hideOverlay);
 });
 </script>
 @endpush

@@ -29,6 +29,14 @@ class Company extends Model
         'daily_close_pos_cash_label',
         'daily_close_pos_card_label',
         'daily_close_vouchers_enabled',
+        // Configuración correo RRHH (nóminas/documentos)
+        'rrhh_mail_from_address',
+        'rrhh_mail_from_name',
+        'rrhh_mail_smtp_host',
+        'rrhh_mail_smtp_port',
+        'rrhh_mail_smtp_username',
+        'rrhh_mail_smtp_password',
+        'rrhh_mail_encryption',
     ];
 
     protected $casts = [

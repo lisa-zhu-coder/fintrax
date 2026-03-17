@@ -19,6 +19,7 @@ return [
         'view_salary_store' => 'Ver salario bruto y neto (todos los empleados)',
         'edit_initial' => 'Editar inicial',
         'manage' => 'Gestionar',
+        'send' => 'Enviar',
     ],
 
     'modules' => [
@@ -123,8 +124,16 @@ return [
             'label' => 'RR.HH.',
             'items' => [
                 ['key' => 'employees', 'label' => 'Empleados', 'actions' => ['view_own', 'view_store', 'view_salary_own', 'view_salary_store', 'create', 'edit', 'delete', 'configure']],
+                ['key' => 'documents', 'label' => 'Documentos empleados', 'actions' => ['view', 'create', 'delete']],
                 ['key' => 'overtime', 'label' => 'Horas extras', 'actions' => ['view_own', 'view_store', 'create', 'edit', 'delete']],
                 ['key' => 'vacations', 'label' => 'Vacaciones', 'actions' => ['view', 'edit']],
+            ],
+        ],
+        [
+            'key' => 'payroll',
+            'label' => 'Nóminas',
+            'items' => [
+                ['key' => 'main', 'label' => 'Nóminas', 'actions' => ['view', 'create', 'delete', 'send']],
             ],
         ],
         [
@@ -139,6 +148,7 @@ return [
                 ['key' => 'daily_close', 'label' => 'Cierre de caja', 'actions' => ['view', 'edit']],
                 ['key' => 'expense_categories', 'label' => 'Categorías de gastos', 'actions' => ['view', 'create', 'edit', 'delete']],
                 ['key' => 'loan_types', 'label' => 'Tipos de préstamo', 'actions' => ['manage']],
+                ['key' => 'payroll_templates', 'label' => 'Plantillas de email RRHH', 'actions' => ['manage']],
             ],
         ],
         [

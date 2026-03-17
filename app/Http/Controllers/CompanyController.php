@@ -88,6 +88,28 @@ class CompanyController extends Controller
         return redirect()->route('company.show')->with('success', 'Datos de la empresa actualizados correctamente.');
     }
 
+    public function updateRrhhMail(Request $request)
+    {
+        $validated = $request->validate([
+            'rrhh_mail_from_address' => 'nullable|email|max:255',
+            'rrhh_mail_from_name' => 'nullable|string|max:255',
+            'rrhh_mail_smtp_host' => 'nullable|string|max:255',
+            'rrhh_mail_smtp_port' => 'nullable|integer|min:1|max:65535',
+            'rrhh_mail_smtp_username' => 'nullable|string|max:255',
+            'rrhh_mail_smtp_password' => 'nullable|string|max:255',
+            'rrhh_mail_encryption' => 'nullable|string|in:tls,ssl',
+        ]);
+        $company = Company::first();
+        if (!$company) {
+            return redirect()->route('company.show')->with('error', 'No hay empresa configurada.');
+        }
+        if (isset($validated['rrhh_mail_smtp_password']) && $validated['rrhh_mail_smtp_password'] === '') {
+            unset($validated['rrhh_mail_smtp_password']);
+        }
+        $company->update($validated);
+        return redirect()->route('company.show')->with('success', 'Configuración de correo RRHH actualizada.');
+    }
+
     public function storeBusiness(Request $request)
     {
         $validated = $request->validate([

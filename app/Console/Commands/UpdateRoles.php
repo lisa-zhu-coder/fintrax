@@ -97,16 +97,19 @@ class UpdateRoles extends Command
         $perms = array_fill_keys($allKeys, false);
         $grant = [
             'dashboard', 'financial', 'treasury', 'loans', 'objectives', 'declared_sales',
-            'invoices', 'orders', 'inventory', 'sales', 'hr',
+            'invoices', 'orders', 'inventory', 'sales', 'hr', 'payroll',
         ];
         foreach ($grant as $moduleKey) {
             foreach ($byModule[$moduleKey] ?? [] as $key) {
                 $perms[$key] = true;
             }
         }
-        // Manager: tipos de préstamo en Ajustes
+        // Manager: tipos de préstamo y plantillas email RRHH en Ajustes
         if (isset($perms['settings.loan_types.manage'])) {
             $perms['settings.loan_types.manage'] = true;
+        }
+        if (isset($perms['settings.payroll_templates.manage'])) {
+            $perms['settings.payroll_templates.manage'] = true;
         }
         return $perms;
     }

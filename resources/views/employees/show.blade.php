@@ -178,6 +178,48 @@
             </div>
             @endif
 
+            @if(auth()->user()->hasPermission('rrhh.documents.view'))
+            <!-- Documentos -->
+            <div class="rounded-xl border-2 border-slate-200 bg-slate-50/50 p-4 ring-1 ring-slate-200">
+                <div class="mb-4 flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-slate-900">Documentos</h3>
+                    @if(auth()->user()->hasPermission('rrhh.documents.create'))
+                    <button type="button" onclick="document.getElementById('modalDocument').classList.remove('hidden')" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        Subir documento
+                    </button>
+                    @endif
+                </div>
+                <div class="space-y-2">
+                    @forelse($employee->documents as $doc)
+                    <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3 ring-1 ring-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 text-slate-600">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                            </div>
+                            <div>
+                                <div class="text-sm font-semibold text-slate-900">{{ $doc->title }}</div>
+                                <div class="text-xs text-slate-500">{{ $doc->document_date->format('d/m/Y') }} · {{ \App\Models\EmployeeDocument::TYPES[$doc->type] ?? $doc->type }}</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <a href="{{ route('employees.documents.download', [$employee, $doc]) }}" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">Descargar</a>
+                            @if(auth()->user()->hasPermission('rrhh.documents.delete'))
+                            <form method="POST" action="{{ route('employees.documents.destroy', [$employee, $doc]) }}" class="inline" onsubmit="return confirm('¿Eliminar este documento?');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">Eliminar</button>
+                            </form>
+                            @endif
+                        </div>
+                    </div>
+                    @empty
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-500">No hay documentos.</div>
+                    @endforelse
+                </div>
+            </div>
+            @endif
+
             <!-- Nóminas -->
             <div class="rounded-xl border-2 border-indigo-100 bg-indigo-50/30 p-4 ring-1 ring-indigo-100">
                 <div class="mb-4 flex items-center justify-between">
@@ -207,7 +249,7 @@
                                 </div>
                                 <div>
                                     <div class="text-sm font-semibold text-slate-900">{{ $payroll->file_name }}</div>
-                                    <div class="text-xs text-slate-500">{{ $payroll->date->format('d/m/Y') }}</div>
+                                    <div class="text-xs text-slate-500">{{ $payroll->date ? $payroll->date->format('d/m/Y') : '—' }} @if($payroll->sent_at)<span class="text-emerald-600">· Enviado</span>@else<span class="text-amber-600">· Pendiente</span>@endif</div>
                                 </div>
                             </div>
                             <a href="{{ route('payrolls.view', $payroll) }}" target="_blank" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">
@@ -224,4 +266,42 @@
         </div>
     </div>
 </div>
+
+@if(auth()->user()->hasPermission('rrhh.documents.create'))
+<div id="modalDocument" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-slate-900/50" onclick="document.getElementById('modalDocument').classList.add('hidden')"></div>
+        <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
+            <h3 class="mb-4 text-lg font-semibold text-slate-900">Subir documento</h3>
+            <form method="POST" action="{{ route('employees.documents.store', $employee) }}" enctype="multipart/form-data" class="space-y-4">
+                @csrf
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Tipo de documento</span>
+                    <select name="type" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                        @foreach(\App\Models\EmployeeDocument::TYPES as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Nombre o título</span>
+                    <input type="text" name="title" required maxlength="255" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Ej. Contrato indefinido">
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Fecha</span>
+                    <input type="date" name="document_date" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Archivo (PDF)</span>
+                    <input type="file" name="file" accept=".pdf" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                </label>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="document.getElementById('modalDocument').classList.add('hidden')" class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
+                    <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Subir</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
 @endsection

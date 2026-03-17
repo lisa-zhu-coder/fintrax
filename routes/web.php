@@ -62,11 +62,18 @@ Route::middleware(['auth', 'company'])->group(function () {
     // Empleados (quick-user antes del resource para que no coincida con {employee})
     Route::post('employees/quick-user', [EmployeeController::class, 'storeQuickUser'])->name('employees.quick-user');
     Route::resource('employees', EmployeeController::class);
+    Route::post('employees/{employee}/documents', [EmployeeController::class, 'storeDocument'])->name('employees.documents.store');
+    Route::get('employees/{employee}/documents/{document}/download', [EmployeeController::class, 'downloadDocument'])->name('employees.documents.download');
+    Route::delete('employees/{employee}/documents/{document}', [EmployeeController::class, 'destroyDocument'])->name('employees.documents.destroy');
     Route::post('employees/{employee}/payrolls', [EmployeeController::class, 'uploadPayroll'])->name('employees.payrolls');
     Route::post('employees/payrolls/upload', [EmployeeController::class, 'uploadPayrollAuto'])->name('employees.payrolls.upload');
     
     // Nóminas
     Route::get('payrolls/{payroll}/view', [\App\Http\Controllers\PayrollController::class, 'view'])->name('payrolls.view');
+    Route::get('payroll/pending-send', [\App\Http\Controllers\PayrollController::class, 'pendingSend'])->name('payroll.pending-send');
+    Route::post('payroll/send-bulk', [\App\Http\Controllers\PayrollController::class, 'sendBulk'])->name('payroll.send-bulk');
+    Route::patch('payroll/{payroll}/assign', [\App\Http\Controllers\PayrollController::class, 'assignEmployee'])->name('payroll.assign');
+    Route::delete('payroll/{payroll}', [\App\Http\Controllers\PayrollController::class, 'destroy'])->name('payroll.destroy');
     
     // Pedidos (vista principal = listado de proveedores; segundo nivel = pedidos del proveedor)
     Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
@@ -118,6 +125,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     // Empresa
     Route::get('/company', [CompanyController::class, 'show'])->name('company.show');
     Route::put('/company', [CompanyController::class, 'update'])->name('company.update');
+    Route::put('/company/rrhh-mail', [CompanyController::class, 'updateRrhhMail'])->name('company.update-rrhh-mail');
     Route::post('/company/businesses', [CompanyController::class, 'storeBusiness'])->name('company.businesses.store');
     Route::put('/company/businesses/{business}', [CompanyController::class, 'updateBusiness'])->name('company.businesses.update');
     Route::delete('/company/businesses/{business}', [CompanyController::class, 'destroyBusiness'])->name('company.businesses.destroy');
@@ -292,6 +300,13 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::post('/settings/loan-types', [LoanTypeController::class, 'store'])->name('loan-types-settings.store');
     Route::put('/settings/loan-types/{loanType}', [LoanTypeController::class, 'update'])->name('loan-types-settings.update');
     Route::delete('/settings/loan-types/{loanType}', [LoanTypeController::class, 'destroy'])->name('loan-types-settings.destroy');
+    // Plantillas de email RRHH
+    Route::get('/settings/email-templates', [\App\Http\Controllers\EmailTemplateController::class, 'index'])->name('email-templates-settings.index');
+    Route::get('/settings/email-templates/create', [\App\Http\Controllers\EmailTemplateController::class, 'create'])->name('email-templates-settings.create');
+    Route::post('/settings/email-templates', [\App\Http\Controllers\EmailTemplateController::class, 'store'])->name('email-templates-settings.store');
+    Route::get('/settings/email-templates/{email_template}/edit', [\App\Http\Controllers\EmailTemplateController::class, 'edit'])->name('email-templates-settings.edit');
+    Route::put('/settings/email-templates/{email_template}', [\App\Http\Controllers\EmailTemplateController::class, 'update'])->name('email-templates-settings.update');
+    Route::delete('/settings/email-templates/{email_template}', [\App\Http\Controllers\EmailTemplateController::class, 'destroy'])->name('email-templates-settings.destroy');
 
     // Carteras de Efectivo
     Route::get('/cash-wallets', [CashWalletController::class, 'index'])->name('cash-wallets.index');

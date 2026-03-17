@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
@@ -27,6 +28,9 @@ class EmployeeController extends Controller
         $this->middleware('permission:hr.employees.edit')->only(['edit', 'update']);
         $this->middleware('permission:hr.employees.delete')->only(['destroy']);
         $this->middleware('permission:hr.employees.configure')->only(['uploadPayroll', 'uploadPayrollAuto']);
+        $this->middleware('permission:rrhh.documents.create')->only(['storeDocument']);
+        $this->middleware('permission:rrhh.documents.delete')->only(['destroyDocument']);
+        $this->middleware('permission:rrhh.documents.view')->only(['downloadDocument']);
     }
 
     public function index()
@@ -237,7 +241,7 @@ class EmployeeController extends Controller
             abort(403, 'Solo puedes ver tu propia ficha de empleado.');
         }
 
-        $employee->load(['user.role', 'stores', 'payrolls']);
+        $employee->load(['user.role', 'stores', 'payrolls', 'documents']);
         $totalStores = Store::count();
         return view('employees.show', compact('employee', 'totalStores'));
     }
@@ -449,6 +453,77 @@ class EmployeeController extends Controller
         return redirect()->route('employees.index')->with('success', 'Empleado eliminado correctamente.');
     }
 
+    public function storeDocument(Request $request, Employee $employee)
+    {
+        $user = Auth::user();
+        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+            $enforcedStoreId = $user->getEnforcedStoreId();
+            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+                abort(403, 'No tienes acceso a este empleado.');
+            }
+        }
+        $validated = $request->validate([
+            'type' => 'required|in:contrato,anexo,DNI,certificado,otros',
+            'title' => 'required|string|max:255',
+            'document_date' => 'required|date',
+            'file' => 'required|file|mimes:pdf|max:20480',
+        ]);
+        $file = $request->file('file');
+        $dir = 'employee_documents/' . $employee->id;
+        $filename = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
+        $path = $file->storeAs($dir, $filename, 'local');
+        $employee->documents()->create([
+            'type' => $validated['type'],
+            'title' => $validated['title'],
+            'document_date' => $validated['document_date'],
+            'file_path' => $path,
+            'uploaded_by' => $user->id,
+        ]);
+        return redirect()->route('employees.show', $employee)->with('success', 'Documento subido correctamente.');
+    }
+
+    public function destroyDocument(Employee $employee, EmployeeDocument $document)
+    {
+        if ($document->employee_id !== $employee->id) {
+            abort(404);
+        }
+        $user = Auth::user();
+        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+            $enforcedStoreId = $user->getEnforcedStoreId();
+            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+                abort(403, 'No tienes acceso a este empleado.');
+            }
+        }
+        Storage::disk('local')->delete($document->file_path);
+        $document->delete();
+        return redirect()->route('employees.show', $employee)->with('success', 'Documento eliminado.');
+    }
+
+    public function downloadDocument(Employee $employee, EmployeeDocument $document)
+    {
+        if ($document->employee_id !== $employee->id) {
+            abort(404);
+        }
+        $user = Auth::user();
+        if (!$user->hasPermission('rrhh.documents.view')) {
+            abort(403);
+        }
+        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+            $enforcedStoreId = $user->getEnforcedStoreId();
+            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+                abort(403, 'No tienes acceso a este empleado.');
+            }
+        }
+        if (!Storage::disk('local')->exists($document->file_path)) {
+            abort(404, 'Archivo no encontrado.');
+        }
+        return Storage::disk('local')->download(
+            $document->file_path,
+            $document->title . '.pdf',
+            ['Content-Type' => 'application/pdf']
+        );
+    }
+
     public function uploadPayroll(Request $request, Employee $employee)
     {
         $request->validate([
@@ -456,33 +531,47 @@ class EmployeeController extends Controller
             'payrolls.*' => 'file|mimes:pdf|max:10240',
         ]);
 
+        $createdIds = [];
+        $errors = [];
         foreach ($request->file('payrolls') as $file) {
-            $base64 = base64_encode(file_get_contents($file->getRealPath()));
-            
-            // Procesar PDF para extraer información
             $pdfData = $this->processPayrollPDF($file);
-            
-            // Usar mes y año actuales si no se puede extraer del archivo
             $date = $pdfData['date'] ?? now();
-            // Asegurar que la fecha sea el primer día del mes actual
             if ($date->format('Y-m') !== now()->format('Y-m')) {
-                $date = now()->startOfMonth();
+                $date = now()->copy()->startOfMonth();
             }
-            
-            $fileName = $this->generatePayrollFileName($employee->full_name, $date, $file->getClientOriginalName());
-            
-            // Buscar coincidencias con el empleado
-            $matchedBy = $this->matchEmployeeInPDF($pdfData['text'], $employee);
-            
-            $employee->payrolls()->create([
+            $month = (int) $date->month;
+            $year = (int) $date->year;
+
+            if ($employee->payrolls()->where('month', $month)->where('year', $year)->exists()) {
+                $errors[] = "Ya existe una nómina para {$this->getSpanishMonthName($month)} {$year}. No se sube el archivo duplicado.";
+                continue;
+            }
+
+            $fileName = $this->generatePayrollFileName($employee->full_name, $date);
+            $dir = 'payrolls/' . $employee->id;
+            $path = $file->storeAs($dir, $fileName, 'local');
+
+            $matchedBy = $this->matchEmployeeInPDF($pdfData['text'] ?? '', $employee);
+            $payroll = $employee->payrolls()->create([
                 'file_name' => $fileName,
                 'date' => $date,
-                'base64_content' => $base64,
+                'month' => $month,
+                'year' => $year,
+                'file_path' => $path,
+                'base64_content' => null,
                 'matched_by' => $matchedBy,
             ]);
+            $createdIds[] = $payroll->id;
         }
 
-        return back()->with('success', 'Nóminas subidas correctamente.');
+        if (!empty($errors)) {
+            $request->session()->flash('warning', implode(' ', $errors));
+        }
+        if (empty($createdIds)) {
+            return back()->with('error', empty($errors) ? 'No se pudo procesar ningún archivo.' : 'No se subió ninguna nómina nueva.');
+        }
+        $request->session()->flash('success', count($createdIds) . ' nómina(s) subida(s) correctamente.');
+        return redirect()->route('payroll.pending-send')->with('pending_payroll_ids', $createdIds);
     }
 
     public function uploadPayrollAuto(Request $request)
@@ -510,6 +599,7 @@ class EmployeeController extends Controller
             }
 
             $saved = 0;
+            $createdIds = [];
             $failedPages = [];
             $lastEmployee = null;
 
@@ -531,15 +621,20 @@ class EmployeeController extends Controller
                 if (!($date instanceof \Carbon\Carbon)) {
                     $date = $dateFromFileName;
                 }
+                $month = (int) $date->month;
+                $year = (int) $date->year;
                 $fileName = $this->generatePayrollFileName($employee->full_name, $date, $originalFileName . '_p' . $pageNum);
                 $matchedBy = $this->matchEmployeeInPDF($pageText, $employee);
 
-                $employee->payrolls()->create([
+                $payroll = $employee->payrolls()->create([
                     'file_name' => $fileName,
                     'date' => $date,
+                    'month' => $month,
+                    'year' => $year,
                     'base64_content' => $singlePageBase64,
                     'matched_by' => $matchedBy,
                 ]);
+                $createdIds[] = $payroll->id;
                 $saved++;
                 $lastEmployee = $employee;
             }
@@ -559,7 +654,7 @@ class EmployeeController extends Controller
                 $message .= ' No se pudo asignar la(s) página(s) ' . implode(', ', $failedPages) . ' (empleado no identificado).';
             }
 
-            return redirect()->route('employees.index')->with('success', $message);
+            return redirect()->route('payroll.pending-send')->with('success', $message)->with('pending_payroll_ids', $createdIds);
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
@@ -764,28 +859,23 @@ class EmployeeController extends Controller
         return now();
     }
 
-    private function generatePayrollFileName($employeeName, $date, $originalName = '')
+    /** Mes en español con primera letra en mayúscula (ej. Marzo) */
+    private function getSpanishMonthName(int $month): string
     {
         $months = [
-            'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
-            'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio',
+            7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
         ];
-        
-        $month = $months[$date->month - 1] ?? $months[now()->month - 1];
-        $year = $date->year ?? now()->year;
-        
-        $normalizedName = mb_strtoupper($employeeName);
-        // Normalizar nombre: quitar acentos y caracteres especiales
-        if (class_exists('\Transliterator')) {
-            $normalizedName = \Transliterator::create('NFD; [:Nonspacing Mark:] Remove; NFC')->transliterate($normalizedName);
-        } else {
-            // Fallback si Transliterator no está disponible
-            $normalizedName = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $normalizedName);
-        }
-        $normalizedName = preg_replace('/[^A-Z0-9\s]/', '', $normalizedName);
-        $normalizedName = preg_replace('/\s+/', '_', trim($normalizedName));
-        
-        return "{$normalizedName}_{$month}_{$year}.pdf";
+        return $months[$month] ?? 'Enero';
+    }
+
+    /** Nombre automático: Nomina {Nombre completo} {Mes texto} {Año}.pdf */
+    private function generatePayrollFileName($employeeName, $date, $originalName = '')
+    {
+        $monthName = $this->getSpanishMonthName($date->month);
+        $year = $date->year;
+        $name = trim(preg_replace('/\s+/', ' ', $employeeName));
+        return "Nomina {$name} {$monthName} {$year}.pdf";
     }
 
     private function matchEmployeeInPDF($pdfText, $employee)

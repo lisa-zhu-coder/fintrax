@@ -96,6 +96,28 @@
         @endif
     </div>
 
+    @if(auth()->user()->hasPermission('admin.company.edit'))
+    <!-- Configuración correo RRHH -->
+    <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
+        <h2 class="mb-4 text-base font-semibold text-slate-900">Configuración correo RRHH</h2>
+        <p class="mb-4 text-sm text-slate-500">Se usa para enviar nóminas y documentos a empleados.</p>
+        <form method="POST" action="{{ route('company.update-rrhh-mail') }}" class="space-y-4">
+            @csrf
+            @method('PUT')
+            <div class="grid gap-4 md:grid-cols-2">
+                <label class="block"><span class="text-xs font-semibold text-slate-700">Email emisor</span><input type="email" name="rrhh_mail_from_address" value="{{ old('rrhh_mail_from_address', $company->rrhh_mail_from_address ?? '') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"/></label>
+                <label class="block"><span class="text-xs font-semibold text-slate-700">Nombre del remitente</span><input type="text" name="rrhh_mail_from_name" value="{{ old('rrhh_mail_from_name', $company->rrhh_mail_from_name ?? '') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"/></label>
+                <label class="block"><span class="text-xs font-semibold text-slate-700">SMTP host</span><input type="text" name="rrhh_mail_smtp_host" value="{{ old('rrhh_mail_smtp_host', $company->rrhh_mail_smtp_host ?? '') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="smtp.ejemplo.com"/></label>
+                <label class="block"><span class="text-xs font-semibold text-slate-700">SMTP puerto</span><input type="number" name="rrhh_mail_smtp_port" value="{{ old('rrhh_mail_smtp_port', $company->rrhh_mail_smtp_port ?? '587') }}" min="1" max="65535" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"/></label>
+                <label class="block"><span class="text-xs font-semibold text-slate-700">SMTP usuario</span><input type="text" name="rrhh_mail_smtp_username" value="{{ old('rrhh_mail_smtp_username', $company->rrhh_mail_smtp_username ?? '') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"/></label>
+                <label class="block"><span class="text-xs font-semibold text-slate-700">SMTP contraseña</span><input type="password" name="rrhh_mail_smtp_password" value="" placeholder="Dejar en blanco para no cambiar" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"/></label>
+                <label class="block"><span class="text-xs font-semibold text-slate-700">Encriptación</span><select name="rrhh_mail_encryption" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="">Ninguna</option><option value="tls" {{ old('rrhh_mail_encryption', $company->rrhh_mail_encryption ?? '') === 'tls' ? 'selected' : '' }}>TLS</option><option value="ssl" {{ old('rrhh_mail_encryption', $company->rrhh_mail_encryption ?? '') === 'ssl' ? 'selected' : '' }}>SSL</option></select></label>
+            </div>
+            <div class="pt-2"><button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar configuración correo</button></div>
+        </form>
+    </div>
+    @endif
+
     <!-- Negocios/Tiendas -->
     <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
         <div class="mb-4 flex items-center justify-between">

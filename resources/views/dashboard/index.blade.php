@@ -7,6 +7,10 @@
 .widget-content canvas {
     max-height: 200px;
 }
+/* Gráfica de gastos por categoría más grande */
+#dashboard-gastos-por-categoria .widget-content canvas {
+    max-height: 320px;
+}
 </style>
 @endpush
 
@@ -194,16 +198,16 @@
     </div>
     @endif
 
-    <!-- Ingresos y Gastos (2 columnas) -->
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <!-- Ingresos y Gastos: ingresos cuadro más pequeño (gráfica igual), gastos ocupa el resto sin hueco -->
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-stretch">
         @if($canViewIncome || auth()->user()->hasPermission('dashboard.main.view'))
-        <div class="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
+        <div id="dashboard-ingresos-metodo-pago" class="max-w-sm shrink-0 rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700 lg:mx-0 mx-auto">
             <h2 class="mb-4 text-base font-semibold text-slate-900 dark:text-slate-100">Ingresos por método de pago</h2>
             @include('dashboard.widgets.income')
         </div>
         @endif
         @if($canViewExpenses || auth()->user()->hasPermission('dashboard.main.view'))
-        <div class="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
+        <div id="dashboard-gastos-por-categoria" class="min-w-0 flex-1 rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
             <h2 class="mb-4 text-base font-semibold text-slate-900 dark:text-slate-100">Gastos por categoría</h2>
             @include('dashboard.widgets.expenses')
         </div>

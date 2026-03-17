@@ -167,7 +167,7 @@ class PayrollController extends Controller
         $companyId = session('company_id') ?? Auth::user()?->company_id;
         if ($companyId === null && !empty($pending)) {
             foreach ($pending as $item) {
-                $first = Employee::find($item['employee_id'] ?? null);
+                $first = Employee::withoutGlobalScope(\App\Models\Scopes\BelongsToCompanyScope::class)->find($item['employee_id'] ?? null);
                 if ($first) {
                     $companyId = $first->company_id;
                     $request->session()->put('company_id', $companyId);
@@ -175,11 +175,13 @@ class PayrollController extends Controller
                 }
             }
         }
-        $employees = $companyId ? Employee::where('company_id', $companyId)->orderBy('full_name')->get(['id', 'full_name', 'email']) : collect();
+        $employees = $companyId
+            ? Employee::withoutGlobalScope(\App\Models\Scopes\BelongsToCompanyScope::class)->where('company_id', $companyId)->orderBy('full_name')->get(['id', 'full_name', 'email'])
+            : collect();
         $employeeMap = $employees->keyBy('id');
         $pendingRows = [];
         foreach ($pending as $i => $item) {
-            $emp = $employeeMap->get($item['employee_id']) ?? Employee::find($item['employee_id']);
+            $emp = $employeeMap->get($item['employee_id']) ?? Employee::withoutGlobalScope(\App\Models\Scopes\BelongsToCompanyScope::class)->find($item['employee_id']);
             if (!$emp || ($companyId !== null && $emp->company_id != $companyId)) {
                 continue;
             }

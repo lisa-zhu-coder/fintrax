@@ -1225,7 +1225,8 @@
             
             if (settingsToggle && settingsMenu) {
                 // Verificar si estamos en una página de ajustes para abrir el menú
-                const isSettingsPage = window.location.pathname.includes('/settings/cash-reductions') || window.location.pathname.includes('/settings/objectives') || window.location.pathname.includes('/settings/overtime') || window.location.pathname.includes('/settings/daily-close') || window.location.pathname.includes('/settings/modules');
+                const p = window.location.pathname;
+                const isSettingsPage = p.startsWith('/settings/') || p === '/settings';
                 if (isSettingsPage) {
                     settingsMenu.classList.remove('hidden');
                     settingsIcon.style.transform = 'rotate(180deg)';

@@ -97,7 +97,7 @@ class UpdateRoles extends Command
         $perms = array_fill_keys($allKeys, false);
         $grant = [
             'dashboard', 'financial', 'treasury', 'loans', 'objectives', 'declared_sales',
-            'invoices', 'orders', 'inventory', 'sales', 'hr', 'payroll',
+            'invoices', 'orders', 'inventory', 'sales', 'hr',
         ];
         foreach ($grant as $moduleKey) {
             foreach ($byModule[$moduleKey] ?? [] as $key) {

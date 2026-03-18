@@ -69,6 +69,87 @@ class RingInventoryController extends Controller
     }
 
     /**
+     * Rejilla del mes y totales del cuadro "Resumen del mes (solo registros de cierre)".
+     * Única fuente para esos números (vista mensual y vista por meses del año).
+     *
+     * @return array{rows: list<object>, totalSold: int, totalTara: int, totalDiscrepancy: int, monthName: string}
+     */
+    private function ringInventoryMonthGridData(Store $store, int $year, int $month): array
+    {
+        $start = Carbon::createFromDate($year, $month, 1)->startOfDay();
+        $end = $start->copy()->endOfMonth();
+        $lastDay = (int) $end->format('d');
+        $records = RingInventory::where('store_id', $store->id)
+            ->whereBetween('date', [$start, $end])
+            ->get();
+        $byKey = $records->keyBy(fn (RingInventory $r) => $r->date->format('Y-m-d').'-'.$r->shift);
+        $lastCierreBeforeMonth = RingInventory::where('store_id', $store->id)
+            ->where('shift', 'cierre')
+            ->where('date', '<', $start->format('Y-m-d'))
+            ->orderByDesc('date')
+            ->first();
+        $rows = [];
+        $shifts = [
+            ['value' => 'cambio_turno', 'label' => 'Cambio de turno'],
+            ['value' => 'cierre', 'label' => 'Cierre'],
+        ];
+        for ($day = 1; $day <= $lastDay; $day++) {
+            $date = Carbon::createFromDate($year, $month, $day);
+            $dateStr = $date->format('Y-m-d');
+            $prevDateStr = $date->copy()->subDay()->format('Y-m-d');
+            $cambioTurnoRecord = $byKey->get($dateStr.'-cambio_turno');
+            $cierrePrevDay = $prevDateStr >= $start->format('Y-m-d')
+                ? $byKey->get($prevDateStr.'-cierre')
+                : $lastCierreBeforeMonth;
+            foreach ($shifts as $shift) {
+                $key = $dateStr.'-'.$shift['value'];
+                $record = $byKey->get($key);
+                $displayInitial = null;
+                if ($shift['value'] === 'cambio_turno') {
+                    $displayInitial = $cierrePrevDay?->final_quantity ?? $record?->initial_quantity;
+                } else {
+                    if ($cambioTurnoRecord !== null) {
+                        $ctInitial = $cambioTurnoRecord->initial_quantity ?? $cierrePrevDay?->final_quantity ?? 0;
+                        $displayInitial = $ctInitial + ($cambioTurnoRecord->replenishment_quantity ?? 0);
+                    } else {
+                        $displayInitial = $record?->initial_quantity;
+                    }
+                }
+                $displayDiscrepancy = null;
+                if ($record !== null && $record->final_quantity !== null) {
+                    $init = $displayInitial ?? 0;
+                    $rep = $record->replenishment_quantity ?? 0;
+                    $tara = $record->tara_quantity ?? 0;
+                    $sold = $record->sold_quantity ?? 0;
+                    $final = $record->final_quantity;
+                    $displayDiscrepancy = $init + $rep + $tara + $sold - $final;
+                }
+                $rows[] = (object) [
+                    'date' => $date,
+                    'date_str' => $dateStr,
+                    'shift' => $shift['value'],
+                    'shift_label' => $shift['label'],
+                    'record' => $record,
+                    'display_initial' => $displayInitial,
+                    'display_discrepancy' => $displayDiscrepancy,
+                ];
+            }
+        }
+        $cierreRecords = $records->where('shift', 'cierre');
+        $totalSold = $cierreRecords->sum(fn (RingInventory $r) => (int) ($r->sold_quantity ?? 0));
+        $totalTara = $cierreRecords->sum(fn (RingInventory $r) => (int) ($r->tara_quantity ?? 0));
+        $totalDiscrepancy = collect($rows)->where('shift', 'cierre')->sum(fn ($row) => $row->display_discrepancy ?? 0);
+
+        return [
+            'rows' => $rows,
+            'totalSold' => (int) $totalSold,
+            'totalTara' => (int) $totalTara,
+            'totalDiscrepancy' => (int) $totalDiscrepancy,
+            'monthName' => $start->locale('es')->monthName,
+        ];
+    }
+
+    /**
      * Vista 1: Tabla de tiendas con totales del año (solo shift = cierre).
      * Columnas: Tienda, Anillos vendidos, Taras, Discrepancia.
      * Filtro por año.
@@ -126,54 +207,30 @@ class RingInventoryController extends Controller
         if ($availableYears->isEmpty() || ! $availableYears->contains(now()->year)) {
             $availableYears = $availableYears->prepend(now()->year)->unique()->sortDesc()->values();
         }
+
         return view('inventory.ring-inventories.index', compact('stores', 'storeTotals', 'year', 'availableYears'));
     }
 
     /**
-     * Vista 2: Tabla de meses de una tienda en un año (solo shift = cierre).
-     * Valores = mismos que el cuadro de resumen mensual de cada mes.
+     * Vista 2: Tabla de meses de una tienda en un año. Cada fila usa los mismos totales
+     * que el cuadro "Resumen del mes" de la vista mensual (ringInventoryMonthGridData).
      */
     public function storeMonths(Store $store, int $year)
     {
         $this->authorizeStoreAccess($store->id);
-        $cierreRecords = RingInventory::where('store_id', $store->id)
-            ->where('shift', 'cierre')
-            ->whereYear('date', $year)
-            ->get();
-        $cambioTurnoByDate = RingInventory::where('store_id', $store->id)
-            ->where('shift', 'cambio_turno')
-            ->whereYear('date', $year)
-            ->get()
-            ->keyBy(fn (RingInventory $x) => $x->date->format('Y-m-d'));
-        $byMonth = $cierreRecords->groupBy(fn (RingInventory $r) => (int) $r->date->format('n'));
         $monthsData = [];
         foreach (range(1, 12) as $month) {
-            $records = $byMonth->get($month, collect());
-            $monthStart = sprintf('%04d-%02d-01', $year, $month);
-            $lastBeforeMonth = RingInventory::where('store_id', $store->id)
-                ->where('shift', 'cierre')
-                ->where('date', '<', $monthStart)
-                ->orderByDesc('date')
-                ->first();
-            $cierresInMonthByDate = $records->keyBy(fn (RingInventory $x) => $x->date->format('Y-m-d'));
+            $grid = $this->ringInventoryMonthGridData($store, $year, $month);
             $monthsData[] = (object) [
                 'month' => $month,
                 'monthName' => Carbon::createFromDate($year, $month, 1)->locale('es')->monthName,
                 'year' => $year,
-                'sold' => $records->sum(fn (RingInventory $r) => (int) ($r->sold_quantity ?? 0)),
-                'tara' => $records->sum(fn (RingInventory $r) => (int) ($r->tara_quantity ?? 0)),
-                'discrepancy' => $records->sum(fn (RingInventory $r) => $this->effectiveDiscrepancyForCierre(
-                    $r,
-                    $cambioTurnoByDate->get($r->date->format('Y-m-d')),
-                    $this->cierrePreviousCalendarDayFor(
-                        $r->date->format('Y-m-d'),
-                        $monthStart,
-                        $lastBeforeMonth,
-                        $cierresInMonthByDate
-                    )
-                )),
+                'sold' => $grid['totalSold'],
+                'tara' => $grid['totalTara'],
+                'discrepancy' => $grid['totalDiscrepancy'],
             ];
         }
+
         return view('inventory.ring-inventories.store-months', compact('store', 'year', 'monthsData'));
     }
 
@@ -183,73 +240,13 @@ class RingInventoryController extends Controller
      */
     public function monthRecords(Store $store, int $year, int $month)
     {
-        $start = Carbon::createFromDate($year, $month, 1)->startOfDay();
-        $end = $start->copy()->endOfMonth();
-        $lastDay = (int) $end->format('d');
-        $records = RingInventory::where('store_id', $store->id)
-            ->whereBetween('date', [$start, $end])
-            ->get();
-        $byKey = $records->keyBy(fn (RingInventory $r) => $r->date->format('Y-m-d') . '-' . $r->shift);
-        $lastCierreBeforeMonth = RingInventory::where('store_id', $store->id)
-            ->where('shift', 'cierre')
-            ->where('date', '<', $start->format('Y-m-d'))
-            ->orderByDesc('date')
-            ->first();
-        $rows = [];
-        $shifts = [
-            ['value' => 'cambio_turno', 'label' => 'Cambio de turno'],
-            ['value' => 'cierre', 'label' => 'Cierre'],
-        ];
-        for ($day = 1; $day <= $lastDay; $day++) {
-            $date = Carbon::createFromDate($year, $month, $day);
-            $dateStr = $date->format('Y-m-d');
-            $prevDateStr = $date->copy()->subDay()->format('Y-m-d');
-            $cambioTurnoRecord = $byKey->get($dateStr . '-cambio_turno');
-            $cierrePrevDay = $prevDateStr >= $start->format('Y-m-d')
-                ? $byKey->get($prevDateStr . '-cierre')
-                : $lastCierreBeforeMonth;
-            foreach ($shifts as $shift) {
-                $key = $dateStr . '-' . $shift['value'];
-                $record = $byKey->get($key);
-                $displayInitial = null;
-                if ($shift['value'] === 'cambio_turno') {
-                    $displayInitial = $cierrePrevDay?->final_quantity ?? $record?->initial_quantity;
-                } else {
-                    // Cierre: Inicial = Inicial + Reposición del cambio de turno del mismo día.
-                    // Si el cambio de turno tiene initial null, usar el final del cierre del día anterior (mismo valor que debería tener).
-                    if ($cambioTurnoRecord !== null) {
-                        $ctInitial = $cambioTurnoRecord->initial_quantity ?? $cierrePrevDay?->final_quantity ?? 0;
-                        $displayInitial = $ctInitial + ($cambioTurnoRecord->replenishment_quantity ?? 0);
-                    } else {
-                        $displayInitial = $record?->initial_quantity;
-                    }
-                }
-                // Discrepancia = inicial + reposición + taras + vendidos - final. Solo si hay dato en Final.
-                $displayDiscrepancy = null;
-                if ($record !== null && $record->final_quantity !== null) {
-                    $init = $displayInitial ?? 0;
-                    $rep = $record->replenishment_quantity ?? 0;
-                    $tara = $record->tara_quantity ?? 0;
-                    $sold = $record->sold_quantity ?? 0;
-                    $final = $record->final_quantity;
-                    $displayDiscrepancy = $init + $rep + $tara + $sold - $final;
-                }
-                $rows[] = (object) [
-                    'date' => $date,
-                    'date_str' => $dateStr,
-                    'shift' => $shift['value'],
-                    'shift_label' => $shift['label'],
-                    'record' => $record,
-                    'display_initial' => $displayInitial,
-                    'display_discrepancy' => $displayDiscrepancy,
-                ];
-            }
-        }
-        $cierreRecords = $records->where('shift', 'cierre');
-        $totalSold = $cierreRecords->sum(fn (RingInventory $r) => (int) ($r->sold_quantity ?? 0));
-        $totalTara = $cierreRecords->sum(fn (RingInventory $r) => (int) ($r->tara_quantity ?? 0));
-        $totalDiscrepancy = collect($rows)->where('shift', 'cierre')->sum(fn ($row) => $row->display_discrepancy ?? 0);
-        $monthName = $start->locale('es')->monthName;
+        $grid = $this->ringInventoryMonthGridData($store, $year, $month);
+        $rows = $grid['rows'];
+        $totalSold = $grid['totalSold'];
+        $totalTara = $grid['totalTara'];
+        $totalDiscrepancy = $grid['totalDiscrepancy'];
+        $monthName = $grid['monthName'];
+
         return view('inventory.ring-inventories.month', compact(
             'store', 'year', 'month', 'monthName', 'rows',
             'totalSold', 'totalTara', 'totalDiscrepancy'
@@ -260,6 +257,7 @@ class RingInventoryController extends Controller
     {
         $this->authorizeStoreAccess($ringInventory->store_id);
         $ringInventory->load('store');
+
         return view('inventory.ring-inventories.show', compact('ringInventory'));
     }
 
@@ -269,6 +267,7 @@ class RingInventoryController extends Controller
         $storeId = $request->get('store_id');
         $date = $request->get('date', now()->format('Y-m-d'));
         $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->hasPermission('inventory.rings.edit_initial');
+
         return view('inventory.ring-inventories.create', compact('stores', 'storeId', 'date', 'canEditInitial'));
     }
 
@@ -307,17 +306,17 @@ class RingInventoryController extends Controller
             'comment' => 'nullable|string|max:2000',
         ]);
         $validated['store_id'] = $this->enforcedStoreIdForCreate((int) ($validated['store_id'] ?? 0)) ?: (int) $validated['store_id'];
-        if (!$validated['store_id']) {
+        if (! $validated['store_id']) {
             return redirect()->back()->withInput()->withErrors(['store_id' => 'Debe seleccionar una tienda.']);
         }
         $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->hasPermission('inventory.rings.edit_initial');
-        if (($validated['shift'] ?? '') === 'cierre' && !$canEditInitial) {
+        if (($validated['shift'] ?? '') === 'cierre' && ! $canEditInitial) {
             $validated['initial_quantity'] = $this->computedInitialForCierre(
                 (int) $validated['store_id'],
                 $validated['date']
             );
         }
-        if (($validated['shift'] ?? '') === 'cambio_turno' && !$canEditInitial) {
+        if (($validated['shift'] ?? '') === 'cambio_turno' && ! $canEditInitial) {
             $validated['initial_quantity'] = $this->initialForCambioTurno(
                 (int) $validated['store_id'],
                 $validated['date']
@@ -325,6 +324,7 @@ class RingInventoryController extends Controller
         }
         $record = RingInventory::create($validated);
         $date = Carbon::parse($record->date);
+
         return redirect()->route('ring-inventories.month', [
             'store' => $record->store_id,
             'year' => $date->year,
@@ -337,6 +337,7 @@ class RingInventoryController extends Controller
         $ringInventory->load('store');
         $stores = Store::orderBy('name')->get();
         $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->hasPermission('inventory.rings.edit_initial');
+
         return view('inventory.ring-inventories.edit', compact('ringInventory', 'stores', 'canEditInitial'));
     }
 
@@ -356,13 +357,13 @@ class RingInventoryController extends Controller
         ]);
         $validated['store_id'] = $this->enforcedStoreIdForCreate((int) ($validated['store_id'] ?? 0) ?: null) ?? (int) $validated['store_id'];
         $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->hasPermission('inventory.rings.edit_initial');
-        if (($validated['shift'] ?? '') === 'cierre' && !$canEditInitial) {
+        if (($validated['shift'] ?? '') === 'cierre' && ! $canEditInitial) {
             $validated['initial_quantity'] = $this->computedInitialForCierre(
                 (int) $validated['store_id'],
                 $validated['date']
             );
         }
-        if (($validated['shift'] ?? '') === 'cambio_turno' && !$canEditInitial) {
+        if (($validated['shift'] ?? '') === 'cambio_turno' && ! $canEditInitial) {
             $validated['initial_quantity'] = $this->initialForCambioTurno(
                 (int) $validated['store_id'],
                 $validated['date']
@@ -370,6 +371,7 @@ class RingInventoryController extends Controller
         }
         $ringInventory->update($validated);
         $date = Carbon::parse($ringInventory->date);
+
         return redirect()->route('ring-inventories.month', [
             'store' => $ringInventory->store_id,
             'year' => $date->year,
@@ -383,6 +385,7 @@ class RingInventoryController extends Controller
         $storeId = $ringInventory->store_id;
         $date = Carbon::parse($ringInventory->date);
         $ringInventory->delete();
+
         return redirect()->route('ring-inventories.month', [
             'store' => $storeId,
             'year' => $date->year,
@@ -404,6 +407,7 @@ class RingInventoryController extends Controller
         }
         $initial = $ct->initial_quantity ?? 0;
         $replenishment = $ct->replenishment_quantity ?? 0;
+
         return $initial + $replenishment;
     }
 
@@ -421,6 +425,7 @@ class RingInventoryController extends Controller
         if ($lastCierre === null) {
             return null;
         }
+
         return $lastCierre->final_quantity;
     }
 }

@@ -111,6 +111,9 @@ class UpdateRoles extends Command
         if (isset($perms['settings.payroll_templates.manage'])) {
             $perms['settings.payroll_templates.manage'] = true;
         }
+        if (isset($perms['settings.job_positions.manage'])) {
+            $perms['settings.job_positions.manage'] = true;
+        }
         return $perms;
     }
 

@@ -61,6 +61,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     
     // Empleados (quick-user antes del resource para que no coincida con {employee})
     Route::post('employees/quick-user', [EmployeeController::class, 'storeQuickUser'])->name('employees.quick-user');
+    Route::post('employees/reorder', [EmployeeController::class, 'reorder'])->name('employees.reorder');
     Route::resource('employees', EmployeeController::class);
     Route::post('employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
     Route::post('employees/{employee}/documents', [EmployeeController::class, 'storeDocument'])->name('employees.documents.store');
@@ -299,6 +300,12 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::post('/settings/expense-categories', [\App\Http\Controllers\ExpenseCategorySettingsController::class, 'store'])->name('expense-categories-settings.store');
     Route::put('/settings/expense-categories/{expenseCategory}', [\App\Http\Controllers\ExpenseCategorySettingsController::class, 'update'])->name('expense-categories-settings.update');
     Route::delete('/settings/expense-categories/{expenseCategory}', [\App\Http\Controllers\ExpenseCategorySettingsController::class, 'destroy'])->name('expense-categories-settings.destroy');
+
+    // Ajustes - Puestos de empleado (fichas RRHH)
+    Route::get('/settings/job-positions', [\App\Http\Controllers\JobPositionSettingsController::class, 'index'])->name('job-positions-settings.index');
+    Route::post('/settings/job-positions', [\App\Http\Controllers\JobPositionSettingsController::class, 'store'])->name('job-positions-settings.store');
+    Route::put('/settings/job-positions/{jobPosition}', [\App\Http\Controllers\JobPositionSettingsController::class, 'update'])->name('job-positions-settings.update');
+    Route::delete('/settings/job-positions/{jobPosition}', [\App\Http\Controllers\JobPositionSettingsController::class, 'destroy'])->name('job-positions-settings.destroy');
 
     // Ajustes - Tipos de préstamo
     Route::get('/settings/loan-types', [LoanTypeController::class, 'index'])->name('loan-types-settings.index');

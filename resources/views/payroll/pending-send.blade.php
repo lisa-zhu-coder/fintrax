@@ -62,7 +62,7 @@
                         <th class="w-12 py-2">
                             <label class="flex cursor-pointer items-center gap-1">
                                 <input type="checkbox" id="cbSelectAll" class="rounded border-slate-300 text-brand-600" title="Seleccionar todas" checked>
-                                <span>Enviar por correo</span>
+                                <span>Enviar</span>
                             </label>
                         </th>
                         <th class="py-2">Archivo</th>

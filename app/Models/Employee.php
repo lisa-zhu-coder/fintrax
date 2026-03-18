@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\BelongsToCompany;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -15,6 +16,7 @@ class Employee extends Model
     
     protected $fillable = [
         'company_id',
+        'sort_order',
         'full_name',
         'dni',
         'phone',
@@ -23,6 +25,7 @@ class Employee extends Model
         'postal_code',
         'city',
         'position',
+        'job_position_id',
         'hours',
         'start_date',
         'end_date',
@@ -61,9 +64,34 @@ class Employee extends Model
         return parent::castAttribute($key, $value);
     }
 
+    /**
+     * Nombre en formato título: primera letra de cada palabra en mayúscula (ej. "LISA ZHU" → "Lisa Zhu").
+     */
+    public static function normalizeFullName(?string $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+        $collapsed = preg_replace('/\s+/u', ' ', trim($value));
+
+        return mb_convert_case($collapsed, MB_CASE_TITLE, 'UTF-8');
+    }
+
+    protected function fullName(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value) => self::normalizeFullName($value),
+        );
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function jobPosition(): BelongsTo
+    {
+        return $this->belongsTo(JobPosition::class, 'job_position_id');
     }
 
     public function stores(): BelongsToMany

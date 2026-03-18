@@ -149,6 +149,7 @@ return [
                 ['key' => 'expense_categories', 'label' => 'Categorías de gastos', 'actions' => ['view', 'create', 'edit', 'delete']],
                 ['key' => 'loan_types', 'label' => 'Tipos de préstamo', 'actions' => ['manage']],
                 ['key' => 'payroll_templates', 'label' => 'Plantillas de email RRHH', 'actions' => ['manage']],
+                ['key' => 'job_positions', 'label' => 'Puestos de empleado', 'actions' => ['manage']],
             ],
         ],
         [

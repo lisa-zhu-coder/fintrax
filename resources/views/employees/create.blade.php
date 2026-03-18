@@ -118,9 +118,28 @@
                     <span class="text-sm font-semibold text-emerald-900">Información Laboral</span>
                 </div>
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <label class="block">
+                    <label class="block md:col-span-2">
                         <span class="text-xs font-semibold text-slate-700">Puesto *</span>
-                        <input type="text" name="position" value="{{ $oldInput['position'] ?? old('position') }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        @if($jobPositions->isEmpty())
+                            <div class="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                No hay puestos definidos.
+                                @if(auth()->user()->hasPermission('settings.job_positions.manage'))
+                                <a href="{{ route('job-positions-settings.index') }}" class="font-semibold text-brand-700 underline hover:text-brand-800">Crea puestos en Ajustes</a>
+                                @else
+                                Pide a un administrador que defina los puestos en <strong>Ajustes → Puestos de empleado</strong>.
+                                @endif
+                            </div>
+                        @else
+                            <select name="job_position_id" required class="mt-1 w-full max-w-md rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                                <option value="">— Seleccionar puesto —</option>
+                                @foreach($jobPositions as $jp)
+                                <option value="{{ $jp->id }}" @selected((string)($oldInput['job_position_id'] ?? old('job_position_id')) === (string)$jp->id)>{{ $jp->name }}</option>
+                                @endforeach
+                            </select>
+                            @if(auth()->user()->hasPermission('settings.job_positions.manage'))
+                            <p class="mt-1 text-xs text-slate-500"><a href="{{ route('job-positions-settings.index') }}" class="text-brand-600 hover:underline">Gestionar puestos</a></p>
+                            @endif
+                        @endif
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Horas contratadas *</span>
@@ -222,7 +241,7 @@
                 <a href="{{ route('employees.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Cancelar
                 </a>
-                <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700" {{ count($stores) === 0 ? 'disabled' : '' }}>
+                <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50" {{ count($stores) === 0 || $jobPositions->isEmpty() ? 'disabled' : '' }}>
                     Crear empleado
                 </button>
             </div>

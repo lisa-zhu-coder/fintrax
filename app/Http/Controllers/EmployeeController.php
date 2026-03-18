@@ -6,10 +6,12 @@ use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
+use App\Models\JobPosition;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -25,7 +27,7 @@ class EmployeeController extends Controller
     public function __construct()
     {
         $this->middleware('permission:hr.employees.create')->only(['create', 'store', 'storeQuickUser']);
-        $this->middleware('permission:hr.employees.edit')->only(['edit', 'update']);
+        $this->middleware('permission:hr.employees.edit')->only(['edit', 'update', 'reorder']);
         $this->middleware('permission:hr.employees.delete')->only(['destroy']);
         $this->middleware('permission:hr.employees.configure')->only(['uploadPayroll', 'uploadPayrollAuto']);
         $this->middleware('permission:rrhh.documents.create')->only(['storeDocument']);
@@ -44,6 +46,47 @@ class EmployeeController extends Controller
             abort(403, 'No tienes permiso para ver empleados.');
         }
 
+        $query = $this->employeeIndexQuery($request, true);
+        $employees = $query->orderBy('sort_order')->orderBy('full_name')->get();
+
+        $fromJobs = JobPosition::orderBy('name')->pluck('name');
+        $legacy = $this->employeeIndexQuery($request, false)
+            ->whereNull('job_position_id')
+            ->whereNotNull('position')
+            ->where('position', '!=', '')
+            ->pluck('position')
+            ->unique();
+        $positions = $fromJobs->merge($legacy)->unique()->sort()->values();
+
+        $storesForFilter = Store::orderBy('name')->get();
+        $totalStores = Store::count();
+
+        $hasFilters = $request->filled('position') || $request->filled('store_id');
+        $showArchived = $request->boolean('archived');
+        $canReorder = $user->hasPermission('hr.employees.edit')
+            && ! $showArchived
+            && ! $hasFilters
+            && $employees->count() > 1;
+
+        return view('employees.index', compact(
+            'employees',
+            'totalStores',
+            'showArchived',
+            'positions',
+            'storesForFilter',
+            'hasFilters',
+            'canReorder'
+        ));
+    }
+
+    /**
+     * Query base de la lista de empleados (permisos, archivados).
+     *
+     * @param  bool  $applyListFilters  Si aplicar filtros GET de puesto y tienda
+     */
+    protected function employeeIndexQuery(Request $request, bool $applyListFilters): \Illuminate\Database\Eloquent\Builder
+    {
+        $user = Auth::user();
         $showArchived = $request->boolean('archived');
         $query = Employee::with(['user', 'stores']);
 
@@ -52,9 +95,8 @@ class EmployeeController extends Controller
         }
 
         if ($user->isSuperAdmin() || $user->isAdmin()) {
-            // Sin restricción por tienda a nivel de query (ven toda la empresa)
-        } elseif ($canViewStore) {
-            // Ver todas las fichas de la tienda asignada
+            //
+        } elseif ($user->hasPermission('hr.employees.view_store')) {
             $enforcedStoreId = $user->getEnforcedStoreId();
             if ($enforcedStoreId !== null) {
                 $query->whereHas('stores', function ($q) use ($enforcedStoreId) {
@@ -62,13 +104,65 @@ class EmployeeController extends Controller
                 });
             }
         } else {
-            // Solo su ficha
             $query->where('user_id', $user->id);
         }
 
-        $employees = $query->get();
-        $totalStores = Store::count();
-        return view('employees.index', compact('employees', 'totalStores', 'showArchived'));
+        if ($applyListFilters) {
+            if ($request->filled('position')) {
+                $query->where('position', $request->input('position'));
+            }
+            if ($request->filled('store_id')) {
+                $sid = (int) $request->input('store_id');
+                $query->whereHas('stores', function ($q) use ($sid) {
+                    $q->where('stores.id', $sid);
+                });
+            }
+        }
+
+        return $query;
+    }
+
+    /**
+     * Guardar orden de empleados (arrastre). Solo sin filtros y empleados activos.
+     */
+    public function reorder(Request $request)
+    {
+        $user = Auth::user();
+        if (! $user->hasPermission('hr.employees.edit')) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'order' => 'required|array|min:1',
+            'order.*' => 'integer|exists:employees,id',
+        ]);
+
+        $listReq = Request::create('/', 'GET', ['archived' => 0]);
+        $allowedIds = $this->employeeIndexQuery($listReq, false)
+            ->orderBy('sort_order')
+            ->orderBy('full_name')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $submitted = array_map('intval', $validated['order']);
+        sort($allowedIds);
+        $submittedSorted = $submitted;
+        sort($submittedSorted);
+
+        if (count($submitted) !== count($allowedIds) || $allowedIds !== $submittedSorted) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'La lista no coincide con tus empleados visibles. Quita filtros y recarga.',
+            ], 422);
+        }
+
+        foreach ($submitted as $index => $id) {
+            Employee::where('id', $id)->update(['sort_order' => $index + 1]);
+        }
+
+        return response()->json(['ok' => true, 'message' => 'Orden guardado.']);
     }
 
     /**
@@ -94,7 +188,9 @@ class EmployeeController extends Controller
         $stores = $this->storesForCurrentUser();
         $users = User::with('role')->get();
         $roles = $this->rolesAllowedForNewUser();
-        return view('employees.create', compact('stores', 'users', 'roles'));
+        $jobPositions = JobPosition::orderBy('sort_order')->orderBy('name')->get();
+
+        return view('employees.create', compact('stores', 'users', 'roles', 'jobPositions'));
     }
 
     public function store(Request $request)
@@ -111,7 +207,11 @@ class EmployeeController extends Controller
                 'street' => 'nullable|string|max:255',
                 'postal_code' => 'nullable|string|max:10',
                 'city' => 'nullable|string|max:255',
-                'position' => 'required|string|max:255',
+                'job_position_id' => [
+                    'required',
+                    'integer',
+                    Rule::exists('job_positions', 'id')->where(fn ($q) => $q->where('company_id', session('company_id'))),
+                ],
                 'hours' => 'required|numeric|min:0',
                 'start_date' => 'required|date',
                 'end_date' => 'nullable|date|after:start_date',
@@ -128,7 +228,7 @@ class EmployeeController extends Controller
             ], [
                 'full_name.required' => 'El nombre completo es obligatorio.',
                 'dni.required' => 'El DNI es obligatorio.',
-                'position.required' => 'El puesto es obligatorio.',
+                'job_position_id.required' => 'Selecciona un puesto.',
                 'hours.required' => 'Las horas contratadas son obligatorias.',
                 'start_date.required' => 'La fecha de inicio es obligatoria.',
                 'store_ids.required' => 'Debe seleccionar al menos una tienda.',
@@ -155,6 +255,9 @@ class EmployeeController extends Controller
             if (isset($validated['hours']) && $validated['hours'] === '') {
                 $validated['hours'] = 0;
             }
+
+            $jp = JobPosition::findOrFail($validated['job_position_id']);
+            $validated['position'] = $jp->name;
 
             $user = Auth::user();
             if (!$user->isSuperAdmin() && !$user->isAdmin()) {
@@ -186,6 +289,8 @@ class EmployeeController extends Controller
 
             $employee = Employee::create($validated);
             $employee->stores()->sync($storeIds);
+            $maxSort = (int) Employee::max('sort_order');
+            $employee->update(['sort_order' => $maxSort + 1]);
 
             Log::info('Employee created', [
                 'employee_id' => $employee->id,
@@ -205,8 +310,9 @@ class EmployeeController extends Controller
             $stores = $this->storesForCurrentUser();
             $users = User::with('role')->get();
             $roles = $this->rolesAllowedForNewUser();
+            $jobPositions = JobPosition::orderBy('sort_order')->orderBy('name')->get();
             $oldInput = $request->except('password', '_token');
-            return view('employees.create', compact('stores', 'users', 'roles', 'oldInput'))
+            return view('employees.create', compact('stores', 'users', 'roles', 'jobPositions', 'oldInput'))
                 ->withErrors($e->errors());
         } catch (\Exception $e) {
             Log::error('Employee create failed', [
@@ -217,8 +323,9 @@ class EmployeeController extends Controller
             $stores = $this->storesForCurrentUser();
             $users = User::with('role')->get();
             $roles = $this->rolesAllowedForNewUser();
+            $jobPositions = JobPosition::orderBy('sort_order')->orderBy('name')->get();
             $oldInput = $request->except('password', '_token');
-            return view('employees.create', compact('stores', 'users', 'roles', 'oldInput'))
+            return view('employees.create', compact('stores', 'users', 'roles', 'jobPositions', 'oldInput'))
                 ->withErrors(['error' => 'Error al crear el empleado: ' . $e->getMessage()]);
         }
     }
@@ -269,7 +376,9 @@ class EmployeeController extends Controller
         $users = User::with('role')->get();
         $roles = $this->rolesAllowedForNewUser();
         $employee->load('stores');
-        return view('employees.edit', compact('employee', 'stores', 'users', 'roles'));
+        $jobPositions = JobPosition::orderBy('sort_order')->orderBy('name')->get();
+
+        return view('employees.edit', compact('employee', 'stores', 'users', 'roles', 'jobPositions'));
     }
 
     public function update(Request $request, Employee $employee)
@@ -289,7 +398,8 @@ class EmployeeController extends Controller
         $this->syncStoresFromBusinesses();
         
         try {
-            $validated = $request->validate([
+            $hasJobCatalog = JobPosition::count() > 0;
+            $rules = [
                 'full_name' => 'required|string|max:255',
                 'dni' => 'required|string|max:255',
                 'phone' => 'nullable|string|max:255',
@@ -297,7 +407,6 @@ class EmployeeController extends Controller
                 'street' => 'nullable|string|max:255',
                 'postal_code' => 'nullable|string|max:10',
                 'city' => 'nullable|string|max:255',
-                'position' => 'required|string|max:255',
                 'hours' => 'required|numeric|min:0',
                 'start_date' => 'required|date',
                 'end_date' => 'nullable|date|after:start_date',
@@ -311,9 +420,20 @@ class EmployeeController extends Controller
                 'user_id' => 'nullable|exists:users,id',
                 'store_ids' => 'required|array|min:1',
                 'store_ids.*' => 'exists:stores,id',
-            ], [
+            ];
+            if ($hasJobCatalog) {
+                $rules['job_position_id'] = [
+                    'required',
+                    'integer',
+                    Rule::exists('job_positions', 'id')->where(fn ($q) => $q->where('company_id', session('company_id'))),
+                ];
+            } else {
+                $rules['position'] = 'required|string|max:255';
+            }
+            $validated = $request->validate($rules, [
                 'full_name.required' => 'El nombre completo es obligatorio.',
                 'dni.required' => 'El DNI es obligatorio.',
+                'job_position_id.required' => 'Selecciona un puesto.',
                 'position.required' => 'El puesto es obligatorio.',
                 'hours.required' => 'Las horas contratadas son obligatorias.',
                 'start_date.required' => 'La fecha de inicio es obligatoria.',
@@ -342,6 +462,13 @@ class EmployeeController extends Controller
                 $validated['hours'] = 0;
             }
 
+            if ($hasJobCatalog) {
+                $jp = JobPosition::findOrFail($validated['job_position_id']);
+                $validated['position'] = $jp->name;
+            } else {
+                $validated['job_position_id'] = null;
+            }
+
             $user = Auth::user();
             if (!$user->isSuperAdmin() && !$user->isAdmin()) {
                 $enforcedStoreId = $user->getEnforcedStoreId();
@@ -361,8 +488,10 @@ class EmployeeController extends Controller
                 unset($validated['gross_salary'], $validated['net_salary']);
             }
 
+            $storeIds = $validated['store_ids'];
+            unset($validated['store_ids']);
             $employee->update($validated);
-            $employee->stores()->sync($validated['store_ids']);
+            $employee->stores()->sync($storeIds);
 
             return redirect()->route('employees.index')->with('success', 'Empleado actualizado correctamente.');
         } catch (\Illuminate\Validation\ValidationException $e) {

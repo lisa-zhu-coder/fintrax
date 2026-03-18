@@ -99,9 +99,33 @@
                     <span class="text-sm font-semibold text-emerald-900">Información Laboral</span>
                 </div>
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <label class="block">
+                    @php
+                        $selJp = old('job_position_id', $employee->job_position_id);
+                        if (!$selJp && $employee->position) {
+                            $selJp = $jobPositions->firstWhere('name', $employee->position)?->id;
+                        }
+                    @endphp
+                    <label class="block md:col-span-2">
                         <span class="text-xs font-semibold text-slate-700">Puesto *</span>
-                        <input type="text" name="position" value="{{ old('position', $employee->position) }}" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        @if($jobPositions->isEmpty())
+                            <div class="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 mb-2">
+                                Sin puestos en catálogo; puedes editar el texto del puesto manualmente.
+                                @if(auth()->user()->hasPermission('settings.job_positions.manage'))
+                                <a href="{{ route('job-positions-settings.index') }}" class="font-semibold text-brand-700 underline">Definir puestos en Ajustes</a>
+                                @endif
+                            </div>
+                            <input type="text" name="position" value="{{ old('position', $employee->position) }}" required maxlength="255" class="mt-1 w-full max-w-md rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+                        @else
+                            <select name="job_position_id" required class="mt-1 w-full max-w-md rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                                <option value="">— Seleccionar puesto —</option>
+                                @foreach($jobPositions as $jp)
+                                <option value="{{ $jp->id }}" @selected((string)$selJp === (string)$jp->id)>{{ $jp->name }}</option>
+                                @endforeach
+                            </select>
+                            @if(auth()->user()->hasPermission('settings.job_positions.manage'))
+                            <p class="mt-1 text-xs text-slate-500"><a href="{{ route('job-positions-settings.index') }}" class="text-brand-600 hover:underline">Gestionar puestos</a></p>
+                            @endif
+                        @endif
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Horas contratadas *</span>

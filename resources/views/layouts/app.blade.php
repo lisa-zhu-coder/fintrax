@@ -729,7 +729,7 @@
                 </a>
                 @endif
 
-                @if(auth()->user()->isSuperAdmin() || auth()->user()->hasAnyPermission(['settings.cash_reduction.view', 'settings.objectives.view', 'settings.overtime.view', 'settings.products.view', 'settings.daily_close.view', 'settings.expense_categories.view', 'settings.loan_types.manage']))
+                @if(auth()->user()->isSuperAdmin() || auth()->user()->hasAnyPermission(['settings.cash_reduction.view', 'settings.objectives.view', 'settings.overtime.view', 'settings.products.view', 'settings.daily_close.view', 'settings.expense_categories.view', 'settings.loan_types.manage', 'settings.job_positions.manage']))
                 <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <button type="button" id="settingsMenuToggle" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors">
                         <div class="flex items-center gap-3">
@@ -785,6 +785,12 @@
                         <a href="{{ route('loan-types-settings.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('loan-types-settings.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
                             <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v13M17 8v13M7 8v13M2 8v13M7 8h10a2 2 0 012 2v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a2 2 0 012-2z"/></svg>
                             <span class="sidebar-submenu-text">Tipos de préstamo</span>
+                        </a>
+                        @endif
+                        @if(auth()->user()->hasPermission('settings.job_positions.manage'))
+                        <a href="{{ route('job-positions-settings.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('job-positions-settings.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
+                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            <span class="sidebar-submenu-text">Puestos de empleado</span>
                         </a>
                         @endif
                         @if(auth()->user()->hasPermission('settings.payroll_templates.manage'))

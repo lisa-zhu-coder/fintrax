@@ -108,7 +108,7 @@
                 @csrf
                 <button type="submit" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
             </form>
-            <button type="submit" form="formSendBulk" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar y enviar</button>
+            <button type="button" id="btnGuardarEnviarPayroll" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar y enviar</button>
         </div>
     </form>
 </div>
@@ -163,6 +163,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 var checked = formSendBulk.querySelectorAll('.cb-send:checked');
                 cbSelectAll.checked = all.length > 0 && checked.length === all.length;
             }
+        });
+    }
+    // Enter no guarda ni envía; solo el clic en «Guardar y enviar» con doble confirmación
+    if (formSendBulk) {
+        formSendBulk.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter') return;
+            var t = e.target;
+            if (t && t.tagName === 'TEXTAREA') return;
+            if (t && t.tagName === 'BUTTON') return;
+            e.preventDefault();
+        });
+    }
+    var btnGuardarEnviar = document.getElementById('btnGuardarEnviarPayroll');
+    if (btnGuardarEnviar && formSendBulk) {
+        btnGuardarEnviar.addEventListener('click', function() {
+            if (!formSendBulk.checkValidity()) {
+                formSendBulk.reportValidity();
+                return;
+            }
+            if (!confirm('¿Confirmas guardar todas las nóminas en las fichas de los empleados y enviar por correo las que tengan «Enviar» marcado?')) return;
+            if (!confirm('Segunda confirmación: ¿Seguro? Se guardarán los PDF en las fichas y se enviarán los correos seleccionados.')) return;
+            formSendBulk.submit();
         });
     }
     var templateSelect = document.getElementById('templateSelect');

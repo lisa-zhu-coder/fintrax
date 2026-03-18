@@ -33,7 +33,7 @@
                     <span class="text-xs text-slate-500 max-w-xs" title="Los filtros ocultan parte de la lista">Quita los filtros de puesto o tienda para cambiar el orden de la lista.</span>
                     @endif
                 @endif
-                @if(auth()->user()->hasPermission('hr.employees.configure'))
+                @if(auth()->user()->hasPermission('hr.payroll.upload') || auth()->user()->hasPermission('hr.employees.configure'))
                 <form method="POST" action="{{ route('employees.payrolls.upload') }}" enctype="multipart/form-data" class="inline">
                     @csrf
                     <input type="file" name="payroll" id="payrollFileInputAuto" accept=".pdf" class="hidden" onchange="this.form.submit()"/>
@@ -146,11 +146,20 @@
                                     </a>
                                     @endif
                                     @if(($showArchived ?? false))
-                                        @if(auth()->user()->hasPermission('hr.employees.edit') || auth()->user()->hasPermission('hr.employees.delete'))
+                                        @if(auth()->user()->hasPermission('hr.employees.archived_restore'))
                                         <form method="POST" action="{{ route('employees.restore', $employee->id) }}" class="inline">
                                             @csrf
                                             <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
                                                 Restaurar
+                                            </button>
+                                        </form>
+                                        @endif
+                                        @if(auth()->user()->hasPermission('hr.employees.archived_permanent_delete'))
+                                        <form method="POST" action="{{ route('employees.force-destroy', $employee->id) }}" class="inline" onsubmit="return confirm('¿Eliminar definitivamente este empleado? Esta acción no se puede deshacer.');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="rounded-lg px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">
+                                                Eliminar definitivo
                                             </button>
                                         </form>
                                         @endif

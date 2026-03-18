@@ -11,11 +11,20 @@
                 <p class="text-sm text-slate-500">Información completa del empleado</p>
             </div>
             <div class="flex items-center gap-2">
-                @if($employee->trashed() && (auth()->user()->hasPermission('hr.employees.edit') || auth()->user()->hasPermission('hr.employees.delete')))
+                @if($employee->trashed() && auth()->user()->hasPermission('hr.employees.archived_restore'))
                 <form method="POST" action="{{ route('employees.restore', $employee->id) }}" class="inline">
                     @csrf
                     <button type="submit" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">
                         Restaurar empleado
+                    </button>
+                </form>
+                @endif
+                @if($employee->trashed() && auth()->user()->hasPermission('hr.employees.archived_permanent_delete'))
+                <form method="POST" action="{{ route('employees.force-destroy', $employee->id) }}" class="inline" onsubmit="return confirm('¿Eliminar definitivamente a este empleado? No se puede deshacer.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100">
+                        Eliminar definitivamente
                     </button>
                 </form>
                 @endif
@@ -192,12 +201,12 @@
             </div>
             @endif
 
-            @if(auth()->user()->hasPermission('rrhh.documents.view'))
+            @if(auth()->user()->hasPermission('hr.documents.download') || auth()->user()->hasPermission('hr.documents.upload') || auth()->user()->hasPermission('hr.documents.delete'))
             <!-- Documentos -->
             <div class="rounded-xl border-2 border-slate-200 bg-slate-50/50 p-4 ring-1 ring-slate-200">
                 <div class="mb-4 flex items-center justify-between">
                     <h3 class="text-sm font-semibold text-slate-900">Documentos</h3>
-                    @if(auth()->user()->hasPermission('rrhh.documents.create'))
+                    @if(auth()->user()->hasPermission('hr.documents.upload'))
                     <button type="button" onclick="document.getElementById('modalDocument').classList.remove('hidden')" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         Subir documento
@@ -217,8 +226,10 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
+                            @if(auth()->user()->hasPermission('hr.documents.download'))
                             <a href="{{ route('employees.documents.download', [$employee, $doc]) }}" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">Descargar</a>
-                            @if(auth()->user()->hasPermission('rrhh.documents.delete'))
+                            @endif
+                            @if(auth()->user()->hasPermission('hr.documents.delete'))
                             <form method="POST" action="{{ route('employees.documents.destroy', [$employee, $doc]) }}" class="inline" onsubmit="return confirm('¿Eliminar este documento?');">
                                 @csrf
                                 @method('DELETE')
@@ -234,11 +245,15 @@
             </div>
             @endif
 
+            @if(auth()->user()->hasPermission('hr.payroll.view')
+                || auth()->user()->hasPermission('hr.payroll.upload')
+                || auth()->user()->hasPermission('hr.payroll.delete')
+                || auth()->user()->hasPermission('hr.employees.configure'))
             <!-- Nóminas -->
             <div class="rounded-xl border-2 border-indigo-100 bg-indigo-50/30 p-4 ring-1 ring-indigo-100">
                 <div class="mb-4 flex items-center justify-between">
                     <h3 class="text-sm font-semibold text-indigo-900">Nóminas</h3>
-                    @if(auth()->user()->hasPermission('hr.employees.configure'))
+                    @if(auth()->user()->hasPermission('hr.payroll.upload') || auth()->user()->hasPermission('hr.employees.configure'))
                     <form method="POST" action="{{ route('employees.payrolls', $employee) }}" enctype="multipart/form-data" class="inline">
                         @csrf
                         <input type="file" name="payrolls[]" id="payrollFileInput" accept=".pdf" multiple class="hidden" onchange="this.form.submit()"/>
@@ -267,8 +282,10 @@
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
+                                @if(auth()->user()->hasPermission('hr.payroll.view'))
                                 <a href="{{ route('payrolls.view', $payroll) }}" target="_blank" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">Ver</a>
-                                @if(auth()->user()->hasPermission('payroll.delete'))
+                                @endif
+                                @if(auth()->user()->hasPermission('hr.payroll.delete'))
                                 <form method="POST" action="{{ route('payroll.destroy', $payroll) }}" class="inline" onsubmit="return confirm('¿Eliminar esta nómina?');">
                                     @csrf
                                     @method('DELETE')
@@ -284,11 +301,12 @@
                     @endforelse
                 </div>
             </div>
+            @endif
         </div>
     </div>
 </div>
 
-@if(auth()->user()->hasPermission('rrhh.documents.create'))
+@if(auth()->user()->hasPermission('hr.documents.upload'))
 <div id="modalDocument" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
     <div class="flex min-h-screen items-center justify-center p-4">
         <div class="fixed inset-0 bg-slate-900/50" onclick="document.getElementById('modalDocument').classList.add('hidden')"></div>

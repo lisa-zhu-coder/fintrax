@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Role extends Model
 {
     use SoftDeletes;
-    
+
     protected $fillable = [
         'key',
         'name',
@@ -37,7 +37,6 @@ class Role extends Model
 
     /**
      * Obtiene los permisos efectivos para una empresa.
-     * Si la empresa tiene personalización, usa esa; si no, usa los permisos base del rol.
      */
     public function getEffectivePermissions(?int $companyId = null): array
     {
@@ -49,41 +48,77 @@ class Role extends Model
                 return $override->permissions;
             }
         }
+
         return $this->permissions ?? [];
     }
 
     public function hasPermission(string $permission, ?int $companyId = null): bool
     {
         $permissions = $this->getEffectivePermissions($companyId);
-        
-        // Verificar permiso exacto primero
+
         if (isset($permissions[$permission]) && $permissions[$permission] === true) {
             return true;
         }
 
-        // Compatibilidad: hr.employees.view (legacy) o permiso general 'view' = ver empleados
-        if ($permission === 'hr.employees.view_store' && (!empty($permissions['hr.employees.view']) || !empty($permissions['view']))) {
+        // Documentos RRHH: claves antiguas y alias
+        if ($permission === 'hr.documents.download') {
+            if (! empty($permissions['hr.documents.download']) || ! empty($permissions['hr.documents.view'])
+                || ! empty($permissions['rrhh.documents.view'])) {
+                return true;
+            }
+        }
+        if ($permission === 'hr.documents.upload') {
+            if (! empty($permissions['hr.documents.upload']) || ! empty($permissions['rrhh.documents.create'])) {
+                return true;
+            }
+        }
+        if ($permission === 'hr.documents.delete' && ! empty($permissions['rrhh.documents.delete'])) {
             return true;
         }
-        if ($permission === 'hr.employees.view_own' && (!empty($permissions['hr.employees.view']) || !empty($permissions['view']))) {
+
+        // Nóminas: hr.payroll.* y claves antiguas payroll.* / hr.payroll.payroll.*
+        $payrollMap = [
+            'hr.payroll.view' => ['hr.payroll.view', 'payroll.view', 'hr.payroll.payroll.view'],
+            'hr.payroll.send' => ['hr.payroll.send', 'payroll.send', 'hr.payroll.payroll.send'],
+            'hr.payroll.upload' => ['hr.payroll.upload', 'payroll.create', 'hr.payroll.payroll.upload', 'payroll.upload'],
+            'hr.payroll.delete' => ['hr.payroll.delete', 'payroll.delete', 'hr.payroll.payroll.delete'],
+        ];
+        if (isset($payrollMap[$permission])) {
+            foreach ($payrollMap[$permission] as $key) {
+                if (! empty($permissions[$key])) {
+                    return true;
+                }
+            }
+            if ($permission === 'hr.payroll.upload' && ! empty($permissions['hr.employees.configure'])) {
+                return true;
+            }
+        }
+
+        if ($permission === 'hr.employees.archived_restore' && (! empty($permissions['hr.employees.edit']) || ! empty($permissions['hr.employees.delete']))) {
             return true;
         }
-        // Compatibilidad: hr.overtime.view (legacy) = ver horas extras de la tienda
-        if (($permission === 'hr.overtime.view_store' || $permission === 'hr.overtime.view_own') && !empty($permissions['hr.overtime.view'])) {
+
+        if ($permission === 'hr.employees.archived_permanent_delete' && ! empty($permissions['hr.employees.delete'])) {
             return true;
         }
-        // Compatibilidad: salario bruto/neto (legacy) = ver salario de todos
+
+        if ($permission === 'hr.employees.view_store' && (! empty($permissions['hr.employees.view']) || ! empty($permissions['view']))) {
+            return true;
+        }
+        if ($permission === 'hr.employees.view_own' && (! empty($permissions['hr.employees.view']) || ! empty($permissions['view']))) {
+            return true;
+        }
+        if (($permission === 'hr.overtime.view_store' || $permission === 'hr.overtime.view_own') && ! empty($permissions['hr.overtime.view'])) {
+            return true;
+        }
         if (($permission === 'hr.employees.view_salary_store' || $permission === 'hr.employees.view_salary_own')
-            && (!empty($permissions['hr.employees.view_gross_salary']) || !empty($permissions['hr.employees.view_net_salary']))) {
+            && (! empty($permissions['hr.employees.view_gross_salary']) || ! empty($permissions['hr.employees.view_net_salary']))) {
             return true;
         }
-        
-        // Mapeo de permisos granulares a permisos generales (compatibilidad)
-        // Si el permiso termina en .view, .create, .edit, .delete, verificar el permiso general
+
         $parts = explode('.', $permission);
-        $action = end($parts); // view, create, edit, delete, export
-        
-        // Mapear acciones a permisos generales
+        $action = end($parts);
+
         $generalPermissionMap = [
             'view' => 'view',
             'create' => 'create',
@@ -91,14 +126,14 @@ class Role extends Model
             'delete' => 'delete',
             'export' => 'export',
         ];
-        
+
         if (isset($generalPermissionMap[$action])) {
             $generalPermission = $generalPermissionMap[$action];
             if (isset($permissions[$generalPermission]) && $permissions[$generalPermission] === true) {
                 return true;
             }
         }
-        
+
         return false;
     }
 }

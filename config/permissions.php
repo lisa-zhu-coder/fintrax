@@ -19,7 +19,11 @@ return [
         'view_salary_store' => 'Ver salario bruto y neto (todos los empleados)',
         'edit_initial' => 'Editar inicial',
         'manage' => 'Gestionar',
-        'send' => 'Enviar',
+        'send' => 'Enviar / guardar en fichas',
+        'upload' => 'Subir',
+        'download' => 'Descargar',
+        'archived_restore' => 'Restaurar empleados archivados',
+        'archived_permanent_delete' => 'Eliminar definitivamente archivados',
     ],
 
     'modules' => [
@@ -123,17 +127,15 @@ return [
             'key' => 'hr',
             'label' => 'RR.HH.',
             'items' => [
-                ['key' => 'employees', 'label' => 'Empleados', 'actions' => ['view_own', 'view_store', 'view_salary_own', 'view_salary_store', 'create', 'edit', 'delete', 'configure']],
-                ['key' => 'documents', 'label' => 'Documentos empleados', 'actions' => ['view', 'create', 'delete']],
+                ['key' => 'employees', 'label' => 'Empleados', 'actions' => [
+                    'view_own', 'view_store', 'view_salary_own', 'view_salary_store',
+                    'create', 'edit', 'delete', 'configure',
+                    'archived_restore', 'archived_permanent_delete',
+                ]],
+                ['key' => 'documents', 'label' => 'Documentos en ficha del empleado', 'actions' => ['download', 'upload', 'delete']],
+                ['key' => 'payroll', 'label' => 'Nóminas', 'actions' => ['view', 'upload', 'delete', 'send']],
                 ['key' => 'overtime', 'label' => 'Horas extras', 'actions' => ['view_own', 'view_store', 'create', 'edit', 'delete']],
                 ['key' => 'vacations', 'label' => 'Vacaciones', 'actions' => ['view', 'edit']],
-            ],
-        ],
-        [
-            'key' => 'payroll',
-            'label' => 'Nóminas',
-            'items' => [
-                ['key' => 'main', 'label' => 'Nóminas', 'actions' => ['view', 'create', 'delete', 'send']],
             ],
         ],
         [

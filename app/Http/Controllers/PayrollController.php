@@ -18,10 +18,10 @@ class PayrollController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:payroll.view')->only(['view', 'pendingSend', 'processStatus']);
-        $this->middleware('permission:payroll.send')->only(['sendBulk']);
-        $this->middleware('permission:payroll.create')->only(['assignEmployee', 'pendingAssignEmployee']);
-        $this->middleware('permission:payroll.delete')->only(['destroy', 'cancelPending', 'pendingRemove']);
+        $this->middleware('permission:hr.payroll.view')->only(['view', 'pendingSend', 'processStatus']);
+        $this->middleware('permission:hr.payroll.send')->only(['sendBulk']);
+        $this->middleware('permission:hr.payroll.upload')->only(['assignEmployee', 'pendingAssignEmployee']);
+        $this->middleware('permission:hr.payroll.delete')->only(['destroy', 'cancelPending', 'pendingRemove']);
     }
 
     public function pendingAssignEmployee(Request $request)

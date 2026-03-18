@@ -684,7 +684,11 @@
                 </div>
                 @endif
 
-                @if(auth()->user()->hasAnyPermission(['hr.employees.view_own', 'hr.employees.view_store', 'hr.overtime.view_own', 'hr.overtime.view_store']))
+                @if(auth()->user()->hasAnyPermission([
+                    'hr.employees.view_own', 'hr.employees.view_store',
+                    'hr.overtime.view_own', 'hr.overtime.view_store',
+                    'hr.payroll.view', 'hr.payroll.upload', 'hr.payroll.send', 'hr.payroll.delete',
+                ]))
                 {{-- RR.HH. (desplegable) --}}
                 <div>
                     <button type="button" id="hrMenuToggle" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors">
@@ -715,6 +719,11 @@
                         <a href="{{ route('vacations.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('vacations.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
                             <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/><circle cx="12" cy="12" r="4"/></svg>
                             <span class="sidebar-submenu-text">Vacaciones</span></a>
+                        @endif
+                        @if(auth()->user()->hasAnyPermission(['hr.payroll.view', 'hr.payroll.upload', 'hr.payroll.send', 'hr.payroll.delete', 'hr.employees.configure']))
+                        <a href="{{ route('payroll.pending-send') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('payroll.*') || request()->routeIs('payrolls.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
+                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+                            <span class="sidebar-submenu-text">Nóminas</span></a>
                         @endif
                     </div>
                 </div>
@@ -1195,7 +1204,12 @@
             const hrIcon = document.getElementById('hrMenuIcon');
             if (hrToggle && hrMenu && hrIcon) {
                 const path = window.location.pathname;
-                const isHrPage = path.includes('/employees') || (path.includes('/overtime') && !path.includes('/overtime-settings'));
+                const isHrPage =
+                    path.includes('/employees')
+                    || path.includes('/vacations')
+                    || path.includes('/payroll')
+                    || path.includes('/payrolls')
+                    || (path.includes('/overtime') && !path.includes('/overtime-settings'));
                 if (isHrPage) { hrMenu.classList.remove('hidden'); hrIcon.style.transform = 'rotate(180deg)'; }
                 hrToggle.addEventListener('click', function() {
                     const isHidden = hrMenu.classList.contains('hidden');

@@ -29,10 +29,11 @@ class EmployeeController extends Controller
         $this->middleware('permission:hr.employees.create')->only(['create', 'store', 'storeQuickUser']);
         $this->middleware('permission:hr.employees.edit')->only(['edit', 'update', 'reorder']);
         $this->middleware('permission:hr.employees.delete')->only(['destroy']);
-        $this->middleware('permission:hr.employees.configure')->only(['uploadPayroll', 'uploadPayrollAuto']);
-        $this->middleware('permission:rrhh.documents.create')->only(['storeDocument']);
-        $this->middleware('permission:rrhh.documents.delete')->only(['destroyDocument']);
-        $this->middleware('permission:rrhh.documents.view')->only(['downloadDocument']);
+        $this->middleware('permission:hr.employees.archived_restore')->only(['restore']);
+        $this->middleware('permission:hr.employees.archived_permanent_delete')->only(['forceDestroy']);
+        $this->middleware('permission:hr.documents.upload')->only(['storeDocument']);
+        $this->middleware('permission:hr.documents.delete')->only(['destroyDocument']);
+        $this->middleware('permission:hr.documents.download')->only(['downloadDocument']);
     }
 
     public function index(Request $request)
@@ -590,10 +591,7 @@ class EmployeeController extends Controller
     public function restore($employee)
     {
         $user = Auth::user();
-        if (!$user->hasPermission('hr.employees.edit') && !$user->hasPermission('hr.employees.delete')) {
-            abort(403, 'No tienes permiso para restaurar empleados.');
-        }
-        $employee = Employee::withTrashed()->findOrFail($employee);
+        $employee = Employee::onlyTrashed()->findOrFail($employee);
         if (!$user->isSuperAdmin() && !$user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
             if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
@@ -601,7 +599,46 @@ class EmployeeController extends Controller
             }
         }
         $employee->restore();
-        return redirect()->route('employees.index')->with('success', 'Empleado restaurado correctamente.');
+        return redirect()->route('employees.index', ['archived' => 1])->with('success', 'Empleado restaurado correctamente.');
+    }
+
+    /**
+     * Borrado definitivo (solo empleados archivados).
+     */
+    public function forceDestroy($employee)
+    {
+        $user = Auth::user();
+        $employee = Employee::onlyTrashed()->findOrFail($employee);
+
+        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+            $enforcedStoreId = $user->getEnforcedStoreId();
+            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+                abort(403, 'No tienes acceso a este empleado.');
+            }
+        }
+
+        // Desvincular usuario (si existe) para no dejar referencias rotas.
+        if ($employee->user_id) {
+            $employee->user_id = null;
+            $employee->saveQuietly();
+        }
+
+        // Borrar ficheros locales (documentos + nóminas) antes del forceDelete.
+        foreach ($employee->documents()->get() as $doc) {
+            if ($doc->file_path && Storage::disk('local')->exists($doc->file_path)) {
+                Storage::disk('local')->delete($doc->file_path);
+            }
+        }
+
+        foreach ($employee->payrolls()->get() as $payroll) {
+            if ($payroll->file_path && Storage::disk('local')->exists($payroll->file_path)) {
+                Storage::disk('local')->delete($payroll->file_path);
+            }
+        }
+
+        $employee->forceDelete();
+
+        return redirect()->route('employees.index', ['archived' => 1])->with('success', 'Empleado eliminado definitivamente.');
     }
 
     public function storeDocument(Request $request, Employee $employee)
@@ -656,7 +693,7 @@ class EmployeeController extends Controller
             abort(404);
         }
         $user = Auth::user();
-        if (!$user->hasPermission('rrhh.documents.view')) {
+        if (!$user->hasPermission('hr.documents.download')) {
             abort(403);
         }
         if (!$user->isSuperAdmin() && !$user->isAdmin()) {
@@ -677,6 +714,11 @@ class EmployeeController extends Controller
 
     public function uploadPayroll(Request $request, Employee $employee)
     {
+        $user = Auth::user();
+        if (!$user->hasPermission('hr.payroll.upload') && !$user->hasPermission('hr.employees.configure')) {
+            abort(403, 'No tienes permiso para subir nóminas.');
+        }
+
         $request->validate([
             'payrolls' => 'required|array',
             'payrolls.*' => 'file|mimes:pdf|max:10240',
@@ -725,6 +767,11 @@ class EmployeeController extends Controller
 
     public function uploadPayrollAuto(Request $request)
     {
+        $user = Auth::user();
+        if (!$user->hasPermission('hr.payroll.upload') && !$user->hasPermission('hr.employees.configure')) {
+            abort(403, 'No tienes permiso para subir nóminas.');
+        }
+
         $request->validate([
             'payroll' => 'required|file|mimes:pdf|max:51200', // 50 MB para PDFs con muchas nóminas
         ]);

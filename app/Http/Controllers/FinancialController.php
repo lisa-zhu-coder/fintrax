@@ -7,11 +7,11 @@ use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
 use App\Models\BankAccount;
 use App\Models\BankMovement;
 use App\Models\CashControlDayComment;
-use App\Models\Company;
 use App\Models\CashWallet;
 use App\Models\CashWalletExpense;
 use App\Models\CashWalletTransfer;
 use App\Models\CashWithdrawal;
+use App\Models\Company;
 use App\Models\ExpensePayment;
 use App\Models\FinancialEntry;
 use App\Models\OrderPayment;
@@ -30,7 +30,7 @@ class FinancialController extends Controller
 {
     use EnforcesStoreScope;
     use SyncsStoresFromBusinesses;
-    
+
     public function __construct()
     {
         $this->middleware('permission:financial.registros.view')->only(['index']);
@@ -89,7 +89,7 @@ class FinancialController extends Controller
 
         // Búsqueda por concepto o notas
         if ($request->filled('search')) {
-            $term = '%' . $request->get('search') . '%';
+            $term = '%'.$request->get('search').'%';
             $query->where(function ($q) use ($term) {
                 $q->where('concept', 'like', $term)
                     ->orWhere('notes', 'like', $term)
@@ -111,7 +111,7 @@ class FinancialController extends Controller
     public function create(Request $request)
     {
         $this->syncStoresFromBusinesses();
-        
+
         $allowedTypes = [];
         if (auth()->user()->hasPermission('financial.daily_closes.create')) {
             $allowedTypes[] = 'daily_close';
@@ -125,23 +125,24 @@ class FinancialController extends Controller
         if (empty($allowedTypes)) {
             abort(403, 'No tienes permiso para crear registros en este módulo.');
         }
-        
+
         $type = $request->get('type', 'daily_close');
         // Si se llega con ?type=... (ej. desde "Añadir cierre diario"), restringir a ese tipo
         // para abrir directamente el formulario correspondiente sin elegir tipo.
         if ($request->has('type') && in_array($request->type, $allowedTypes, true)) {
             $allowedTypes = [$request->type];
         }
-        
+
         $stores = $this->getAvailableStores();
         $suppliers = Supplier::orderBy('name')->get();
         $dailyCloseSettings = $this->getDailyCloseSettings();
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
-        
+
         try {
             return view('financial.create', compact('stores', 'suppliers', 'type', 'allowedTypes', 'dailyCloseSettings', 'expenseCategories'));
         } catch (\Exception $e) {
-            Log::error('Error en FinancialController@create: ' . $e->getMessage());
+            Log::error('Error en FinancialController@create: '.$e->getMessage());
+
             return redirect()->route('financial.index')->with('error', 'Error al cargar el formulario');
         }
     }
@@ -203,7 +204,7 @@ class FinancialController extends Controller
         $validated = $request->validate($rules);
 
         $validated['store_id'] = $this->enforcedStoreIdForCreate((int) ($validated['store_id'] ?? 0) ?: null);
-        if (!$validated['store_id']) {
+        if (! $validated['store_id']) {
             return redirect()->back()->withInput()->withErrors(['store_id' => 'Debe seleccionar una tienda.']);
         }
 
@@ -310,7 +311,7 @@ class FinancialController extends Controller
                 $entryData['income_amount'] = $validated['total_amount'] ?? $validated['income_amount'] ?? $request->input('income_amount', 0);
                 $entryData['amount'] = $validated['total_amount'] ?? $validated['income_amount'] ?? $request->input('income_amount', 0);
                 $entryData['total_amount'] = $validated['total_amount'] ?? $validated['income_amount'] ?? $request->input('income_amount', 0);
-                
+
                 // Guardar categoría y concepto del ingreso
                 if (isset($validated['income_category'])) {
                     $entryData['income_category'] = $validated['income_category'];
@@ -319,7 +320,7 @@ class FinancialController extends Controller
                     $entryData['income_concept'] = $validated['income_concept'];
                     $entryData['concept'] = $validated['income_concept'];
                 }
-                
+
                 // Normalizar método de pago: datáfono, tarjeta o card se guardan como bank
                 if (isset($validated['expense_payment_method'])) {
                     $paymentMethod = $validated['expense_payment_method'];
@@ -330,7 +331,7 @@ class FinancialController extends Controller
                     }
                 }
             }
-            
+
             // Si es un gasto, procesar campos específicos
             if ($validated['type'] === 'expense') {
                 $entryData['expense_amount'] = $validated['total_amount'] ?? $request->input('expense_amount', 0);
@@ -338,7 +339,7 @@ class FinancialController extends Controller
                 $entryData['total_amount'] = $validated['total_amount'] ?? $request->input('expense_amount', 0);
                 $entryData['status'] = $validated['status'] ?? 'pendiente';
                 $entryData['expense_source'] = 'gasto_manual';
-                
+
                 // Guardar categoría, concepto y método de pago del gasto
                 if (isset($validated['expense_category'])) {
                     $entryData['expense_category'] = $validated['expense_category'];
@@ -356,7 +357,7 @@ class FinancialController extends Controller
                 if (isset($validated['supplier_id']) && $validated['supplier_id']) {
                     $entryData['supplier_id'] = $validated['supplier_id'];
                 }
-                
+
                 // Calcular paid_amount desde los pagos
                 if ($request->has('expense_payments')) {
                     $totalPaid = 0;
@@ -364,7 +365,7 @@ class FinancialController extends Controller
                         $totalPaid += (float) ($payment['amount'] ?? 0);
                     }
                     $entryData['paid_amount'] = $totalPaid;
-                    
+
                     // Actualizar status según pagos
                     if ($totalPaid >= $entryData['total_amount'] && $entryData['total_amount'] > 0) {
                         $entryData['status'] = 'pagado';
@@ -399,7 +400,7 @@ class FinancialController extends Controller
                     }
                 } catch (\Exception $e) {
                     // La tabla aún no existe, continuar sin crear pagos
-                    Log::warning('No se pudieron crear los pagos del gasto: ' . $e->getMessage());
+                    Log::warning('No se pudieron crear los pagos del gasto: '.$e->getMessage());
                 }
             }
 
@@ -421,6 +422,7 @@ class FinancialController extends Controller
             if ($entry->type === 'expense') {
                 return redirect()->route('financial.expenses')->with('success', 'Gasto creado correctamente.');
             }
+
             return redirect()->route('financial.show', $entry)->with('success', 'Registro creado correctamente');
         } catch (ValidationException $e) {
             Log::warning('Error de validación al crear registro', ['errors' => $e->errors()]);
@@ -431,7 +433,8 @@ class FinancialController extends Controller
                 'trace' => $e->getTraceAsString(),
                 'request_data' => $request->except(['_token', 'password']),
             ]);
-            return back()->withInput()->with('error', 'Error al crear el registro: ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Error al crear el registro: '.$e->getMessage());
         }
     }
 
@@ -442,7 +445,7 @@ class FinancialController extends Controller
         $canView = $entry->type === 'daily_close'
             ? auth()->user()->hasPermission('financial.daily_closes.view')
             : auth()->user()->hasPermission('financial.registros.view');
-        if (!$canView) {
+        if (! $canView) {
             abort(403, 'No tienes permisos para ver esta acción.');
         }
         $dailyCloseSettings = $this->getDailyCloseSettings($entry->store?->company_id);
@@ -455,8 +458,9 @@ class FinancialController extends Controller
             $incomeAmount = (float) ($entry->total_amount ?? $entry->amount ?? $entry->income_amount ?? 0);
             $tpvDifferenceAmount = round($incomeAmount - $linkedMovementsSum, 2);
             $hasTpvDifferenceExpense = $entry->tpvDifferenceExpense()->exists();
-            $canCreateTpvDifference = $tpvDifferenceAmount > 0 && !$hasTpvDifferenceExpense && auth()->user()->hasPermission('financial.expenses.create');
+            $canCreateTpvDifference = $tpvDifferenceAmount > 0 && ! $hasTpvDifferenceExpense && auth()->user()->hasPermission('financial.expenses.create');
         }
+
         return view('financial.show', compact('entry', 'dailyCloseSettings', 'expenseCategories', 'linkedMovementsSum', 'canCreateTpvDifference', 'tpvDifferenceAmount'));
     }
 
@@ -464,7 +468,7 @@ class FinancialController extends Controller
     {
         $this->syncStoresFromBusinesses();
         $entry = FinancialEntry::findOrFail($id);
-        
+
         // Intentar cargar pagos si la tabla existe
         try {
             if (\Schema::hasTable('expense_payments')) {
@@ -477,10 +481,11 @@ class FinancialController extends Controller
             // Continuar sin cargar pagos
             $entry->setRelation('expensePayments', collect());
         }
-        
+
         $stores = $this->getAvailableStores();
         $dailyCloseSettings = $this->getDailyCloseSettings();
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
+
         return view('financial.edit', compact('entry', 'stores', 'dailyCloseSettings', 'expenseCategories'));
     }
 
@@ -490,10 +495,10 @@ class FinancialController extends Controller
         $canEdit = $entry->type === 'daily_close'
             ? auth()->user()->hasPermission('financial.daily_closes.edit')
             : auth()->user()->hasPermission('financial.registros.edit');
-        if (!$canEdit) {
+        if (! $canEdit) {
             abort(403, 'No tienes permisos para editar esta acción.');
         }
-        
+
         $rules = [
             'date' => 'required|date',
             'store_id' => 'required|exists:stores,id',
@@ -603,7 +608,7 @@ class FinancialController extends Controller
                     $validated['income_amount'] = $validated['income_amount'];
                     $validated['amount'] = $validated['income_amount'];
                 }
-                
+
                 // Guardar categoría y concepto del ingreso
                 if ($request->has('income_category')) {
                     $validated['income_category'] = $request->input('income_category');
@@ -612,7 +617,7 @@ class FinancialController extends Controller
                     $validated['income_concept'] = $request->input('income_concept');
                     $validated['concept'] = $request->input('income_concept');
                 }
-                
+
                 // Normalizar método de pago: datáfono, tarjeta o card se guardan como bank
                 if ($request->has('expense_payment_method')) {
                     $paymentMethod = $request->input('expense_payment_method');
@@ -623,14 +628,14 @@ class FinancialController extends Controller
                     }
                 }
             }
-            
+
             // Si es un gasto, procesar campos específicos
             if ($entry->type === 'expense') {
                 if ($request->has('total_amount')) {
                     $validated['expense_amount'] = $validated['total_amount'];
                     $validated['amount'] = $validated['total_amount'];
                 }
-                
+
                 // Guardar categoría, concepto y método de pago del gasto
                 if ($request->has('expense_category')) {
                     $validated['expense_category'] = $request->input('expense_category');
@@ -642,7 +647,7 @@ class FinancialController extends Controller
                     $pm = $request->input('expense_payment_method');
                     $validated['expense_payment_method'] = ($pm === '' || $pm === null) ? null : (in_array($pm, ['datafono', 'tarjeta'], true) ? 'card' : $pm);
                 }
-                
+
                 // Calcular paid_amount desde los pagos
                 if ($request->has('expense_payments')) {
                     $totalPaid = 0;
@@ -650,7 +655,7 @@ class FinancialController extends Controller
                         $totalPaid += (float) ($payment['amount'] ?? 0);
                     }
                     $validated['paid_amount'] = $totalPaid;
-                    
+
                     // Actualizar status según pagos
                     $totalAmount = $validated['total_amount'] ?? $entry->total_amount ?? $entry->amount ?? 0;
                     if ($totalPaid >= $totalAmount && $totalAmount > 0) {
@@ -689,7 +694,7 @@ class FinancialController extends Controller
                     if (Schema::hasTable('expense_payments')) {
                         // Eliminar pagos existentes
                         $entry->expensePayments()->delete();
-                        
+
                         // Crear nuevos pagos
                         foreach ($request->expense_payments as $payment) {
                             $entry->expensePayments()->create([
@@ -701,7 +706,7 @@ class FinancialController extends Controller
                     }
                 } catch (\Exception $e) {
                     // La tabla aún no existe, continuar sin actualizar pagos
-                    Log::warning('No se pudieron actualizar los pagos del gasto: ' . $e->getMessage());
+                    Log::warning('No se pudieron actualizar los pagos del gasto: '.$e->getMessage());
                 }
             }
 
@@ -715,6 +720,7 @@ class FinancialController extends Controller
             if ($entry->type === 'expense') {
                 return redirect()->route('financial.expenses')->with('success', 'Gasto actualizado correctamente.');
             }
+
             return redirect()->route('financial.show', $entry)->with('success', 'Registro actualizado correctamente');
         } catch (ValidationException $e) {
             throw $e;
@@ -725,6 +731,7 @@ class FinancialController extends Controller
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return back()->withInput()->with('error', 'Error al actualizar el registro. Revisa el log para más detalles.');
         }
     }
@@ -738,7 +745,7 @@ class FinancialController extends Controller
         if ($entry->type !== 'expense') {
             abort(404);
         }
-        if (!auth()->user()->hasPermission('financial.expenses.edit') && !auth()->user()->hasPermission('financial.registros.edit')) {
+        if (! auth()->user()->hasPermission('financial.expenses.edit') && ! auth()->user()->hasPermission('financial.registros.edit')) {
             abort(403, 'No tienes permiso para editar gastos.');
         }
         $this->authorizeStoreAccess($entry->store_id);
@@ -750,6 +757,7 @@ class FinancialController extends Controller
         $entry->update(['expense_category' => $value ?: null]);
 
         $label = $value ? ucfirst(str_replace('_', ' ', $value)) : '—';
+
         return response()->json([
             'success' => true,
             'expense_category' => $value,
@@ -763,15 +771,15 @@ class FinancialController extends Controller
     public function updateReportingMonth(Request $request, $entry)
     {
         $entry = FinancialEntry::findOrFail($entry);
-        if (!in_array($entry->type, ['income', 'expense', 'expense_refund'])) {
+        if (! in_array($entry->type, ['income', 'expense', 'expense_refund'])) {
             abort(404);
         }
         if ($entry->type === 'expense' && ($entry->expense_source ?? '') === 'cierre_diario') {
             abort(403, 'El mes correspondiente de gastos de cierre diario no es editable.');
         }
-        if (!auth()->user()->hasPermission('financial.registros.edit')
-            && !($entry->type === 'income' && auth()->user()->hasPermission('financial.income.edit'))
-            && !($entry->type === 'expense' && auth()->user()->hasPermission('financial.expenses.edit'))) {
+        if (! auth()->user()->hasPermission('financial.registros.edit')
+            && ! ($entry->type === 'income' && auth()->user()->hasPermission('financial.income.edit'))
+            && ! ($entry->type === 'expense' && auth()->user()->hasPermission('financial.expenses.edit'))) {
             abort(403, 'No tienes permiso para editar este registro.');
         }
         $this->authorizeStoreAccess($entry->store_id);
@@ -783,6 +791,7 @@ class FinancialController extends Controller
         $entry->update(['reporting_month' => $value]);
 
         $label = $value ? \Carbon\Carbon::createFromFormat('Y-m', $value)->locale('es')->isoFormat('MMMM YYYY') : '—';
+
         return response()->json([
             'success' => true,
             'reporting_month' => $value,
@@ -803,7 +812,7 @@ class FinancialController extends Controller
                 'expense' => auth()->user()->hasPermission('financial.expenses.delete') || auth()->user()->hasPermission('financial.registros.delete'),
                 default => auth()->user()->hasPermission('financial.registros.delete'),
             };
-            if (!$canDelete) {
+            if (! $canDelete) {
                 abort(403, 'No tienes permiso para eliminar este registro.');
             }
 
@@ -812,7 +821,7 @@ class FinancialController extends Controller
                 $this->deleteDailyCloseIncomes($entry);
                 $this->deleteDailyCloseExpenses($entry);
             }
-            
+
             // Eliminar pagos relacionados si es un gasto (evitar registros huérfanos en todas las vistas)
             if ($entry->type === 'expense') {
                 try {
@@ -820,12 +829,12 @@ class FinancialController extends Controller
                         $entry->expensePayments()->delete();
                     }
                 } catch (\Exception $e) {
-                    Log::warning('No se pudieron eliminar los pagos del gasto: ' . $e->getMessage());
+                    Log::warning('No se pudieron eliminar los pagos del gasto: '.$e->getMessage());
                 }
 
                 // Si el gasto proviene de un pedido, eliminar el pago del pedido para que desaparezca también en órdenes
                 $notes = is_string($entry->notes) ? json_decode($entry->notes, true) : $entry->notes;
-                if (is_array($notes) && !empty($notes['order_payment_id'])) {
+                if (is_array($notes) && ! empty($notes['order_payment_id'])) {
                     $orderPayment = OrderPayment::find($notes['order_payment_id']);
                     if ($orderPayment) {
                         $orderPayment->delete();
@@ -840,7 +849,7 @@ class FinancialController extends Controller
                         Log::info('Registro de cash_wallet_expenses eliminado', ['financial_entry_id' => $entry->id]);
                     }
                 } catch (\Exception $e) {
-                    Log::warning('No se pudo eliminar el registro de cash_wallet_expenses: ' . $e->getMessage());
+                    Log::warning('No se pudo eliminar el registro de cash_wallet_expenses: '.$e->getMessage());
                 }
             }
 
@@ -865,9 +874,11 @@ class FinancialController extends Controller
             if ($entry->type === 'expense') {
                 return redirect()->route('financial.expenses')->with('success', 'Gasto eliminado correctamente.');
             }
+
             return redirect()->route('financial.index')->with('success', 'Registro eliminado correctamente');
         } catch (\Exception $e) {
-            Log::error('Error eliminando registro: ' . $e->getMessage());
+            Log::error('Error eliminando registro: '.$e->getMessage());
+
             return back()->with('error', 'Error al eliminar el registro');
         }
     }
@@ -875,7 +886,7 @@ class FinancialController extends Controller
     public function income(Request $request)
     {
         $this->syncStoresFromBusinesses();
-        
+
         $query = FinancialEntry::with(['store', 'creator'])
             ->where('type', 'income');
 
@@ -928,7 +939,7 @@ class FinancialController extends Controller
     public function expenses(Request $request)
     {
         $this->syncStoresFromBusinesses();
-        
+
         $query = FinancialEntry::with(['store', 'creator', 'invoice'])
             ->where('type', 'expense');
 
@@ -986,7 +997,7 @@ class FinancialController extends Controller
     public function dailyCloses(Request $request)
     {
         $this->syncStoresFromBusinesses();
-        
+
         $query = FinancialEntry::with(['store', 'creator'])
             ->where('type', 'daily_close');
 
@@ -1030,16 +1041,16 @@ class FinancialController extends Controller
         $entries = $query->orderBy('date', 'desc')->get();
         $vouchersEnabled = ($this->getDailyCloseSettings())['vouchers_enabled'] ?? true;
 
-        $filename = 'cierres-diarios-' . now()->format('Y-m-d-His') . '.csv';
+        $filename = 'cierres-diarios-'.now()->format('Y-m-d-His').'.csv';
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ];
 
         return response()->streamDownload(function () use ($entries, $vouchersEnabled) {
             $out = fopen('php://output', 'w');
-            fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
+            fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM UTF-8
 
             $headerRow = ['Fecha', 'Tienda', 'Total (€)', 'TPV (€)', 'Efectivo (€)', 'Discrepancia (€)'];
             if ($vouchersEnabled) {
@@ -1092,16 +1103,16 @@ class FinancialController extends Controller
     {
         try {
             $this->syncStoresFromBusinesses();
-            
+
             // Obtener años disponibles para el filtro (compatible MySQL y SQLite)
             try {
                 $availableYears = $this->getDistinctYearsFromEntries(FinancialEntry::where('type', 'daily_close'));
             } catch (\Exception $e) {
                 $availableYears = [];
             }
-            
+
             // Asegurar que siempre sea un array
-            if (!is_array($availableYears)) {
+            if (! is_array($availableYears)) {
                 $availableYears = [];
             }
 
@@ -1116,7 +1127,7 @@ class FinancialController extends Controller
             // Aplicar filtro por año si se especifica (por defecto el año más reciente con datos o el actual)
             $currentYear = date('Y');
             $year = $request->get('year', $currentYear);
-            
+
             if ($year) {
                 $query->whereYear('date', $year);
             }
@@ -1127,192 +1138,192 @@ class FinancialController extends Controller
             }
 
             $allEntries = $query->orderBy('date', 'desc')->orderBy('created_at', 'desc')->get();
-            
+
             // Calcular efectivo retirado y agrupar por tienda y mes
             $storesData = [];
-        
-        foreach ($allEntries as $entry) {
-            $cashCounted = $entry->calculateCashTotal();
-            $cashInitial = (float) ($entry->cash_initial ?? 0);
-            $cashWithdrawn = round($cashCounted - $cashInitial, 2);
-            
-            $storeId = $entry->store_id;
-            $storeName = $entry->store->name ?? 'Sin tienda';
-            $monthKey = $entry->date->format('Y-m');
-            $monthLabel = ucfirst(\Carbon\Carbon::parse($entry->date)->locale('es')->isoFormat('MMMM YYYY'));
-            
-            // Inicializar tienda si no existe
-            if (!isset($storesData[$storeId])) {
-                $storesData[$storeId] = [
-                    'id' => $storeId,
-                    'name' => $storeName,
-                    'total' => 0,
-                    'cash_real' => 0,
-                    'cash_collected' => 0,
-                    'month_expenses' => 0,
-                    'total_traspasos_efectivo' => 0,
-                    'balance' => 0,
-                    'days_withdrawn' => 0,
-                    'days_real' => 0,
-                    'months' => []
-                ];
-            }
-            
-            // Inicializar mes si no existe
-            if (!isset($storesData[$storeId]['months'][$monthKey])) {
-                $storesData[$storeId]['months'][$monthKey] = [
-                    'key' => $monthKey,
-                    'label' => $monthLabel,
-                    'total' => 0,
-                    'traspasos_efectivo' => 0,
-                    'entries' => []
-                ];
-            }
-            
-            // Agregar entrada al mes
-            $storesData[$storeId]['months'][$monthKey]['entries'][] = [
-                'id' => $entry->id,
-                'date' => $entry->date->format('d/m/Y'),
-                'amount' => $cashWithdrawn
-            ];
-            
-            // Actualizar totales
-            $storesData[$storeId]['months'][$monthKey]['total'] += $cashWithdrawn;
-            $storesData[$storeId]['total'] += $cashWithdrawn;
-        }
-        
-        // Calcular efectivo recogido (retiros de carteras) por tienda
-        foreach ($storesData as $storeId => &$store) {
-            // Calcular efectivo recogido total de la tienda (aplicando filtros de año y período)
-            $cashWithdrawalsQuery = CashWithdrawal::where('store_id', $storeId);
-            
-            if ($year) {
-                $cashWithdrawalsQuery->whereYear('date', $year);
-            }
-            
-            if ($period !== 'all') {
-                $this->applyPeriodFilter($cashWithdrawalsQuery, $period, $request);
-            }
-            
-            $store['cash_collected'] = (float) $cashWithdrawalsQuery->sum('amount');
-        }
-        
-        // Ordenar meses dentro de cada tienda (más reciente primero)
-        foreach ($storesData as &$store) {
-            krsort($store['months']);
-            $store['months'] = array_reverse($store['months'], true);
-        }
-        
-        // Calcular totales por tienda
-        foreach ($storesData as $storeId => &$store) {
-            $daysWithdrawn = [];
-            $daysReal = [];
-            
-            // Calcular efectivo real y contar días
-            foreach ($allEntries as $entry) {
-                if ($entry->store_id == $storeId) {
-                    $cashCounted = $entry->calculateCashTotal();
-                    $cashInitial = (float) ($entry->cash_initial ?? 0);
-                    $cashWithdrawn = round($cashCounted - $cashInitial, 2);
-                    
-                    if ($cashWithdrawn != 0) {
-                        $dayKey = $entry->date->format('Y-m-d');
-                        if (!in_array($dayKey, $daysWithdrawn)) {
-                            $daysWithdrawn[] = $dayKey;
-                        }
-                    }
-                    
-                    if ($entry->cash_real !== null) {
-                        $store['cash_real'] += (float)$entry->cash_real;
-                        $dayKey = $entry->date->format('Y-m-d');
-                        if (!in_array($dayKey, $daysReal)) {
-                            $daysReal[] = $dayKey;
-                        }
-                    }
-                }
-            }
-            
-            $store['days_withdrawn'] = count($daysWithdrawn);
-            $store['days_real'] = count($daysReal);
-            
-            // Obtener gastos del mes completo para esta tienda
-            $expensesQuery = FinancialEntry::where('type', 'expense')
-                ->where('store_id', $storeId)
-                ->where('notes', 'like', '%"source":"cash_control"%');
-            
-            // Aplicar filtro por año también a los gastos
-            if ($year) {
-                $expensesQuery->whereYear('date', $year);
-            }
-            
-            if ($period !== 'all') {
-                $this->applyPeriodFilter($expensesQuery, $period, $request);
-            }
-            
-            $storeExpenses = $expensesQuery->get();
-            
-            foreach ($storeExpenses as $expense) {
-                $procedenceDate = $expense->notes ? json_decode($expense->notes, true) : null;
-                if (is_array($procedenceDate) && isset($procedenceDate['procedence_date'])) {
-                    $procDate = $procedenceDate['procedence_date'];
-                    // Si la procedencia es el mes completo (formato: 2026-01)
-                    if ($procDate !== null && strlen($procDate) === 7) {
-                        $amount = (float) ($expense->expense_amount ?? $expense->amount ?? 0);
-                        $store['month_expenses'] += $amount;
-                    }
-                }
-            }
-            
-            // Traspasos en efectivo: Transfer reconciliados donde la tienda es origen o destino con fund = cash
-            $cashTransfersQuery = Transfer::where('status', 'reconciled')
-                ->whereNotNull('applied_at')
-                ->where(function($q) use ($storeId) {
-                    $q->where(function($q2) use ($storeId) {
-                        $q2->where('origin_type', 'store')->where('origin_id', $storeId)->where('origin_fund', 'cash');
-                    })->orWhere(function($q2) use ($storeId) {
-                        $q2->where('destination_type', 'store')->where('destination_id', $storeId)->where('destination_fund', 'cash');
-                    });
-                });
-            if ($year) {
-                $cashTransfersQuery->whereYear('date', $year);
-            }
-            if ($period !== 'all') {
-                $this->applyPeriodFilter($cashTransfersQuery, $period, $request);
-            }
-            $cashTransfers = $cashTransfersQuery->get();
-            $store['total_traspasos_efectivo'] = 0;
-            foreach ($cashTransfers as $tr) {
-                $amount = (float) $tr->amount;
-                if ($tr->origin_type === 'store' && (int) $tr->origin_id === (int) $storeId && $tr->origin_fund === 'cash') {
-                    $store['total_traspasos_efectivo'] -= $amount;
-                    $monthKey = $tr->date->format('Y-m');
-                    if (isset($store['months'][$monthKey])) {
-                        $store['months'][$monthKey]['traspasos_efectivo'] = ($store['months'][$monthKey]['traspasos_efectivo'] ?? 0) - $amount;
-                    }
-                }
-                if ($tr->destination_type === 'store' && (int) $tr->destination_id === (int) $storeId && $tr->destination_fund === 'cash') {
-                    $store['total_traspasos_efectivo'] += $amount;
-                    $monthKey = $tr->date->format('Y-m');
-                    if (isset($store['months'][$monthKey])) {
-                        $store['months'][$monthKey]['traspasos_efectivo'] = ($store['months'][$monthKey]['traspasos_efectivo'] ?? 0) + $amount;
-                    }
-                }
-            }
-            
-            // Saldo: efectivo real - gastos del mes - efectivo recogido + total traspasos efectivo
-            $store['balance'] = round($store['cash_real'] - $store['month_expenses'] - $store['cash_collected'] + $store['total_traspasos_efectivo'], 2);
-        }
-        
-        $stores = $this->getAvailableStores();
 
-        return view('financial.cash-control', compact('storesData', 'stores', 'period', 'availableYears'));
+            foreach ($allEntries as $entry) {
+                $cashCounted = $entry->calculateCashTotal();
+                $cashInitial = (float) ($entry->cash_initial ?? 0);
+                $cashWithdrawn = round($cashCounted - $cashInitial, 2);
+
+                $storeId = $entry->store_id;
+                $storeName = $entry->store->name ?? 'Sin tienda';
+                $monthKey = $entry->date->format('Y-m');
+                $monthLabel = ucfirst(\Carbon\Carbon::parse($entry->date)->locale('es')->isoFormat('MMMM YYYY'));
+
+                // Inicializar tienda si no existe
+                if (! isset($storesData[$storeId])) {
+                    $storesData[$storeId] = [
+                        'id' => $storeId,
+                        'name' => $storeName,
+                        'total' => 0,
+                        'cash_real' => 0,
+                        'cash_collected' => 0,
+                        'month_expenses' => 0,
+                        'total_traspasos_efectivo' => 0,
+                        'balance' => 0,
+                        'days_withdrawn' => 0,
+                        'days_real' => 0,
+                        'months' => [],
+                    ];
+                }
+
+                // Inicializar mes si no existe
+                if (! isset($storesData[$storeId]['months'][$monthKey])) {
+                    $storesData[$storeId]['months'][$monthKey] = [
+                        'key' => $monthKey,
+                        'label' => $monthLabel,
+                        'total' => 0,
+                        'traspasos_efectivo' => 0,
+                        'entries' => [],
+                    ];
+                }
+
+                // Agregar entrada al mes
+                $storesData[$storeId]['months'][$monthKey]['entries'][] = [
+                    'id' => $entry->id,
+                    'date' => $entry->date->format('d/m/Y'),
+                    'amount' => $cashWithdrawn,
+                ];
+
+                // Actualizar totales
+                $storesData[$storeId]['months'][$monthKey]['total'] += $cashWithdrawn;
+                $storesData[$storeId]['total'] += $cashWithdrawn;
+            }
+
+            // Calcular efectivo recogido (retiros de carteras) por tienda
+            foreach ($storesData as $storeId => &$store) {
+                // Calcular efectivo recogido total de la tienda (aplicando filtros de año y período)
+                $cashWithdrawalsQuery = CashWithdrawal::where('store_id', $storeId);
+
+                if ($year) {
+                    $cashWithdrawalsQuery->whereYear('date', $year);
+                }
+
+                if ($period !== 'all') {
+                    $this->applyPeriodFilter($cashWithdrawalsQuery, $period, $request);
+                }
+
+                $store['cash_collected'] = (float) $cashWithdrawalsQuery->sum('amount');
+            }
+
+            // Ordenar meses dentro de cada tienda (más reciente primero)
+            foreach ($storesData as &$store) {
+                krsort($store['months']);
+                $store['months'] = array_reverse($store['months'], true);
+            }
+
+            // Calcular totales por tienda
+            foreach ($storesData as $storeId => &$store) {
+                $daysWithdrawn = [];
+                $daysReal = [];
+
+                // Calcular efectivo real y contar días
+                foreach ($allEntries as $entry) {
+                    if ($entry->store_id == $storeId) {
+                        $cashCounted = $entry->calculateCashTotal();
+                        $cashInitial = (float) ($entry->cash_initial ?? 0);
+                        $cashWithdrawn = round($cashCounted - $cashInitial, 2);
+
+                        if ($cashWithdrawn != 0) {
+                            $dayKey = $entry->date->format('Y-m-d');
+                            if (! in_array($dayKey, $daysWithdrawn)) {
+                                $daysWithdrawn[] = $dayKey;
+                            }
+                        }
+
+                        if ($entry->cash_real !== null) {
+                            $store['cash_real'] += (float) $entry->cash_real;
+                            $dayKey = $entry->date->format('Y-m-d');
+                            if (! in_array($dayKey, $daysReal)) {
+                                $daysReal[] = $dayKey;
+                            }
+                        }
+                    }
+                }
+
+                $store['days_withdrawn'] = count($daysWithdrawn);
+                $store['days_real'] = count($daysReal);
+
+                // Obtener gastos del mes completo para esta tienda
+                $expensesQuery = FinancialEntry::where('type', 'expense')
+                    ->where('store_id', $storeId)
+                    ->where('notes', 'like', '%"source":"cash_control"%');
+
+                // Aplicar filtro por año también a los gastos
+                if ($year) {
+                    $expensesQuery->whereYear('date', $year);
+                }
+
+                if ($period !== 'all') {
+                    $this->applyPeriodFilter($expensesQuery, $period, $request);
+                }
+
+                $storeExpenses = $expensesQuery->get();
+
+                foreach ($storeExpenses as $expense) {
+                    $procedenceDate = $expense->notes ? json_decode($expense->notes, true) : null;
+                    if (is_array($procedenceDate) && isset($procedenceDate['procedence_date'])) {
+                        $procDate = $procedenceDate['procedence_date'];
+                        // Si la procedencia es el mes completo (formato: 2026-01)
+                        if ($procDate !== null && strlen($procDate) === 7) {
+                            $amount = (float) ($expense->expense_amount ?? $expense->amount ?? 0);
+                            $store['month_expenses'] += $amount;
+                        }
+                    }
+                }
+
+                // Traspasos en efectivo: Transfer reconciliados donde la tienda es origen o destino con fund = cash
+                $cashTransfersQuery = Transfer::where('status', 'reconciled')
+                    ->whereNotNull('applied_at')
+                    ->where(function ($q) use ($storeId) {
+                        $q->where(function ($q2) use ($storeId) {
+                            $q2->where('origin_type', 'store')->where('origin_id', $storeId)->where('origin_fund', 'cash');
+                        })->orWhere(function ($q2) use ($storeId) {
+                            $q2->where('destination_type', 'store')->where('destination_id', $storeId)->where('destination_fund', 'cash');
+                        });
+                    });
+                if ($year) {
+                    $cashTransfersQuery->whereYear('date', $year);
+                }
+                if ($period !== 'all') {
+                    $this->applyPeriodFilter($cashTransfersQuery, $period, $request);
+                }
+                $cashTransfers = $cashTransfersQuery->get();
+                $store['total_traspasos_efectivo'] = 0;
+                foreach ($cashTransfers as $tr) {
+                    $amount = (float) $tr->amount;
+                    if ($tr->origin_type === 'store' && (int) $tr->origin_id === (int) $storeId && $tr->origin_fund === 'cash') {
+                        $store['total_traspasos_efectivo'] -= $amount;
+                        $monthKey = $tr->date->format('Y-m');
+                        if (isset($store['months'][$monthKey])) {
+                            $store['months'][$monthKey]['traspasos_efectivo'] = ($store['months'][$monthKey]['traspasos_efectivo'] ?? 0) - $amount;
+                        }
+                    }
+                    if ($tr->destination_type === 'store' && (int) $tr->destination_id === (int) $storeId && $tr->destination_fund === 'cash') {
+                        $store['total_traspasos_efectivo'] += $amount;
+                        $monthKey = $tr->date->format('Y-m');
+                        if (isset($store['months'][$monthKey])) {
+                            $store['months'][$monthKey]['traspasos_efectivo'] = ($store['months'][$monthKey]['traspasos_efectivo'] ?? 0) + $amount;
+                        }
+                    }
+                }
+
+                // Saldo: efectivo real - gastos del mes - efectivo recogido + total traspasos efectivo
+                $store['balance'] = round($store['cash_real'] - $store['month_expenses'] - $store['cash_collected'] + $store['total_traspasos_efectivo'], 2);
+            }
+
+            $stores = $this->getAvailableStores();
+
+            return view('financial.cash-control', compact('storesData', 'stores', 'period', 'availableYears'));
         } catch (\Exception $e) {
             // En caso de error, devolver vista con datos vacíos
             $stores = $this->getAvailableStores();
             $storesData = [];
             $period = $request->get('period', 'last_30');
             $availableYears = [];
-            
+
             return view('financial.cash-control', compact('storesData', 'stores', 'period', 'availableYears'));
         }
     }
@@ -1321,38 +1332,38 @@ class FinancialController extends Controller
     {
         try {
             $this->syncStoresFromBusinesses();
-            
+
             // Obtener años disponibles para el filtro (compatible MySQL y SQLite)
             $availableYears = $this->getDistinctYearsFromEntries(FinancialEntry::where('type', 'daily_close'));
-            
-            if (!is_array($availableYears)) {
+
+            if (! is_array($availableYears)) {
                 $availableYears = [];
             }
 
             // Obtener todas las tiendas disponibles
             $stores = $this->getAvailableStores();
-            
+
             // Aplicar filtro por tienda solo si el usuario puede elegir (varias tiendas o admin)
             $selectedStoreId = $request->get('store_id');
             if (auth()->user()->getEnforcedStoreId() === null && $selectedStoreId) {
-                $stores = $stores->filter(function($store) use ($selectedStoreId) {
+                $stores = $stores->filter(function ($store) use ($selectedStoreId) {
                     return $store->id == $selectedStoreId;
                 });
             }
-            
+
             // Aplicar filtro por año si se especifica (por defecto el año más reciente con datos o el actual)
             $currentYear = date('Y');
             $year = $request->get('year', $currentYear);
-            
+
             // Obtener periodo
             $period = $request->get('period', 'all');
-            
+
             // Estructura de datos: tienda -> meses -> totales
             $storesData = [];
-            
+
             foreach ($stores as $store) {
                 $storeId = $store->id;
-                
+
                 // Inicializar estructura de tienda
                 $storesData[$storeId] = [
                     'id' => $storeId,
@@ -1360,48 +1371,48 @@ class FinancialController extends Controller
                     'total_income' => 0,
                     'total_expenses' => 0,
                     'total_balance' => 0,
-                    'months' => []
+                    'months' => [],
                 ];
-                
+
                 // Obtener cierres diarios para calcular ingresos bancarios (tpv)
                 $dailyClosesQuery = FinancialEntry::where('type', 'daily_close')
                     ->where('store_id', $storeId);
-                
+
                 if ($year) {
                     $dailyClosesQuery->whereYear('date', $year);
                 }
-                
+
                 if ($period !== 'all') {
                     $this->applyPeriodFilter($dailyClosesQuery, $period, $request);
                 }
-                
+
                 $dailyCloses = $dailyClosesQuery->get();
-                
+
                 // Obtener transferencias de carteras
                 $transfersQuery = CashWalletTransfer::where('store_id', $storeId);
-                
+
                 if ($year) {
                     $transfersQuery->whereYear('date', $year);
                 }
-                
+
                 if ($period !== 'all') {
                     // Aplicar filtro de periodo manualmente para CashWalletTransfer
                     $this->applyPeriodFilterToTransfer($transfersQuery, $period, $request);
                 }
-                
+
                 $transfers = $transfersQuery->get();
-                
+
                 // Obtener movimientos bancarios conciliados (solo de la empresa actual)
                 $bankMovementsQuery = BankMovement::forCurrentCompany()
                     ->where('is_conciliated', true)
-                    ->whereHas('bankAccount', function($query) use ($storeId) {
+                    ->whereHas('bankAccount', function ($query) use ($storeId) {
                         $query->where('store_id', $storeId);
                     });
-                
+
                 if ($year) {
                     $bankMovementsQuery->whereYear('date', $year);
                 }
-                
+
                 if ($period !== 'all') {
                     // Aplicar filtro de periodo para BankMovement
                     if ($period === 'last_30') {
@@ -1412,18 +1423,18 @@ class FinancialController extends Controller
                         $bankMovementsQuery->whereYear('date', now()->year);
                     }
                 }
-                
+
                 $bankMovements = $bankMovementsQuery->get();
-                
+
                 // Agrupar por mes y calcular totales
                 $monthlyData = [];
-                
+
                 // Procesar cierres diarios (tpv = ingresos bancarios)
                 foreach ($dailyCloses as $close) {
                     $monthKey = $close->date->format('Y-m');
                     $monthLabel = ucfirst(\Carbon\Carbon::parse($close->date)->locale('es')->isoFormat('MMMM YYYY'));
-                    
-                    if (!isset($monthlyData[$monthKey])) {
+
+                    if (! isset($monthlyData[$monthKey])) {
                         $monthlyData[$monthKey] = [
                             'key' => $monthKey,
                             'label' => $monthLabel,
@@ -1433,18 +1444,18 @@ class FinancialController extends Controller
                             'balance' => 0,
                         ];
                     }
-                    
+
                     // tpv es el ingreso bancario del cierre diario
                     $tpv = (float) ($close->tpv ?? 0);
                     $monthlyData[$monthKey]['income'] += $tpv;
                 }
-                
+
                 // Procesar transferencias de carteras
                 foreach ($transfers as $transfer) {
                     $monthKey = $transfer->date->format('Y-m');
                     $monthLabel = ucfirst(\Carbon\Carbon::parse($transfer->date)->locale('es')->isoFormat('MMMM YYYY'));
-                    
-                    if (!isset($monthlyData[$monthKey])) {
+
+                    if (! isset($monthlyData[$monthKey])) {
                         $monthlyData[$monthKey] = [
                             'key' => $monthKey,
                             'label' => $monthLabel,
@@ -1454,17 +1465,17 @@ class FinancialController extends Controller
                             'balance' => 0,
                         ];
                     }
-                    
+
                     $amount = (float) $transfer->amount;
                     $monthlyData[$monthKey]['income'] += $amount;
                 }
-                
+
                 // Procesar movimientos bancarios conciliados
                 foreach ($bankMovements as $movement) {
                     $monthKey = $movement->date->format('Y-m');
                     $monthLabel = ucfirst(\Carbon\Carbon::parse($movement->date)->locale('es')->isoFormat('MMMM YYYY'));
-                    
-                    if (!isset($monthlyData[$monthKey])) {
+
+                    if (! isset($monthlyData[$monthKey])) {
                         $monthlyData[$monthKey] = [
                             'key' => $monthKey,
                             'label' => $monthLabel,
@@ -1474,9 +1485,9 @@ class FinancialController extends Controller
                             'balance' => 0,
                         ];
                     }
-                    
+
                     $amount = (float) $movement->amount;
-                    
+
                     if ($movement->type === 'transfer' && $movement->status === 'conciliado') {
                         // Traspasos conciliados: restan de la tienda origen
                         $monthlyData[$monthKey]['expenses'] += $amount;
@@ -1488,16 +1499,16 @@ class FinancialController extends Controller
                         $monthlyData[$monthKey]['expenses'] += $amount;
                     }
                 }
-                
+
                 // Procesar traspasos recibidos (donde esta tienda es destino)
                 $receivedTransfersQuery = BankMovement::where('type', 'transfer')
                     ->where('status', 'conciliado')
                     ->where('destination_store_id', $storeId);
-                
+
                 if ($year) {
                     $receivedTransfersQuery->whereYear('date', $year);
                 }
-                
+
                 if ($period !== 'all') {
                     if ($period === 'last_30') {
                         $receivedTransfersQuery->where('date', '>=', now()->subDays(30)->format('Y-m-d'));
@@ -1507,15 +1518,15 @@ class FinancialController extends Controller
                         $receivedTransfersQuery->whereYear('date', now()->year);
                     }
                 }
-                
+
                 $receivedTransfers = $receivedTransfersQuery->get();
-                
+
                 // Los traspasos recibidos suman al saldo de la tienda destino
                 foreach ($receivedTransfers as $transfer) {
                     $monthKey = $transfer->date->format('Y-m');
                     $monthLabel = ucfirst(\Carbon\Carbon::parse($transfer->date)->locale('es')->isoFormat('MMMM YYYY'));
-                    
-                    if (!isset($monthlyData[$monthKey])) {
+
+                    if (! isset($monthlyData[$monthKey])) {
                         $monthlyData[$monthKey] = [
                             'key' => $monthKey,
                             'label' => $monthLabel,
@@ -1525,18 +1536,18 @@ class FinancialController extends Controller
                             'balance' => 0,
                         ];
                     }
-                    
+
                     $amount = (float) $transfer->amount;
                     $monthlyData[$monthKey]['income'] += $amount;
                 }
-                
+
                 // Efecto de traspasos reconciliados (Transfer): restan en origen (banco), suman en destino (banco)
                 $reconciledTransfersQuery = Transfer::where('status', 'reconciled')
                     ->whereNotNull('applied_at')
-                    ->where(function($q) use ($storeId) {
-                        $q->where(function($q2) use ($storeId) {
+                    ->where(function ($q) use ($storeId) {
+                        $q->where(function ($q2) use ($storeId) {
                             $q2->where('origin_type', 'store')->where('origin_id', $storeId)->where('origin_fund', 'bank');
-                        })->orWhere(function($q2) use ($storeId) {
+                        })->orWhere(function ($q2) use ($storeId) {
                             $q2->where('destination_type', 'store')->where('destination_id', $storeId)->where('destination_fund', 'bank');
                         });
                     });
@@ -1556,7 +1567,7 @@ class FinancialController extends Controller
                 foreach ($reconciledTransfers as $tr) {
                     $monthKey = $tr->date->format('Y-m');
                     $monthLabel = ucfirst(\Carbon\Carbon::parse($tr->date)->locale('es')->isoFormat('MMMM YYYY'));
-                    if (!isset($monthlyData[$monthKey])) {
+                    if (! isset($monthlyData[$monthKey])) {
                         $monthlyData[$monthKey] = [
                             'key' => $monthKey,
                             'label' => $monthLabel,
@@ -1576,40 +1587,40 @@ class FinancialController extends Controller
                         $monthlyData[$monthKey]['transfers'] = ($monthlyData[$monthKey]['transfers'] ?? 0) + $amount;
                     }
                 }
-                
+
                 // Asegurar que todos los meses tengan 'transfers'
                 foreach ($monthlyData as $monthKey => &$month) {
-                    if (!array_key_exists('transfers', $month)) {
+                    if (! array_key_exists('transfers', $month)) {
                         $month['transfers'] = 0;
                     }
                 }
                 unset($month);
-                
+
                 // Calcular saldo por mes y totales
                 foreach ($monthlyData as $monthKey => &$month) {
                     $month['balance'] = $month['income'] - $month['expenses'];
                     $storesData[$storeId]['total_income'] += $month['income'];
                     $storesData[$storeId]['total_expenses'] += $month['expenses'];
                 }
-                
+
                 $storesData[$storeId]['total_balance'] = $storesData[$storeId]['total_income'] - $storesData[$storeId]['total_expenses'];
                 $storesData[$storeId]['months'] = $monthlyData;
-                
+
                 // Ordenar meses (más reciente primero)
                 krsort($storesData[$storeId]['months']);
                 $storesData[$storeId]['months'] = array_reverse($storesData[$storeId]['months'], true);
             }
-            
+
             // Convertir a array indexado numéricamente para la vista
             $storesData = array_values($storesData);
-            
+
             $period = $request->get('period', 'all');
             $allStores = $this->getAvailableStores();
 
             return view('financial.bank-control', compact('storesData', 'stores', 'allStores', 'period', 'availableYears', 'selectedStoreId', 'year'));
-            
+
         } catch (\Exception $e) {
-            Log::error('Error en bankControl: ' . $e->getMessage());
+            Log::error('Error en bankControl: '.$e->getMessage());
             $stores = $this->getAvailableStores();
             $allStores = $stores;
             $storesData = [];
@@ -1617,7 +1628,7 @@ class FinancialController extends Controller
             $availableYears = [];
             $selectedStoreId = $request->get('store_id');
             $year = $request->get('year', date('Y'));
-            
+
             return view('financial.bank-control', compact('storesData', 'stores', 'allStores', 'period', 'availableYears', 'selectedStoreId', 'year'));
         }
     }
@@ -1625,9 +1636,9 @@ class FinancialController extends Controller
     public function cashControlStore($storeId, Request $request)
     {
         $this->syncStoresFromBusinesses();
-        
+
         $store = Store::findOrFail($storeId);
-        
+
         $query = FinancialEntry::with(['store'])
             ->where('type', 'daily_close')
             ->where('store_id', $storeId);
@@ -1640,33 +1651,33 @@ class FinancialController extends Controller
 
         // Solo aplicar filtro si el usuario lo especifica explícitamente o hay fechas personalizadas
         $period = $request->get('period', null);
-        
+
         // Si hay fechas personalizadas o un período específico, aplicar el filtro
-        if (($request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) || 
+        if (($request->has('date_from') && $request->has('date_to') && $request->date_from && $request->date_to) ||
             ($period && $period !== 'all')) {
-            if (!$period) {
+            if (! $period) {
                 $period = 'last_30';
             }
             $this->applyPeriodFilter($query, $period, $request);
         }
 
         $allEntries = $query->orderBy('date', 'desc')->get();
-        
+
         $monthsData = [];
-        
+
         foreach ($allEntries as $entry) {
             $cashCounted = $entry->calculateCashTotal();
             $cashInitial = (float) ($entry->cash_initial ?? 0);
             $cashWithdrawn = round($cashCounted - $cashInitial, 2);
-            
+
             // Asegurar formato consistente de fecha (Y-m con mes de 2 dígitos)
             $date = \Carbon\Carbon::parse($entry->date);
             $monthKey = $date->format('Y-m'); // Esto siempre genera formato YYYY-MM
-            
-            if (!isset($monthsData[$monthKey])) {
+
+            if (! isset($monthsData[$monthKey])) {
                 // Generar el label del mes de forma consistente
                 $monthLabel = ucfirst($date->locale('es')->isoFormat('MMMM YYYY'));
-                
+
                 $monthsData[$monthKey] = [
                     'key' => $monthKey,
                     'label' => $monthLabel,
@@ -1680,17 +1691,17 @@ class FinancialController extends Controller
                     'days_real' => 0,
                 ];
             }
-            
+
             $monthsData[$monthKey]['total'] += $cashWithdrawn;
         }
-        
+
         // Traspasos en efectivo por mes (Transfer reconciliados donde la tienda es origen o destino con fund = cash)
         $cashTransfersStoreQuery = Transfer::where('status', 'reconciled')
             ->whereNotNull('applied_at')
-            ->where(function($q) use ($storeId) {
-                $q->where(function($q2) use ($storeId) {
+            ->where(function ($q) use ($storeId) {
+                $q->where(function ($q2) use ($storeId) {
                     $q2->where('origin_type', 'store')->where('origin_id', $storeId)->where('origin_fund', 'cash');
-                })->orWhere(function($q2) use ($storeId) {
+                })->orWhere(function ($q2) use ($storeId) {
                     $q2->where('destination_type', 'store')->where('destination_id', $storeId)->where('destination_fund', 'cash');
                 });
             });
@@ -1703,7 +1714,7 @@ class FinancialController extends Controller
         $cashTransfersStore = $cashTransfersStoreQuery->get();
         foreach ($cashTransfersStore as $tr) {
             $monthKey = $tr->date->format('Y-m');
-            if (!isset($monthsData[$monthKey])) {
+            if (! isset($monthsData[$monthKey])) {
                 $monthLabel = ucfirst(\Carbon\Carbon::parse($tr->date)->locale('es')->isoFormat('MMMM YYYY'));
                 $monthsData[$monthKey] = [
                     'key' => $monthKey,
@@ -1726,7 +1737,7 @@ class FinancialController extends Controller
                 $monthsData[$monthKey]['traspasos_efectivo'] = ($monthsData[$monthKey]['traspasos_efectivo'] ?? 0) + $amount;
             }
         }
-        
+
         foreach ($monthsData as $monthKey => &$month) {
             $year = substr($monthKey, 0, 4);
             $monthNum = substr($monthKey, 5, 2);
@@ -1750,14 +1761,14 @@ class FinancialController extends Controller
                 $month['total'] += $cashWithdrawn;
                 if ($cashWithdrawn != 0) {
                     $dayKey = $entry->date->format('Y-m-d');
-                    if (!in_array($dayKey, $daysWithdrawn)) {
+                    if (! in_array($dayKey, $daysWithdrawn)) {
                         $daysWithdrawn[] = $dayKey;
                     }
                 }
                 if ($entry->cash_real !== null) {
                     $month['cash_real'] += (float) $entry->cash_real;
                     $dayKey = $entry->date->format('Y-m-d');
-                    if (!in_array($dayKey, $daysReal)) {
+                    if (! in_array($dayKey, $daysReal)) {
                         $daysReal[] = $dayKey;
                     }
                 }
@@ -1786,7 +1797,7 @@ class FinancialController extends Controller
                         : "COALESCE(reporting_month, strftime('%Y-%m', date)) = ?";
                     $q->where(function ($q1) use ($monthKey) {
                         $q1->where('expense_source', 'control_efectivo')
-                            ->where('notes', 'like', '%"procedence_date":"' . $monthKey . '%');
+                            ->where('notes', 'like', '%"procedence_date":"'.$monthKey.'%');
                     })->orWhere(function ($q2) use ($monthKey, $monthCondition) {
                         $q2->where(function ($q3) {
                             $q3->where('expense_source', '!=', 'control_efectivo')->orWhereNull('expense_source');
@@ -1838,27 +1849,27 @@ class FinancialController extends Controller
             $month['balance'] = round($month['cash_real'] - $month['month_expenses'] - $month['cash_collected'] + $month['traspasos_efectivo'], 2);
         }
         unset($month); // Limpiar la referencia después del bucle
-        
+
         // Calcular el saldo total como la suma de los saldos mensuales
         $storeTotal = 0;
         foreach ($monthsData as $month) {
             $storeTotal += $month['balance'];
         }
-        
+
         // Asegurar que no haya duplicados antes de ordenar
         $uniqueMonthsData = [];
         foreach ($monthsData as $monthKey => $month) {
             // Si ya existe esta clave, no la añadimos de nuevo
-            if (!isset($uniqueMonthsData[$monthKey])) {
+            if (! isset($uniqueMonthsData[$monthKey])) {
                 $uniqueMonthsData[$monthKey] = $month;
             }
         }
-        
+
         // Ordenar meses por fecha descendente (más recientes primero)
-        uksort($uniqueMonthsData, function($a, $b) {
+        uksort($uniqueMonthsData, function ($a, $b) {
             return strcmp($b, $a); // Orden descendente: 2026-02 antes que 2026-01
         });
-        
+
         $monthsData = $uniqueMonthsData;
 
         return view('financial.cash-control-store', compact('store', 'monthsData', 'storeTotal', 'period'));
@@ -1867,12 +1878,12 @@ class FinancialController extends Controller
     public function cashControlMonth($storeId, $monthKey, Request $request)
     {
         $this->syncStoresFromBusinesses();
-        
+
         $store = Store::findOrFail($storeId);
-        
+
         $year = substr($monthKey, 0, 4);
         $month = substr($monthKey, 5, 2);
-        
+
         $query = FinancialEntry::with(['store'])
             ->where('type', 'daily_close')
             ->where('store_id', $storeId)
@@ -1892,7 +1903,7 @@ class FinancialController extends Controller
         $entriesSortDate = $request->get('sort_date', 'asc');
         $dateOrder = ($entriesSortDate === 'desc') ? 'desc' : 'asc';
         $entries = $query->orderBy('date', $dateOrder)->orderBy('created_at', $dateOrder)->get();
-        
+
         // Gastos del mes: (1) control_efectivo con procedence_date este mes, (2) otros gastos en efectivo (no cartera) por mes correspondiente (reporting_month), no por fecha del gasto
         $driver = DB::getDriverName();
         $monthCondition = $driver === 'mysql'
@@ -1906,7 +1917,7 @@ class FinancialController extends Controller
             ->where(function ($q) use ($monthKey, $monthCondition) {
                 $q->where(function ($q1) use ($monthKey) {
                     $q1->where('expense_source', 'control_efectivo')
-                        ->where('notes', 'like', '%"procedence_date":"' . $monthKey . '%');
+                        ->where('notes', 'like', '%"procedence_date":"'.$monthKey.'%');
                 })->orWhere(function ($q2) use ($monthKey, $monthCondition) {
                     $q2->where(function ($q3) {
                         $q3->where('expense_source', '!=', 'control_efectivo')->orWhereNull('expense_source');
@@ -1944,7 +1955,7 @@ class FinancialController extends Controller
             if ($isControlEfectivo && $procDate) {
                 // Gastos desde "Añadir gasto": con procedence_date día concreto → por día; con procedence_date mes → en "Gastos del mes"
                 if (strlen($procDate) === 10 && substr($procDate, 0, 7) === $monthKey) {
-                    if (!isset($expensesByDay[$procDate])) {
+                    if (! isset($expensesByDay[$procDate])) {
                         $expensesByDay[$procDate] = [];
                     }
                     $expensesByDay[$procDate][] = [
@@ -1952,7 +1963,7 @@ class FinancialController extends Controller
                         'date' => $expense->date->format('d/m/Y'),
                         'category' => $expense->expense_category ?? 'otros',
                         'concept' => $expense->expense_concept ?? $expense->concept ?? '—',
-                        'amount' => $amount
+                        'amount' => $amount,
                     ];
                 } else {
                     $monthExpenses[] = [
@@ -1960,7 +1971,7 @@ class FinancialController extends Controller
                         'date' => $expense->date->format('d/m/Y'),
                         'category' => $expense->expense_category ?? 'otros',
                         'concept' => $expense->expense_concept ?? $expense->concept ?? '—',
-                        'amount' => $amount
+                        'amount' => $amount,
                     ];
                 }
             } else {
@@ -1970,39 +1981,39 @@ class FinancialController extends Controller
                     'date' => $expense->date->format('d/m/Y'),
                     'category' => $expense->expense_category ?? 'otros',
                     'concept' => $expense->expense_concept ?? $expense->concept ?? '—',
-                    'amount' => $amount
+                    'amount' => $amount,
                 ];
             }
         }
 
         // Total gastos del mes = suma solo de los gastos apuntados en el cuadro "Gastos del mes" (no los de procedencia por día)
         $monthExpensesTotal = round(array_sum(array_column($monthExpenses, 'amount')), 2);
-        
+
         // Calcular efectivo retirado y gastos por día para cada entrada
         $entries->transform(function ($entry) use ($expensesByDay) {
             $cashCounted = $entry->calculateCashTotal();
             $cashInitial = (float) ($entry->cash_initial ?? 0);
             $cashWithdrawn = round($cashCounted - $cashInitial, 2);
             $entry->cash_withdrawn = $cashWithdrawn;
-            
+
             // Calcular gastos del día
             $dayKey = $entry->date->format('Y-m-d');
             $dayExpenses = isset($expensesByDay[$dayKey]) ? $expensesByDay[$dayKey] : [];
             $dayExpensesTotal = array_sum(array_column($dayExpenses, 'amount'));
             $entry->day_expenses_total = round($dayExpensesTotal, 2);
-            
+
             // Calcular efectivo esperado
             $entry->expected_cash = round($cashWithdrawn - $dayExpensesTotal, 2);
-            
+
             // Obtener efectivo real (si existe)
             $entry->cash_real = $entry->cash_real ?? null;
-            
+
             return $entry;
         });
-        
+
         $monthLabel = ucfirst(\Carbon\Carbon::create($year, $month, 1)->locale('es')->isoFormat('MMMM YYYY'));
         $monthTotal = $entries->sum('cash_withdrawn');
-        
+
         // Calcular efectivo recogido del mes (retiros de carteras): por mes correspondiente (reporting_month)
         $cashMonthCondition = DB::getDriverName() === 'mysql'
             ? 'COALESCE(reporting_month, DATE_FORMAT(date, "%Y-%m")) = ?'
@@ -2013,16 +2024,16 @@ class FinancialController extends Controller
 
         $cashWithdrawals = $cashWithdrawalsQuery->orderBy('date', 'desc')->get();
         $totalCashCollected = $cashWithdrawals->sum('amount');
-        
+
         // Traspasos de efectivo del mes: Transfer reconciliados donde la tienda es origen o destino con fund = cash
         $traspasosEfectivoQuery = Transfer::where('status', 'reconciled')
             ->whereNotNull('applied_at')
             ->whereYear('date', $year)
             ->whereMonth('date', $month)
-            ->where(function($q) use ($storeId) {
-                $q->where(function($q2) use ($storeId) {
+            ->where(function ($q) use ($storeId) {
+                $q->where(function ($q2) use ($storeId) {
                     $q2->where('origin_type', 'store')->where('origin_id', $storeId)->where('origin_fund', 'cash');
-                })->orWhere(function($q2) use ($storeId) {
+                })->orWhere(function ($q2) use ($storeId) {
                     $q2->where('destination_type', 'store')->where('destination_id', $storeId)->where('destination_fund', 'cash');
                 });
             });
@@ -2045,15 +2056,15 @@ class FinancialController extends Controller
                 $totalTraspasosEfectivo += $amount;
             }
         }
-        
+
         // Calcular totales para el resumen
-        $totalCashReal = $entries->sum(function($entry) {
-            return $entry->cash_real !== null ? (float)$entry->cash_real : 0;
+        $totalCashReal = $entries->sum(function ($entry) {
+            return $entry->cash_real !== null ? (float) $entry->cash_real : 0;
         });
-        
+
         // Saldo del mes = efectivo real - gastos del mes - efectivo recogido + traspasos de efectivo
         $monthBalance = round($totalCashReal - $monthExpensesTotal - $totalCashCollected + $totalTraspasosEfectivo, 2);
-        
+
         // Obtener días del mes para el formulario
         $days = [];
         $daysInMonth = \Carbon\Carbon::create($year, $month, 1)->daysInMonth;
@@ -2061,7 +2072,7 @@ class FinancialController extends Controller
             $date = \Carbon\Carbon::create($year, $month, $i);
             $days[] = [
                 'value' => $date->format('Y-m-d'),
-                'label' => $date->format('d/m/Y')
+                'label' => $date->format('d/m/Y'),
             ];
         }
 
@@ -2091,7 +2102,7 @@ class FinancialController extends Controller
 
         $notes = json_encode([
             'procedence_date' => $request->procedence_date,
-            'source' => 'cash_control'
+            'source' => 'cash_control',
         ]);
 
         $amount = (float) $request->expense_amount;
@@ -2115,7 +2126,7 @@ class FinancialController extends Controller
 
         return redirect()->route('financial.cash-control-month', [
             'store' => $storeId,
-            'month' => $monthKey
+            'month' => $monthKey,
         ])->with('success', 'Gasto añadido correctamente');
     }
 
@@ -2152,35 +2163,35 @@ class FinancialController extends Controller
     public function updateCashReal($entryId, Request $request)
     {
         try {
-            if (!\Illuminate\Support\Facades\Schema::hasColumn('financial_entries', 'cash_real')) {
+            if (! \Illuminate\Support\Facades\Schema::hasColumn('financial_entries', 'cash_real')) {
                 \Illuminate\Support\Facades\Schema::table('financial_entries', function (\Illuminate\Database\Schema\Blueprint $table) {
                     $table->decimal('cash_real', 10, 2)->nullable()->after('cash_expenses');
                 });
             }
-            
+
             $entry = FinancialEntry::findOrFail($entryId);
-            
+
             $request->validate([
-                'cash_real' => 'nullable|numeric'
+                'cash_real' => 'nullable|numeric',
             ]);
-            
-            $entry->cash_real = $request->has('cash_real') && $request->cash_real !== '' && $request->cash_real !== null 
-                ? (float) $request->cash_real 
+
+            $entry->cash_real = $request->has('cash_real') && $request->cash_real !== '' && $request->cash_real !== null
+                ? (float) $request->cash_real
                 : null;
             $entry->save();
-            
+
             $cashCounted = $entry->calculateCashTotal();
             $cashInitial = (float) ($entry->cash_initial ?? 0);
             $cashWithdrawn = round($cashCounted - $cashInitial, 2);
-            
+
             $dayKey = $entry->date->format('Y-m-d');
             $expensesQuery = FinancialEntry::where('type', 'expense')
                 ->where('store_id', $entry->store_id)
                 ->where('notes', 'like', '%"source":"cash_control"%');
-            
+
             $allExpenses = $expensesQuery->get();
             $dayExpensesTotal = 0;
-            
+
             foreach ($allExpenses as $expense) {
                 $procedenceDate = $expense->notes ? json_decode($expense->notes, true) : null;
                 if (is_array($procedenceDate) && isset($procedenceDate['procedence_date'])) {
@@ -2190,21 +2201,22 @@ class FinancialController extends Controller
                     }
                 }
             }
-            
+
             $expectedCash = round($cashWithdrawn - $dayExpensesTotal, 2);
-            
+
             return response()->json([
                 'success' => true,
                 'cash_real' => $entry->cash_real,
                 'expected_cash' => $expectedCash,
                 'cash_withdrawn' => $cashWithdrawn,
-                'day_expenses_total' => $dayExpensesTotal
+                'day_expenses_total' => $dayExpensesTotal,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error actualizando efectivo real: ' . $e->getMessage());
+            Log::error('Error actualizando efectivo real: '.$e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'message' => 'Error al actualizar el efectivo real: ' . $e->getMessage()
+                'message' => 'Error al actualizar el efectivo real: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -2225,6 +2237,12 @@ class FinancialController extends Controller
 
     public function storeCashWithdrawal(Request $request)
     {
+        if (! $request->filled('reporting_month') && $request->filled('date')) {
+            $request->merge([
+                'reporting_month' => \Carbon\Carbon::parse((string) $request->input('date'))->format('Y-m'),
+            ]);
+        }
+
         $validated = $request->validate([
             'date' => 'required|date',
             'reporting_month' => 'required|date_format:Y-m',
@@ -2249,6 +2267,7 @@ class FinancialController extends Controller
         } elseif ($redirectTo && \Illuminate\Support\Str::startsWith($redirectTo, [url('/'), config('app.url')])) {
             $redirect = $redirectTo;
         }
+
         return redirect($redirect)->with('success', 'Retiro de efectivo registrado correctamente');
     }
 
@@ -2273,6 +2292,7 @@ class FinancialController extends Controller
             ->whereNotNull('reporting_month')
             ->distinct()
             ->pluck('reporting_month');
+
         return $fromEntries->merge($fromWithdrawals)->unique()->sortDesc()->values()->toArray();
     }
 
@@ -2290,11 +2310,15 @@ class FinancialController extends Controller
 
         $wallet = CashWallet::findOrFail($validated['cash_wallet_id']);
         $balance = $this->calculateWalletBalance($wallet);
+        $redirect = $request->get('redirect_to') === 'dashboard'
+            ? route('dashboard')
+            : url()->previous();
         if ($balance < $validated['amount']) {
             if ($request->wantsJson()) {
                 return response()->json(['success' => false, 'message' => 'La cartera no tiene saldo suficiente.'], 422);
             }
-            return redirect()->back()->with('error', 'La cartera no tiene saldo suficiente. Saldo disponible: ' . number_format($balance, 2, ',', '.') . ' €');
+
+            return redirect($redirect)->with('error', 'La cartera no tiene saldo suficiente. Saldo disponible: '.number_format($balance, 2, ',', '.').' €');
         }
 
         try {
@@ -2318,7 +2342,7 @@ class FinancialController extends Controller
                 'destination_fund' => 'bank',
                 'method' => 'manual',
                 'status' => 'pending',
-                'notes' => 'Ingreso de efectivo desde cartera ' . $wallet->name,
+                'notes' => 'Ingreso de efectivo desde cartera '.$wallet->name,
                 'created_by' => Auth::id(),
             ]);
 
@@ -2326,20 +2350,22 @@ class FinancialController extends Controller
             $transfer->refresh();
 
             $result = $transfer->apply();
-            if (!$result['success']) {
+            if (! $result['success']) {
                 $transfer->update(['status' => 'pending']);
                 $cashWalletTransfer->delete();
                 $transfer->delete();
                 if ($request->wantsJson()) {
                     return response()->json(['success' => false, 'message' => $result['message'] ?? 'Error al aplicar la transferencia.'], 422);
                 }
-                return redirect()->back()->with('error', $result['message'] ?? 'Error al aplicar la transferencia. Verifica los datos.');
+
+                return redirect($redirect)->with('error', $result['message'] ?? 'Error al aplicar la transferencia. Verifica los datos.');
             }
 
             if ($request->wantsJson()) {
                 return response()->json(['success' => true, 'message' => 'Ingreso de efectivo registrado correctamente']);
             }
-            return redirect()->back()->with('success', 'Ingreso de efectivo registrado correctamente');
+
+            return redirect($redirect)->with('success', 'Ingreso de efectivo registrado correctamente');
         } catch (\Exception $e) {
             Log::error('Error al registrar ingreso de efectivo desde cartera', [
                 'cash_wallet_id' => $validated['cash_wallet_id'],
@@ -2347,9 +2373,10 @@ class FinancialController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             if ($request->wantsJson()) {
-                return response()->json(['success' => false, 'message' => 'Error al registrar la transferencia: ' . $e->getMessage()], 500);
+                return response()->json(['success' => false, 'message' => 'Error al registrar la transferencia: '.$e->getMessage()], 500);
             }
-            return redirect()->back()->with('error', 'Error al registrar la transferencia: ' . $e->getMessage());
+
+            return redirect($redirect)->with('error', 'Error al registrar la transferencia: '.$e->getMessage());
         }
     }
 
@@ -2358,6 +2385,7 @@ class FinancialController extends Controller
         $withdrawals = CashWithdrawal::where('cash_wallet_id', $wallet->id)->sum('amount');
         $expenses = CashWalletExpense::where('cash_wallet_id', $wallet->id)->whereHas('financialEntry')->sum('amount');
         $transfers = CashWalletTransfer::where('cash_wallet_id', $wallet->id)->sum('amount');
+
         return round($withdrawals - $expenses - $transfers, 2);
     }
 
@@ -2367,29 +2395,29 @@ class FinancialController extends Controller
     public function bankConciliation(Request $request)
     {
         $this->syncStoresFromBusinesses();
-        
+
         // Obtener todas las cuentas bancarias
         $bankAccounts = BankAccount::with('store')->orderBy('bank_name')->get();
-        
+
         // Obtener tiendas disponibles
         $stores = $this->getAvailableStores();
-        
+
         // Construir query con filtros (solo movimientos de cuentas de la empresa actual)
         $query = BankMovement::forCurrentCompany()
             ->with(['bankAccount.store', 'financialEntry', 'destinationStore']);
-        
+
         // Filtro por tienda (a través de bank_account): forzada si el usuario solo tiene una
         $enforcedStoreId = auth()->user()->getEnforcedStoreId();
         if ($enforcedStoreId !== null) {
-            $query->whereHas('bankAccount', function($q) use ($enforcedStoreId) {
+            $query->whereHas('bankAccount', function ($q) use ($enforcedStoreId) {
                 $q->where('store_id', $enforcedStoreId);
             });
         } elseif ($request->has('store_id') && $request->store_id) {
-            $query->whereHas('bankAccount', function($q) use ($request) {
+            $query->whereHas('bankAccount', function ($q) use ($request) {
                 $q->where('store_id', $request->store_id);
             });
         }
-        
+
         // Filtro por fecha desde
         if ($request->has('date_from') && $request->date_from) {
             try {
@@ -2399,7 +2427,7 @@ class FinancialController extends Controller
                 // Ignorar fecha inválida
             }
         }
-        
+
         // Filtro por fecha hasta
         if ($request->has('date_to') && $request->date_to) {
             try {
@@ -2409,7 +2437,7 @@ class FinancialController extends Controller
                 // Ignorar fecha inválida
             }
         }
-        
+
         // Filtro por estado: por defecto (primera carga) solo pendientes; "Todos" muestra todos
         if ($request->has('status')) {
             if ($request->status === 'conciliado') {
@@ -2422,7 +2450,7 @@ class FinancialController extends Controller
             // Primera carga: solo movimientos pendientes de conciliar
             $query->where('is_conciliated', false);
         }
-        
+
         // Filtro por tipo
         if ($request->has('type') && $request->type !== '') {
             if ($request->type === 'gasto') {
@@ -2433,12 +2461,12 @@ class FinancialController extends Controller
                 $query->where('type', 'transfer');
             }
         }
-        
+
         // Ordenar por fecha desc
         $movements = $query->orderBy('date', 'desc')
             ->orderBy('created_at', 'desc')
             ->get();
-        
+
         // Obtener transfers relacionados con los movimientos bancarios
         // Ahora los bank_movements tienen transfer_id, así que buscamos transfers por esos IDs
         $transferIds = $movements->whereNotNull('transfer_id')->pluck('transfer_id')->unique()->toArray();
@@ -2446,7 +2474,7 @@ class FinancialController extends Controller
             ->with(['origin', 'destination', 'creator', 'bankMovements'])
             ->get()
             ->keyBy('id');
-        
+
         // Crear un mapa de bank_movement_id -> transfer para la vista
         $movementToTransferMap = [];
         foreach ($movements as $movement) {
@@ -2454,7 +2482,7 @@ class FinancialController extends Controller
                 $movementToTransferMap[$movement->id] = $relatedTransfers[$movement->transfer_id];
             }
         }
-        
+
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
         $loans = \App\Models\Loan::orderBy('name')->get();
 
@@ -2467,15 +2495,15 @@ class FinancialController extends Controller
             ->get();
         foreach ($incomeIdsWithLinkedMovements as $row) {
             $income = FinancialEntry::find($row->financial_entry_id);
-            if (!$income || !$this->userCanAccessStore($income->store_id)) {
+            if (! $income || ! $this->userCanAccessStore($income->store_id)) {
                 continue;
             }
             $incomeAmount = (float) ($income->total_amount ?? $income->amount ?? $income->income_amount ?? 0);
             $linkedSum = (float) $row->total_linked;
             $diff = round($incomeAmount - $linkedSum, 2);
             $hasTpvDiffExpense = FinancialEntry::where('source_income_id', $income->id)->where('type', 'expense')->exists();
-            if ($diff > 0 && !$hasTpvDiffExpense) {
-                $partialReconciliationIncomes->push((object)[
+            if ($diff > 0 && ! $hasTpvDiffExpense) {
+                $partialReconciliationIncomes->push((object) [
                     'entry' => $income,
                     'linked_sum' => $linkedSum,
                     'income_amount' => $incomeAmount,
@@ -2493,6 +2521,7 @@ class FinancialController extends Controller
         if ($enforced !== null) {
             return (int) $storeId === (int) $enforced;
         }
+
         return auth()->user()->canAccessStore((int) $storeId);
     }
 
@@ -2504,13 +2533,14 @@ class FinancialController extends Controller
         $validated = $request->validate([
             'financial_entry_id' => 'required|exists:financial_entries,id',
         ]);
-        
+
         try {
             $entry = FinancialEntry::findOrFail($validated['financial_entry_id']);
             if ($entry->type !== 'expense') {
                 if ($request->wantsJson()) {
                     return response()->json(['success' => false, 'message' => 'El registro seleccionado no es un gasto.'], 422);
                 }
+
                 return back()->with('error', 'El registro seleccionado no es un gasto.');
             }
             // Marcar bankMovement como conciliado y guardar financial_entry_id
@@ -2523,14 +2553,16 @@ class FinancialController extends Controller
             if ($request->wantsJson()) {
                 return response()->json(['success' => true]);
             }
+
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario enlazado correctamente.');
         } catch (\Exception $e) {
-            Log::error('Error enlazando movimiento bancario: ' . $e->getMessage());
+            Log::error('Error enlazando movimiento bancario: '.$e->getMessage());
             if ($request->wantsJson()) {
                 return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
             }
-            return back()->with('error', 'Error al enlazar el movimiento: ' . $e->getMessage());
+
+            return back()->with('error', 'Error al enlazar el movimiento: '.$e->getMessage());
         }
     }
 
@@ -2549,6 +2581,7 @@ class FinancialController extends Controller
                 if ($request->wantsJson()) {
                     return response()->json(['success' => false, 'message' => 'El registro seleccionado no es un ingreso.'], 422);
                 }
+
                 return back()->with('error', 'El registro seleccionado no es un ingreso.');
             }
             $bankMovement->update([
@@ -2560,14 +2593,16 @@ class FinancialController extends Controller
             if ($request->wantsJson()) {
                 return response()->json(['success' => true]);
             }
+
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario enlazado correctamente.');
         } catch (\Exception $e) {
-            Log::error('Error enlazando movimiento bancario a ingreso: ' . $e->getMessage());
+            Log::error('Error enlazando movimiento bancario a ingreso: '.$e->getMessage());
             if ($request->wantsJson()) {
                 return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
             }
-            return back()->with('error', 'Error al enlazar el movimiento: ' . $e->getMessage());
+
+            return back()->with('error', 'Error al enlazar el movimiento: '.$e->getMessage());
         }
     }
 
@@ -2598,12 +2633,12 @@ class FinancialController extends Controller
         $validated = $request->validate([
             'expense_category' => 'required|string|max:255',
             'expense_concept' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0.01|max:' . ($difference + 0.01),
+            'amount' => 'required|numeric|min:0.01|max:'.($difference + 0.01),
         ]);
 
         $amount = round((float) $validated['amount'], 2);
         if ($amount > $difference) {
-            return back()->with('error', 'El importe no puede superar la diferencia (' . number_format($difference, 2, ',', '.') . ' €).');
+            return back()->with('error', 'El importe no puede superar la diferencia ('.number_format($difference, 2, ',', '.').' €).');
         }
 
         try {
@@ -2627,8 +2662,9 @@ class FinancialController extends Controller
                 'created_by' => Auth::id(),
             ]);
         } catch (\Exception $e) {
-            Log::error('Error creando gasto por diferencia TPV: ' . $e->getMessage());
-            return back()->with('error', 'Error al crear el gasto: ' . $e->getMessage());
+            Log::error('Error creando gasto por diferencia TPV: '.$e->getMessage());
+
+            return back()->with('error', 'Error al crear el gasto: '.$e->getMessage());
         }
 
         $redirectTo = $request->get('redirect_to');
@@ -2638,6 +2674,7 @@ class FinancialController extends Controller
                 return redirect($redirectTo)->with('success', 'Gasto por la diferencia TPV creado correctamente.');
             }
         }
+
         return redirect()->route('financial.show', $entry)->with('success', 'Gasto por la diferencia TPV creado correctamente.');
     }
 
@@ -2654,7 +2691,7 @@ class FinancialController extends Controller
             'expense_concept' => 'required|string|max:255',
             'amount' => 'required|numeric',
         ]);
-        
+
         try {
             // Crear FinancialEntry (expense)
             $financialEntry = FinancialEntry::create([
@@ -2679,7 +2716,7 @@ class FinancialController extends Controller
                 ]),
                 'created_by' => Auth::id(),
             ]);
-            
+
             // Marcar bankMovement como conciliado y guardar financial_entry_id
             $bankMovement->update([
                 'is_conciliated' => true,
@@ -2690,14 +2727,16 @@ class FinancialController extends Controller
             if ($request->wantsJson()) {
                 return response()->json(['success' => true]);
             }
+
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Gasto creado y movimiento conciliado correctamente.');
         } catch (\Exception $e) {
-            Log::error('Error creando gasto desde movimiento bancario: ' . $e->getMessage());
+            Log::error('Error creando gasto desde movimiento bancario: '.$e->getMessage());
             if ($request->wantsJson()) {
                 return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
             }
-            return back()->with('error', 'Error al crear el gasto: ' . $e->getMessage());
+
+            return back()->with('error', 'Error al crear el gasto: '.$e->getMessage());
         }
     }
 
@@ -2792,7 +2831,7 @@ class FinancialController extends Controller
             // Concepto del traspaso: "Traspaso bancario: {origen} → {destino}"
             $originStore = Store::find($originId);
             $destinationStore = Store::find($destinationId);
-            $conceptText = 'Traspaso bancario: ' . ($originStore ? $originStore->name : '') . ' → ' . ($destinationStore ? $destinationStore->name : '');
+            $conceptText = 'Traspaso bancario: '.($originStore ? $originStore->name : '').' → '.($destinationStore ? $destinationStore->name : '');
 
             // Crear el Transfer (UN único transfer para este traspaso)
             $transfer = Transfer::create([
@@ -2826,7 +2865,7 @@ class FinancialController extends Controller
 
             // Aplicar la transferencia (UNA sola vez)
             $result = $transfer->apply();
-            if (!$result['success']) {
+            if (! $result['success']) {
                 // Si falla, revertir el status y desenlazar
                 $transfer->update(['status' => 'pending']);
                 $bankMovement->update([
@@ -2835,39 +2874,41 @@ class FinancialController extends Controller
                     'status' => 'pendiente',
                 ]);
                 $transfer->delete();
+
                 return back()->with('error', $result['message'] ?? 'Error al aplicar la transferencia. Verifica los datos.');
             }
 
             // Asegurar que el movimiento quede persistido como conciliado (por si apply() modificara algo)
             $bankMovement->refresh();
-            if (!$bankMovement->is_conciliated || $bankMovement->status !== 'conciliado') {
+            if (! $bankMovement->is_conciliated || $bankMovement->status !== 'conciliado') {
                 $bankMovement->update(['is_conciliated' => true, 'status' => 'conciliado']);
             }
 
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario conciliado como traspaso correctamente.');
-                
+
         } catch (\Exception $e) {
-            Log::error('Error conciliando movimiento bancario como traspaso: ' . $e->getMessage(), [
+            Log::error('Error conciliando movimiento bancario como traspaso: '.$e->getMessage(), [
                 'bank_movement_id' => $bankMovement->id,
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            return back()->with('error', 'Error al conciliar el movimiento: ' . $e->getMessage());
+
+            return back()->with('error', 'Error al conciliar el movimiento: '.$e->getMessage());
         }
     }
 
     /**
      * Buscar un transfer existente que coincida con un bank_movement
      * Busca por: importe (abs), fecha (±1 día), y tiendas cruzadas
-     * 
+     *
      * IMPORTANTE: Un transfer puede tener varios bank_movements enlazados (uno por cada banco).
      * Este método busca transfers donde la tienda del bank_movement coincida con origen o destino,
      * pero que NO tenga ya un bank_movement de la misma tienda enlazado.
      */
     protected function findExistingTransferForBankMovement(
-        BankMovement $bankMovement, 
-        float $amount, 
-        $date, 
+        BankMovement $bankMovement,
+        float $amount,
+        $date,
         int $currentStoreId,
         bool $isNegative
     ): ?Transfer {
@@ -2884,11 +2925,11 @@ class FinancialController extends Controller
         foreach ($transfers as $transfer) {
             // Verificar que las tiendas sean cruzadas (una es origen y otra destino)
             $matches = false;
-            
+
             if ($isNegative) {
                 // Este bank_movement es negativo: la tienda actual es destino
                 // Buscar transfers donde la tienda actual sea destino
-                if ($transfer->destination_type === 'store' && 
+                if ($transfer->destination_type === 'store' &&
                     $transfer->destination_id === $currentStoreId &&
                     $transfer->destination_fund === 'bank') {
                     $matches = true;
@@ -2896,23 +2937,23 @@ class FinancialController extends Controller
             } else {
                 // Este bank_movement es positivo: la tienda actual es origen
                 // Buscar transfers donde la tienda actual sea origen
-                if ($transfer->origin_type === 'store' && 
+                if ($transfer->origin_type === 'store' &&
                     $transfer->origin_id === $currentStoreId &&
                     $transfer->origin_fund === 'bank') {
                     $matches = true;
                 }
             }
-            
+
             if ($matches) {
                 // Verificar que no haya ya un bank_movement de esta tienda enlazado a este transfer
                 $hasBankMovementFromThisStore = $transfer->bankMovements()
-                    ->whereHas('bankAccount', function($query) use ($currentStoreId) {
+                    ->whereHas('bankAccount', function ($query) use ($currentStoreId) {
                         $query->where('store_id', $currentStoreId);
                     })
                     ->exists();
-                
+
                 // Si no hay bank_movement de esta tienda, podemos enlazar este
-                if (!$hasBankMovementFromThisStore) {
+                if (! $hasBankMovementFromThisStore) {
                     return $transfer;
                 }
             }
@@ -2930,15 +2971,17 @@ class FinancialController extends Controller
             DB::beginTransaction();
             $this->deleteBankMovementAndRelated($bankMovement);
             DB::commit();
+
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario y todos sus registros relacionados eliminados correctamente.');
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error eliminando movimiento bancario: ' . $e->getMessage(), [
+            Log::error('Error eliminando movimiento bancario: '.$e->getMessage(), [
                 'bank_movement_id' => $bankMovement->id,
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            return back()->with('error', 'Error al eliminar el movimiento: ' . $e->getMessage());
+
+            return back()->with('error', 'Error al eliminar el movimiento: '.$e->getMessage());
         }
     }
 
@@ -2970,15 +3013,17 @@ class FinancialController extends Controller
             DB::commit();
             $message = $deleted === 1
                 ? 'Movimiento bancario eliminado correctamente.'
-                : $deleted . ' movimientos bancarios eliminados correctamente.';
+                : $deleted.' movimientos bancarios eliminados correctamente.';
+
             return redirect()->route('financial.bank-conciliation')->with('success', $message);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error eliminando movimientos bancarios en lote: ' . $e->getMessage(), [
+            Log::error('Error eliminando movimientos bancarios en lote: '.$e->getMessage(), [
                 'ids' => $validated['ids'],
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            return back()->with('error', 'Error al eliminar los movimientos: ' . $e->getMessage());
+
+            return back()->with('error', 'Error al eliminar los movimientos: '.$e->getMessage());
         }
     }
 
@@ -2995,8 +3040,8 @@ class FinancialController extends Controller
                 if ($linkedMovementsCount === 1) {
                     if ($transfer->status === 'reconciled') {
                         $rollbackResult = $transfer->rollback();
-                        if (!$rollbackResult['success']) {
-                            throw new \RuntimeException('Error al revertir el traspaso relacionado: ' . ($rollbackResult['message'] ?? 'Error desconocido'));
+                        if (! $rollbackResult['success']) {
+                            throw new \RuntimeException('Error al revertir el traspaso relacionado: '.($rollbackResult['message'] ?? 'Error desconocido'));
                         }
                         $transfer->update(['status' => 'pending']);
                     }
@@ -3029,20 +3074,21 @@ class FinancialController extends Controller
             $updateData = [
                 'is_conciliated' => false,
             ];
-            
+
             // Verificar si existe el campo 'ignored' en la tabla
             if (Schema::hasColumn('bank_movements', 'ignored')) {
                 $updateData['ignored'] = true;
             }
-            
+
             $bankMovement->update($updateData);
-            
+
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario marcado como ignorado.');
-                
+
         } catch (\Exception $e) {
-            Log::error('Error ignorando movimiento bancario: ' . $e->getMessage());
-            return back()->with('error', 'Error al ignorar el movimiento: ' . $e->getMessage());
+            Log::error('Error ignorando movimiento bancario: '.$e->getMessage());
+
+            return back()->with('error', 'Error al ignorar el movimiento: '.$e->getMessage());
         }
     }
 
@@ -3053,15 +3099,15 @@ class FinancialController extends Controller
     {
         $storeId = $request->get('store_id');
         $amount = (float) $request->get('amount');
-        
-        if (!$storeId || !$amount) {
+
+        if (! $storeId || ! $amount) {
             return response()->json(['expenses' => []]);
         }
-        
+
         // Buscar gastos que coincidan con la tienda e importe (mismo importe)
         $expenses = FinancialEntry::where('store_id', $storeId)
             ->where('type', 'expense')
-            ->where(function($query) use ($amount) {
+            ->where(function ($query) use ($amount) {
                 $query->whereBetween('amount', [$amount - 0.01, $amount + 0.01])
                     ->orWhereBetween('total_amount', [$amount - 0.01, $amount + 0.01])
                     ->orWhereBetween('expense_amount', [$amount - 0.01, $amount + 0.01]);
@@ -3070,7 +3116,7 @@ class FinancialController extends Controller
             ->orderBy('date', 'desc')
             ->select('id', 'date', 'concept', 'expense_concept', 'amount', 'total_amount', 'expense_amount')
             ->get()
-            ->map(function($entry) {
+            ->map(function ($entry) {
                 return [
                     'id' => $entry->id,
                     'date' => $entry->date->format('d/m/Y'),
@@ -3078,7 +3124,7 @@ class FinancialController extends Controller
                     'amount' => $entry->expense_amount ?? $entry->total_amount ?? $entry->amount,
                 ];
             });
-        
+
         return response()->json(['expenses' => $expenses]);
     }
 
@@ -3089,31 +3135,31 @@ class FinancialController extends Controller
     {
         try {
             $bankMovement = BankMovement::forCurrentCompany()->findOrFail($id);
-            
+
             // Si viene financial_entry_id, enlazar existente
             if ($request->has('financial_entry_id') && $request->financial_entry_id) {
                 $validated = $request->validate([
                     'financial_entry_id' => 'required|exists:financial_entries,id',
                 ]);
-                
+
                 $financialEntry = FinancialEntry::findOrFail($validated['financial_entry_id']);
-                
+
                 $bankMovement->update([
                     'is_conciliated' => true,
                     'financial_entry_id' => $financialEntry->id,
                 ]);
-                
+
                 return redirect()->route('financial.bank-conciliation')
                     ->with('success', 'Movimiento bancario conciliado correctamente.');
             }
-            
+
             // Si viene action=create, crear nuevo registro
             if ($request->has('action') && $request->action === 'create') {
                 $validated = $request->validate([
                     'store_id' => 'required|exists:stores,id',
                     'amount' => 'required|numeric',
                 ]);
-                
+
                 $entryData = [
                     'date' => $bankMovement->date,
                     'store_id' => $validated['store_id'],
@@ -3123,7 +3169,7 @@ class FinancialController extends Controller
                     'paid_amount' => $validated['amount'],
                     'created_by' => Auth::id(),
                 ];
-                
+
                 // Si es débito (gasto)
                 if ($bankMovement->type === 'debit') {
                     $validated = $request->validate([
@@ -3133,7 +3179,7 @@ class FinancialController extends Controller
                         'amount' => 'required|numeric',
                         'expense_category' => 'nullable|string|max:255',
                     ]);
-                    
+
                     $entryData['type'] = 'expense';
                     $entryData['supplier_id'] = $validated['supplier_id'] ?? null;
                     $entryData['expense_payment_method'] = 'bank';
@@ -3149,32 +3195,33 @@ class FinancialController extends Controller
                         'concept' => 'nullable|string|max:255',
                         'amount' => 'required|numeric|min:0.01',
                     ]);
-                    
+
                     $entryData['type'] = 'income';
                     $entryData['concept'] = $validated['concept'] ?? $bankMovement->description;
                 }
-                
+
                 $entryData['notes'] = json_encode([
                     'source' => 'bank_movement',
                     'bank_movement_id' => $bankMovement->id,
                 ]);
-                
+
                 $financialEntry = FinancialEntry::create($entryData);
-                
+
                 $bankMovement->update([
                     'is_conciliated' => true,
                     'financial_entry_id' => $financialEntry->id,
                 ]);
-                
+
                 return redirect()->route('financial.bank-conciliation')
                     ->with('success', 'Registro financiero creado y movimiento conciliado correctamente.');
             }
-            
+
             return back()->with('error', 'Acción no válida.');
-            
+
         } catch (\Exception $e) {
-            Log::error('Error conciliando movimiento bancario: ' . $e->getMessage());
-            return back()->with('error', 'Error al conciliar el movimiento: ' . $e->getMessage());
+            Log::error('Error conciliando movimiento bancario: '.$e->getMessage());
+
+            return back()->with('error', 'Error al conciliar el movimiento: '.$e->getMessage());
         }
     }
 
@@ -3187,14 +3234,14 @@ class FinancialController extends Controller
     {
         $storeId = $request->get('store_id');
         $month = $request->get('month'); // Y-m
-        
-        if (!$storeId || !$month || !preg_match('/^\d{4}-\d{2}$/', $month)) {
+
+        if (! $storeId || ! $month || ! preg_match('/^\d{4}-\d{2}$/', $month)) {
             return response()->json(['incomes' => []]);
         }
-        
+
         $start = \Carbon\Carbon::createFromFormat('Y-m', $month)->startOfMonth();
         $end = $start->copy()->endOfMonth();
-        
+
         $entries = FinancialEntry::where('store_id', $storeId)
             ->where('type', 'income')
             ->where('expense_payment_method', 'bank')
@@ -3204,16 +3251,17 @@ class FinancialController extends Controller
             ->orderBy('amount', 'desc')
             ->select('id', 'date', 'concept', 'amount', 'total_amount', 'income_concept')
             ->get();
-        
+
         $incomeIds = $entries->pluck('id')->toArray();
         $idsWithTpvDiff = $incomeIds ? FinancialEntry::where('type', 'expense')
             ->whereIn('source_income_id', $incomeIds)
             ->pluck('source_income_id')
             ->flip()
             ->toArray() : [];
-        
+
         $incomes = $entries->map(function ($entry) use ($idsWithTpvDiff) {
             $amt = (float) ($entry->total_amount ?? $entry->amount ?? 0);
+
             return [
                 'id' => $entry->id,
                 'date' => $entry->date->format('d/m/Y'),
@@ -3222,7 +3270,7 @@ class FinancialController extends Controller
                 'disabled' => isset($idsWithTpvDiff[$entry->id]),
             ];
         });
-        
+
         return response()->json(['incomes' => $incomes]);
     }
 
@@ -3234,27 +3282,28 @@ class FinancialController extends Controller
         $validated = $request->validate([
             'financial_entry_id' => 'required|exists:financial_entries,id',
         ]);
-        
+
         try {
             $bankMovement = BankMovement::findOrFail($id);
             $financialEntry = FinancialEntry::findOrFail($validated['financial_entry_id']);
-            
+
             // Verificar que el movimiento no esté ya conciliado
             if ($bankMovement->is_conciliated) {
                 return back()->with('error', 'Este movimiento ya está conciliado.');
             }
-            
+
             $bankMovement->update([
                 'is_conciliated' => true,
                 'financial_entry_id' => $financialEntry->id,
             ]);
-            
+
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario enlazado correctamente.');
-                
+
         } catch (\Exception $e) {
-            Log::error('Error enlazando movimiento bancario: ' . $e->getMessage());
-            return back()->with('error', 'Error al enlazar el movimiento: ' . $e->getMessage());
+            Log::error('Error enlazando movimiento bancario: '.$e->getMessage());
+
+            return back()->with('error', 'Error al enlazar el movimiento: '.$e->getMessage());
         }
     }
 
@@ -3266,26 +3315,27 @@ class FinancialController extends Controller
         $validated = $request->validate([
             'financial_entry_id' => 'required|exists:financial_entries,id',
         ]);
-        
+
         try {
             $financialEntry = FinancialEntry::findOrFail($validated['financial_entry_id']);
-            
+
             // Verificar que el movimiento no esté ya conciliado
             if ($bankMovement->is_conciliated) {
                 return back()->with('error', 'Este movimiento ya está conciliado.');
             }
-            
+
             $bankMovement->update([
                 'is_conciliated' => true,
                 'financial_entry_id' => $financialEntry->id,
             ]);
-            
+
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario enlazado correctamente.');
-                
+
         } catch (\Exception $e) {
-            Log::error('Error enlazando movimiento bancario: ' . $e->getMessage());
-            return back()->with('error', 'Error al enlazar el movimiento: ' . $e->getMessage());
+            Log::error('Error enlazando movimiento bancario: '.$e->getMessage());
+
+            return back()->with('error', 'Error al enlazar el movimiento: '.$e->getMessage());
         }
     }
 
@@ -3301,13 +3351,13 @@ class FinancialController extends Controller
             'expense_concept' => 'required|string|max:255',
             'amount' => 'required|numeric',
         ]);
-        
+
         try {
             // Verificar que el movimiento no esté ya conciliado
             if ($bankMovement->is_conciliated) {
                 return back()->with('error', 'Este movimiento ya está conciliado.');
             }
-            
+
             // Crear registro financiero de gasto
             $financialEntry = FinancialEntry::create([
                 'date' => $bankMovement->date,
@@ -3329,19 +3379,20 @@ class FinancialController extends Controller
                 ]),
                 'created_by' => Auth::id(),
             ]);
-            
+
             // Conciliar el movimiento bancario
             $bankMovement->update([
                 'is_conciliated' => true,
                 'financial_entry_id' => $financialEntry->id,
             ]);
-            
+
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Gasto creado y movimiento conciliado correctamente.');
-                
+
         } catch (\Exception $e) {
-            Log::error('Error creando gasto desde movimiento bancario: ' . $e->getMessage());
-            return back()->with('error', 'Error al crear el gasto: ' . $e->getMessage());
+            Log::error('Error creando gasto desde movimiento bancario: '.$e->getMessage());
+
+            return back()->with('error', 'Error al crear el gasto: '.$e->getMessage());
         }
     }
 
@@ -3354,20 +3405,21 @@ class FinancialController extends Controller
             if ($bankMovement->is_conciliated) {
                 return back()->with('error', 'Este movimiento ya está conciliado.');
             }
-            
+
             // Marcar como conciliado pero sin enlazar a ningún registro financiero
             // Esto permite que no aparezca en los pendientes
             $bankMovement->update([
                 'is_conciliated' => true,
                 'financial_entry_id' => null,
             ]);
-            
+
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario marcado como ignorado.');
-                
+
         } catch (\Exception $e) {
-            Log::error('Error ignorando movimiento bancario: ' . $e->getMessage());
-            return back()->with('error', 'Error al ignorar el movimiento: ' . $e->getMessage());
+            Log::error('Error ignorando movimiento bancario: '.$e->getMessage());
+
+            return back()->with('error', 'Error al ignorar el movimiento: '.$e->getMessage());
         }
     }
 
@@ -3380,29 +3432,29 @@ class FinancialController extends Controller
     public function downloadBankImportTemplate()
     {
         $filename = 'plantilla_importacion_movimientos_bancarios.csv';
-        
+
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ];
-        
-        $callback = function() {
+
+        $callback = function () {
             $file = fopen('php://output', 'w');
-            
+
             // Añadir BOM para UTF-8 (ayuda con Excel)
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-            
+
             // Encabezados
             fputcsv($file, ['Fecha', 'Descripción', 'Importe', 'Tipo'], ';');
-            
+
             // Ejemplos de datos
             fputcsv($file, ['2024-01-15', 'Transferencia recibida', '1500.00', 'credit'], ';');
             fputcsv($file, ['2024-01-16', 'Pago proveedor', '-250.50', 'debit'], ';');
             fputcsv($file, ['2024-01-17', 'Nómina empleados', '-3200.00', 'debit'], ';');
-            
+
             fclose($file);
         };
-        
+
         return response()->stream($callback, 200, $headers);
     }
 
@@ -3410,10 +3462,10 @@ class FinancialController extends Controller
     {
         $this->syncStoresFromBusinesses();
         $bankAccounts = BankAccount::with('store')->orderBy('bank_name')->get();
-        
+
         // Obtener errores de la sesión si existen
         $importErrors = session('errors', []);
-        
+
         return view('financial.bank-import', compact('bankAccounts', 'importErrors'));
     }
 
@@ -3423,11 +3475,11 @@ class FinancialController extends Controller
     private function parseDateFromCsv($dateString)
     {
         $dateString = trim($dateString);
-        
+
         if (empty($dateString)) {
             return null;
         }
-        
+
         // Intentar formatos específicos primero: DD/MM/AAAA y DD-MM-AAAA
         $patterns = [
             '/^(\d{2})\/(\d{2})\/(\d{4})$/',  // DD/MM/AAAA
@@ -3435,20 +3487,20 @@ class FinancialController extends Controller
             '/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/',  // D/M/AAAA o DD/MM/AAAA (flexible)
             '/^(\d{1,2})-(\d{1,2})-(\d{4})$/',     // D-M-AAAA o DD-MM-AAAA (flexible)
         ];
-        
+
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $dateString, $matches)) {
                 $day = (int) $matches[1];
                 $month = (int) $matches[2];
                 $year = (int) $matches[3];
-                
+
                 // Validar que la fecha sea válida
                 if (checkdate($month, $day, $year)) {
                     return sprintf('%04d-%02d-%02d', $year, $month, $day);
                 }
             }
         }
-        
+
         // Si no coincide con los formatos específicos, intentar con Carbon como fallback
         try {
             return \Carbon\Carbon::parse($dateString)->format('Y-m-d');
@@ -3466,13 +3518,13 @@ class FinancialController extends Controller
         if (substr($name, 0, 3) === "\xEF\xBB\xBF") {
             $name = substr($name, 3);
         }
-        
+
         // Trim
         $name = trim($name);
-        
+
         // Convertir a minúsculas
         $name = mb_strtolower($name, 'UTF-8');
-        
+
         // Normalizar acentos (transliterar a ASCII)
         // Mapeo manual de caracteres acentuados comunes en español
         $accents = [
@@ -3482,7 +3534,7 @@ class FinancialController extends Controller
             'Ñ' => 'n', 'Ü' => 'u',
         ];
         $name = strtr($name, $accents);
-        
+
         // Intentar transliteración con iconv si está disponible
         if (function_exists('iconv')) {
             $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
@@ -3490,10 +3542,10 @@ class FinancialController extends Controller
                 $name = $transliterated;
             }
         }
-        
+
         // Eliminar caracteres no alfanuméricos excepto guiones bajos
         $name = preg_replace('/[^a-z0-9_]/', '', $name);
-        
+
         return $name;
     }
 
@@ -3503,20 +3555,20 @@ class FinancialController extends Controller
     private function normalizeTextForComparison($text)
     {
         $text = mb_strtolower(trim($text), 'UTF-8');
-        
+
         // Normalizar acentos
         $accents = [
             'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
             'ñ' => 'n', 'ü' => 'u',
         ];
         $text = strtr($text, $accents);
-        
+
         // Eliminar caracteres especiales excepto espacios y asteriscos
         $text = preg_replace('/[^a-z0-9\s*]/', ' ', $text);
-        
+
         // Normalizar espacios múltiples
         $text = preg_replace('/\s+/', ' ', $text);
-        
+
         return trim($text);
     }
 
@@ -3529,16 +3581,19 @@ class FinancialController extends Controller
         if (preg_match('/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/', $text, $matches)) {
             try {
                 $date = \Carbon\Carbon::createFromFormat('d/m/Y', $matches[1]);
+
                 return $date->format('d/m/Y');
             } catch (\Exception $e) {
                 try {
                     $date = \Carbon\Carbon::createFromFormat('d-m-Y', $matches[1]);
+
                     return $date->format('d/m/Y');
                 } catch (\Exception $e2) {
                     // Si no se puede parsear, devolver null
                 }
             }
         }
+
         return null;
     }
 
@@ -3548,13 +3603,13 @@ class FinancialController extends Controller
     private function detectTransfer($normalizedText)
     {
         $transferKeywords = ['traspaso', 'prestamo', 'devolucion', 'deposito efectivo'];
-        
+
         foreach ($transferKeywords as $keyword) {
             if (strpos($normalizedText, $keyword) !== false) {
                 return true;
             }
         }
-        
+
         return false;
     }
 
@@ -3567,13 +3622,14 @@ class FinancialController extends Controller
         if (empty(trim($rawDescription))) {
             $concept = 'Movimiento bancario';
             if ($date) {
-                $concept .= ' ' . \Carbon\Carbon::parse($date)->format('d/m/Y');
+                $concept .= ' '.\Carbon\Carbon::parse($date)->format('d/m/Y');
             }
+
             return $concept;
         }
-        
+
         $normalized = $this->normalizeTextForComparison($rawDescription);
-        
+
         // Primero verificar si es traspaso
         if ($this->detectTransfer($normalized)) {
             $concept = 'TRASPASO';
@@ -3582,18 +3638,18 @@ class FinancialController extends Controller
             } elseif (strpos($normalized, 'ingreso efectivo') !== false || strpos($normalized, 'deposito efectivo') !== false) {
                 $concept = 'INGRESO EFECTIVO';
             }
-            
+
             // Añadir fecha si existe
             $extractedDate = $this->extractDateFromText($rawDescription);
             if ($extractedDate) {
-                $concept .= ' ' . $extractedDate;
+                $concept .= ' '.$extractedDate;
             } elseif ($date) {
-                $concept .= ' ' . \Carbon\Carbon::parse($date)->format('d/m/Y');
+                $concept .= ' '.\Carbon\Carbon::parse($date)->format('d/m/Y');
             }
-            
+
             return $concept;
         }
-        
+
         // Diccionario de ingresos y gastos
         $dictionary = [
             // Ingresos
@@ -3601,7 +3657,7 @@ class FinancialController extends Controller
                 'keywords' => ['liquidacion', 'tpv'],
                 'concept' => 'INGRESO DATÁFONO',
             ],
-            
+
             // Gastos
             [
                 'keywords' => ['repsol'],
@@ -3644,7 +3700,7 @@ class FinancialController extends Controller
                 'concept' => 'IMPUESTO',
             ],
         ];
-        
+
         // Verificar diccionario - SIEMPRE se evalúa antes de usar concepto genérico
         foreach ($dictionary as $entry) {
             $allKeywordsFound = true;
@@ -3654,13 +3710,13 @@ class FinancialController extends Controller
                     break;
                 }
             }
-            
+
             if ($allKeywordsFound) {
                 // Si el diccionario detecta una coincidencia, usar el concepto corregido del diccionario
                 return $entry['concept'];
             }
         }
-        
+
         // Si el diccionario NO detecta coincidencia, usar la descripción original del banco
         // Limpiar la descripción original: extraer solo la parte principal antes de "Concepto:"
         $concept = $rawDescription;
@@ -3668,18 +3724,18 @@ class FinancialController extends Controller
             $parts = explode('Concepto:', $concept);
             $concept = trim($parts[0]);
         }
-        
+
         // Limpiar espacios múltiples y caracteres al final
         $concept = trim(preg_replace('/\s+/', ' ', $concept));
-        
+
         // Si después de limpiar queda vacío, usar concepto genérico como último recurso
         if (empty($concept)) {
             $concept = 'Movimiento bancario';
             if ($date) {
-                $concept .= ' ' . \Carbon\Carbon::parse($date)->format('d/m/Y');
+                $concept .= ' '.\Carbon\Carbon::parse($date)->format('d/m/Y');
             }
         }
-        
+
         return $concept;
     }
 
@@ -3691,14 +3747,14 @@ class FinancialController extends Controller
         $handle = fopen($filePath, 'r');
         $firstLine = fgets($handle);
         fclose($handle);
-        
-        if (!$firstLine) {
+
+        if (! $firstLine) {
             return ','; // Por defecto
         }
-        
+
         $semicolonCount = substr_count($firstLine, ';');
         $commaCount = substr_count($firstLine, ',');
-        
+
         return $semicolonCount > $commaCount ? ';' : ',';
     }
 
@@ -3716,120 +3772,138 @@ class FinancialController extends Controller
             $bankAccount = BankAccount::findOrFail($validated['bank_account_id']);
             $file = $request->file('file');
             $extension = $file->getClientOriginalExtension();
-            
+
             $imported = 0;
             $errors = [];
-            
+
             if (in_array($extension, ['csv', 'txt'])) {
                 $filePath = $file->getRealPath();
-                
+
                 // Detectar separador automáticamente
                 $delimiter = $this->detectCsvDelimiter($filePath);
-                
+
                 // Procesar CSV
                 $handle = fopen($filePath, 'r');
-                
+
                 // Leer encabezados (primera línea)
                 $headers = fgetcsv($handle, 0, $delimiter);
-                
-                if (!$headers) {
+
+                if (! $headers) {
                     fclose($handle);
+
                     return back()->withInput()->with('error', 'El archivo CSV está vacío o no es válido.');
                 }
-                
+
                 // Guardar cabeceras originales para mostrar en errores
                 $originalHeaders = $headers;
-                
+
                 // Normalizar encabezados
-                $headers = array_map(function($h) {
+                $headers = array_map(function ($h) {
                     return $this->normalizeColumnName($h);
                 }, $headers);
-                
+
                 // Buscar índices de columnas esperadas (con múltiples variantes)
                 $dateIndex = false;
                 $descriptionIndex = false;
                 $amountIndex = false;
                 $typeIndex = false;
-                
+
                 // Variantes para fecha
                 $dateVariants = ['fecha', 'date', 'fechamovimiento', 'fechamov', 'fecha_movimiento'];
                 foreach ($dateVariants as $variant) {
                     $dateIndex = array_search($variant, $headers);
-                    if ($dateIndex !== false) break;
+                    if ($dateIndex !== false) {
+                        break;
+                    }
                 }
-                
+
                 // Variantes para descripción
                 $descriptionVariants = ['descripcion', 'description', 'concepto', 'concept', 'detalle', 'detail', 'motivo'];
                 foreach ($descriptionVariants as $variant) {
                     $descriptionIndex = array_search($variant, $headers);
-                    if ($descriptionIndex !== false) break;
+                    if ($descriptionIndex !== false) {
+                        break;
+                    }
                 }
-                
+
                 // Variantes para importe
                 $amountVariants = ['importe', 'amount', 'cantidad', 'quantity', 'monto', 'valor', 'value'];
                 foreach ($amountVariants as $variant) {
                     $amountIndex = array_search($variant, $headers);
-                    if ($amountIndex !== false) break;
+                    if ($amountIndex !== false) {
+                        break;
+                    }
                 }
-                
+
                 // Variantes para tipo
                 $typeVariants = ['tipo', 'type', 'tipomovimiento', 'movementtype'];
                 foreach ($typeVariants as $variant) {
                     $typeIndex = array_search($variant, $headers);
-                    if ($typeIndex !== false) break;
+                    if ($typeIndex !== false) {
+                        break;
+                    }
                 }
-                
+
                 // Validar que tenga las columnas necesarias ANTES de procesar filas
                 if ($dateIndex === false || $descriptionIndex === false || $amountIndex === false) {
                     fclose($handle);
                     $missingColumns = [];
-                    if ($dateIndex === false) $missingColumns[] = 'Fecha';
-                    if ($descriptionIndex === false) $missingColumns[] = 'Descripción';
-                    if ($amountIndex === false) $missingColumns[] = 'Importe';
-                    
-                    $foundHeaders = implode(', ', array_map(function($h) {
-                        return '"' . $h . '"';
+                    if ($dateIndex === false) {
+                        $missingColumns[] = 'Fecha';
+                    }
+                    if ($descriptionIndex === false) {
+                        $missingColumns[] = 'Descripción';
+                    }
+                    if ($amountIndex === false) {
+                        $missingColumns[] = 'Importe';
+                    }
+
+                    $foundHeaders = implode(', ', array_map(function ($h) {
+                        return '"'.$h.'"';
                     }, $originalHeaders));
-                    
-                    return back()->withInput()->with('error', 
-                        'No se encontraron las columnas requeridas: ' . implode(', ', $missingColumns) . '. ' .
-                        'Columnas encontradas en el archivo: ' . $foundHeaders
+
+                    return back()->withInput()->with('error',
+                        'No se encontraron las columnas requeridas: '.implode(', ', $missingColumns).'. '.
+                        'Columnas encontradas en el archivo: '.$foundHeaders
                     );
                 }
-                
+
                 $rowNumber = 1;
                 while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
                     $rowNumber++;
-                    
+
                     // Obtener valores (usar el mismo delimitador)
                     $date = isset($row[$dateIndex]) ? trim($row[$dateIndex]) : null;
                     $description = isset($row[$descriptionIndex]) ? trim($row[$descriptionIndex]) : null;
                     $amount = isset($row[$amountIndex]) ? trim($row[$amountIndex]) : null;
                     $type = ($typeIndex !== false && isset($row[$typeIndex])) ? strtolower(trim($row[$typeIndex])) : null;
-                    
+
                     // Validar datos
                     if (empty($date) || empty($description) || empty($amount)) {
                         $errors[] = "Fila {$rowNumber}: Faltan datos requeridos";
+
                         continue;
                     }
-                    
+
                     // Parsear fecha (aceptar varios formatos: DD/MM/AAAA, DD-MM-AAAA, YYYY-MM-DD, etc.)
                     try {
                         $parsedDate = $this->parseDateFromCsv($date);
-                        if (!$parsedDate) {
+                        if (! $parsedDate) {
                             $errors[] = "Fila {$rowNumber}: Fecha inválida: {$date}";
+
                             continue;
                         }
                     } catch (\Exception $e) {
                         $errors[] = "Fila {$rowNumber}: Fecha inválida: {$date}";
+
                         continue;
                     }
-                    
+
                     // Validar y limpiar importe
                     // Manejar formato europeo (1.234,56) vs americano (1,234.56)
                     $amount = trim($amount);
-                    
-                    // Si contiene coma y punto, asumimos que la coma es separador de miles si está antes del punto, 
+
+                    // Si contiene coma y punto, asumimos que la coma es separador de miles si está antes del punto,
                     // o separador decimal si está después.
                     // Pero lo más común en España es 1.234,56 o 1234,56
                     if (strpos($amount, ',') !== false && strpos($amount, '.') !== false) {
@@ -3845,47 +3919,48 @@ class FinancialController extends Controller
                         // Solo tiene coma: 57,77 o 1234,56 -> cambiar por punto
                         $amount = str_replace(',', '.', $amount);
                     }
-                    
+
                     $amount = str_replace(['€', '$'], '', $amount);
                     $amount = trim($amount);
                     $amountValue = (float) $amount; // Mantener el signo original
                     $isNegative = $amountValue < 0;
                     $amountPositive = abs($amountValue); // Valor absoluto para guardar
-                    
+
                     // Validar que el importe no sea cero
                     if ($amountPositive == 0) {
                         $errors[] = "Fila {$rowNumber}: El importe no puede ser cero";
+
                         continue;
                     }
-                    
+
                     // Guardar descripción original
                     $rawDescription = $description;
-                    
+
                     // Obtener concepto normalizado del diccionario
                     $normalizedConcept = $this->getConceptFromDictionary($rawDescription, $parsedDate);
-                    
+
                     // Detectar si es traspaso
                     $normalized = $this->normalizeTextForComparison($rawDescription);
                     $isTransfer = $this->detectTransfer($normalized);
-                    
+
                     // Determinar tipo según el signo y el tipo indicado en el CSV
                     $finalType = null;
                     $destinationStoreId = null;
                     $status = 'confirmado';
-                    
+
                     // Normalizar el tipo del CSV
                     $csvType = null;
-                    if (!empty($type)) {
-                        $csvType = in_array($type, ['credit', 'debit', 'credito', 'debito', 'c', 'd', 'transfer', 'traspaso', 't', 'gasto', 'expense', 'ingreso', 'income']) 
+                    if (! empty($type)) {
+                        $csvType = in_array($type, ['credit', 'debit', 'credito', 'debito', 'c', 'd', 'transfer', 'traspaso', 't', 'gasto', 'expense', 'ingreso', 'income'])
                             ? strtolower($type)
                             : null;
                     }
-                    
+
                     // Si el CSV indica traspaso explícitamente, o se detecta como traspaso
                     if ($csvType === 'transfer' || $csvType === 'traspaso' || $csvType === 't' || $isTransfer) {
                         $finalType = 'transfer';
                         $status = 'pendiente';
-                        
+
                         if ($isNegative) {
                             // Traspaso SALIENTE: importe negativo
                             // La tienda del bank_account es la ORIGEN
@@ -3920,12 +3995,12 @@ class FinancialController extends Controller
                             }
                         }
                     }
-                    
+
                     // Si no se pudo determinar el tipo, usar el signo como guía
-                    if (!$finalType) {
+                    if (! $finalType) {
                         $finalType = $isNegative ? 'debit' : 'credit';
                     }
-                    
+
                     // Crear movimiento bancario
                     // IMPORTANTE: NO crear transfers al importar. Solo crear bank_movements en estado pendiente.
                     // Los transfers se crearán manualmente al conciliar desde la vista de conciliación bancaria.
@@ -3934,9 +4009,9 @@ class FinancialController extends Controller
                     if ($finalType === 'transfer') {
                         // Guardar el signo original en raw_description para referencia
                         $signIndicator = $isNegative ? '[NEG]' : '[POS]';
-                        $rawDescriptionWithSign = $signIndicator . ' ' . $rawDescription;
+                        $rawDescriptionWithSign = $signIndicator.' '.$rawDescription;
                     }
-                    
+
                     $bankMovement = BankMovement::create([
                         'bank_account_id' => $bankAccount->id,
                         'destination_store_id' => $destinationStoreId, // Para traspasos: NULL (se elige después)
@@ -3950,18 +4025,18 @@ class FinancialController extends Controller
                         'financial_entry_id' => null,
                         'transfer_id' => null, // Se asignará al conciliar como traspaso
                     ]);
-                    
+
                     // Si es un traspaso, intentar detectar si existe un transfer relacionado
                     // basándose en importe, fecha (±1 día) y tiendas cruzadas
                     if ($finalType === 'transfer') {
                         $existingTransfer = $this->findExistingTransferForBankMovement(
-                            $bankMovement, 
-                            $amountPositive, 
-                            $parsedDate, 
+                            $bankMovement,
+                            $amountPositive,
+                            $parsedDate,
                             $bankAccount->store_id,
                             $isNegative
                         );
-                        
+
                         if ($existingTransfer) {
                             // Enlazar el bank_movement al transfer existente: conciliado y no pendiente
                             $bankMovement->update([
@@ -3975,36 +4050,37 @@ class FinancialController extends Controller
                             ]);
                         }
                     }
-                    
+
                     // NO intentar conciliar automáticamente - se hará manualmente desde la vista de conciliación
-                    
+
                     $imported++;
                 }
-                
+
                 fclose($handle);
             } else {
                 // Para Excel, usar una librería como PhpSpreadsheet o Laravel Excel
                 // Por ahora, mostrar error indicando que solo CSV está soportado
                 return back()->withInput()->with('error', 'El formato Excel aún no está soportado. Por favor, exporta el archivo a CSV e intenta de nuevo.');
             }
-            
+
             $message = "Se importaron {$imported} movimientos bancarios correctamente.";
-            if (!empty($errors)) {
-                $message .= " Errores encontrados: " . implode('; ', array_slice($errors, 0, 10));
+            if (! empty($errors)) {
+                $message .= ' Errores encontrados: '.implode('; ', array_slice($errors, 0, 10));
                 if (count($errors) > 10) {
-                    $message .= " y " . (count($errors) - 10) . " más.";
+                    $message .= ' y '.(count($errors) - 10).' más.';
                 }
             }
-            
+
             return redirect()->route('financial.bank-import')
                 ->with('success', $message)
                 ->with('importErrors', $errors);
-                
+
         } catch (\Exception $e) {
-            Log::error('Error importando movimientos bancarios: ' . $e->getMessage(), [
+            Log::error('Error importando movimientos bancarios: '.$e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
-            return back()->withInput()->with('error', 'Error al importar el archivo: ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Error al importar el archivo: '.$e->getMessage());
         }
     }
 
@@ -4018,19 +4094,19 @@ class FinancialController extends Controller
             ->where('is_conciliated', false)
             ->with('bankAccount')
             ->get();
-        
+
         $reconciled = 0;
         foreach ($pendingMovements as $movement) {
             $wasConciliated = $movement->is_conciliated;
             $this->reconcileBankMovement($movement);
-            
+
             // Refrescar el modelo para ver si se concilió
             $movement->refresh();
-            if ($movement->is_conciliated && !$wasConciliated) {
+            if ($movement->is_conciliated && ! $wasConciliated) {
                 $reconciled++;
             }
         }
-        
+
         Log::info('Conciliación automática completada', [
             'total_pending' => $pendingMovements->count(),
             'reconciled' => $reconciled,
@@ -4048,12 +4124,12 @@ class FinancialController extends Controller
             $storeId = $bankAccount->store_id;
             $date = $bankMovement->date;
             $amount = (float) $bankMovement->amount;
-            
+
             // Determinar el tipo de registro financiero esperado según el tipo de movimiento bancario
             // credit (ingreso en banco) -> income
             // debit (salida del banco) -> expense
             $expectedType = $bankMovement->type === 'credit' ? 'income' : 'expense';
-            
+
             // Buscar registros financieros con:
             // - misma fecha
             // - mismo importe (con tolerancia de 0.01 para redondeos)
@@ -4062,25 +4138,25 @@ class FinancialController extends Controller
             $query = FinancialEntry::where('store_id', $storeId)
                 ->where('date', $date)
                 ->where('type', $expectedType);
-            
+
             // Buscar por diferentes campos de importe según el tipo
             if ($expectedType === 'income') {
-                $query->where(function($q) use ($amount) {
+                $query->where(function ($q) use ($amount) {
                     $q->whereBetween('amount', [$amount - 0.01, $amount + 0.01])
                         ->orWhereBetween('total_amount', [$amount - 0.01, $amount + 0.01])
                         ->orWhereBetween('income_amount', [$amount - 0.01, $amount + 0.01]);
                 });
             } else {
                 // expense
-                $query->where(function($q) use ($amount) {
+                $query->where(function ($q) use ($amount) {
                     $q->whereBetween('amount', [$amount - 0.01, $amount + 0.01])
                         ->orWhereBetween('total_amount', [$amount - 0.01, $amount + 0.01])
                         ->orWhereBetween('expense_amount', [$amount - 0.01, $amount + 0.01]);
                 });
             }
-            
+
             $matches = $query->get();
-            
+
             // Si hay exactamente una coincidencia, conciliar
             if ($matches->count() === 1) {
                 $financialEntry = $matches->first();
@@ -4088,7 +4164,7 @@ class FinancialController extends Controller
                     'is_conciliated' => true,
                     'financial_entry_id' => $financialEntry->id,
                 ]);
-                
+
                 Log::info('Movimiento bancario conciliado automáticamente', [
                     'bank_movement_id' => $bankMovement->id,
                     'financial_entry_id' => $financialEntry->id,
@@ -4105,7 +4181,7 @@ class FinancialController extends Controller
                 ]);
             }
         } catch (\Exception $e) {
-            Log::error('Error al conciliar movimiento bancario: ' . $e->getMessage(), [
+            Log::error('Error al conciliar movimiento bancario: '.$e->getMessage(), [
                 'bank_movement_id' => $bankMovement->id,
             ]);
         }
@@ -4123,13 +4199,14 @@ class FinancialController extends Controller
                 $start = \Carbon\Carbon::parse($request->date_from)->startOfDay();
                 $end = \Carbon\Carbon::parse($request->date_to)->endOfDay();
                 $query->whereBetween('date', [$start, $end]);
+
                 return;
             } catch (\Exception $e) {
             }
         }
-        
+
         $end = now()->endOfDay();
-        
+
         switch ($period) {
             case 'last_7':
                 $start = now()->subDays(6)->startOfDay();
@@ -4160,7 +4237,7 @@ class FinancialController extends Controller
     /**
      * Obtiene años distintos de una query de entradas (compatible MySQL y SQLite).
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @return array<int>
      */
     private function getDistinctYearsFromEntries($query): array
@@ -4175,6 +4252,7 @@ class FinancialController extends Controller
                 ->values()
                 ->toArray();
         }
+
         return $query->clone()
             ->selectRaw("DISTINCT CAST(strftime('%Y', date) AS INTEGER) as year")
             ->orderByDesc('year')
@@ -4191,13 +4269,14 @@ class FinancialController extends Controller
                 $start = \Carbon\Carbon::parse($request->date_from)->startOfDay();
                 $end = \Carbon\Carbon::parse($request->date_to)->endOfDay();
                 $query->whereBetween('date', [$start, $end]);
+
                 return;
             } catch (\Exception $e) {
             }
         }
-        
+
         $end = now()->endOfDay();
-        
+
         switch ($period) {
             case 'last_7':
                 $start = now()->subDays(6)->startOfDay();
@@ -4248,7 +4327,7 @@ class FinancialController extends Controller
         $tpv = (float) ($dailyClose->tpv ?? 0);
 
         $userId = $dailyClose->created_by ?? Auth::id();
-        $notes = 'daily_close_id:' . $dailyClose->id;
+        $notes = 'daily_close_id:'.$dailyClose->id;
 
         $reportingMonth = $dailyClose->getReportingMonth();
 
@@ -4302,8 +4381,8 @@ class FinancialController extends Controller
             ->where('store_id', $dailyClose->store_id)
             ->where('date', $dailyClose->date)
             ->where(function ($q) use ($id) {
-                $q->where('notes', 'LIKE', '%daily_close_id:' . $id . '%')
-                    ->orWhere('notes', 'LIKE', '%Generado automáticamente desde cierre diario #' . $id . '%');
+                $q->where('notes', 'LIKE', '%daily_close_id:'.$id.'%')
+                    ->orWhere('notes', 'LIKE', '%Generado automáticamente desde cierre diario #'.$id.'%');
             })
             ->delete();
     }
@@ -4323,13 +4402,13 @@ class FinancialController extends Controller
         FinancialEntry::where('type', 'expense')
             ->where('expense_source', 'cierre_diario')
             ->where(function ($q) use ($id) {
-                $q->where('notes', 'like', '%"daily_close_id":' . $id . ',%')
-                    ->orWhere('notes', 'like', '%"daily_close_id":' . $id . '}%');
+                $q->where('notes', 'like', '%"daily_close_id":'.$id.',%')
+                    ->orWhere('notes', 'like', '%"daily_close_id":'.$id.'}%');
             })
             ->delete();
 
         $expenseItems = $dailyClose->expense_items ?? [];
-        if (!is_array($expenseItems)) {
+        if (! is_array($expenseItems)) {
             return;
         }
 
@@ -4381,8 +4460,8 @@ class FinancialController extends Controller
         FinancialEntry::where('type', 'expense')
             ->where('expense_source', 'cierre_diario')
             ->where(function ($q) use ($id) {
-                $q->where('notes', 'like', '%"daily_close_id":' . $id . ',%')
-                    ->orWhere('notes', 'like', '%"daily_close_id":' . $id . '}%');
+                $q->where('notes', 'like', '%"daily_close_id":'.$id.',%')
+                    ->orWhere('notes', 'like', '%"daily_close_id":'.$id.'}%');
             })
             ->delete();
     }
@@ -4394,7 +4473,7 @@ class FinancialController extends Controller
     {
         $bankMovement->load(['bankAccount.store', 'destinationStore']);
         $stores = $this->getAvailableStores();
-        
+
         return view('financial.bank-movements.edit', compact('bankMovement', 'stores'));
     }
 
@@ -4419,13 +4498,13 @@ class FinancialController extends Controller
             } elseif ($type === 'income') {
                 $type = 'credit';
             }
-            
+
             // Determinar el estado según el tipo y si tiene tienda destino
             $status = 'confirmado';
             if ($type === 'transfer') {
                 $status = $validated['destination_store_id'] ? 'pendiente' : 'confirmado';
             }
-            
+
             $bankMovement->update([
                 'description' => $validated['description'],
                 'type' => $type,
@@ -4438,7 +4517,7 @@ class FinancialController extends Controller
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Movimiento bancario actualizado correctamente.');
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', 'Error al actualizar el movimiento: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Error al actualizar el movimiento: '.$e->getMessage());
         }
     }
 
@@ -4464,20 +4543,20 @@ class FinancialController extends Controller
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Traspaso confirmado correctamente. El saldo se ha ajustado en ambas tiendas.');
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', 'Error al confirmar el traspaso: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Error al confirmar el traspaso: '.$e->getMessage());
         }
     }
 
     /**
      * Devuelve la configuración de cierre de caja de la empresa (nombres POS y si vales están activos).
      *
-     * @param int|null $companyId Si se pasa (p. ej. desde show), se usa esta empresa; si no, session('company_id')
+     * @param  int|null  $companyId  Si se pasa (p. ej. desde show), se usa esta empresa; si no, session('company_id')
      * @return array{pos_label: string, pos_cash_label: string, pos_card_label: string, vouchers_enabled: bool}
      */
     protected function getDailyCloseSettings(?int $companyId = null): array
     {
         $companyId = $companyId ?? session('company_id');
-        if (!$companyId) {
+        if (! $companyId) {
             return [
                 'pos_label' => 'Sistema POS',
                 'pos_cash_label' => 'Sistema POS · Efectivo (€)',
@@ -4486,7 +4565,7 @@ class FinancialController extends Controller
             ];
         }
         $company = Company::withoutGlobalScopes()->find($companyId);
-        if (!$company) {
+        if (! $company) {
             return [
                 'pos_label' => 'Sistema POS',
                 'pos_cash_label' => 'Sistema POS · Efectivo (€)',
@@ -4494,6 +4573,7 @@ class FinancialController extends Controller
                 'vouchers_enabled' => true,
             ];
         }
+
         return [
             'pos_label' => $company->daily_close_pos_label ?? 'Sistema POS',
             'pos_cash_label' => $company->daily_close_pos_cash_label ?? 'Sistema POS · Efectivo (€)',

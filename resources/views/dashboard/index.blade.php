@@ -58,6 +58,20 @@
                         <input type="date" name="date" value="{{ now()->format('Y-m-d') }}" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
                     </label>
                     <label class="block">
+                        <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Mes correspondiente *</span>
+                        @php
+                            $defaultReportingMonth = $month ?? now()->format('Y-m');
+                        @endphp
+                        <select name="reporting_month" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
+                            @foreach($availableMonths as $m)
+                                <option value="{{ $m['value'] }}" {{ $defaultReportingMonth === $m['value'] ? 'selected' : '' }}>{{ $m['label'] }}</option>
+                            @endforeach
+                            @if(collect($availableMonths)->pluck('value')->doesntContain($defaultReportingMonth))
+                                <option value="{{ $defaultReportingMonth }}" selected>{{ \Carbon\Carbon::createFromFormat('Y-m', $defaultReportingMonth)->locale('es')->isoFormat('MMMM YYYY') }}</option>
+                            @endif
+                        </select>
+                    </label>
+                    <label class="block">
                         <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Tienda origen *</span>
                         <select name="store_id" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
                             @foreach($stores as $store)
@@ -96,6 +110,7 @@
                 <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">Cartera → Tienda</p>
                 <form method="POST" action="{{ route('financial.cash-deposits.store') }}" class="space-y-4">
                     @csrf
+                    <input type="hidden" name="redirect_to" value="dashboard">
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Fecha *</span>
                         <input type="date" name="date" value="{{ now()->format('Y-m-d') }}" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">

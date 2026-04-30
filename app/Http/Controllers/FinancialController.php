@@ -169,6 +169,7 @@ class FinancialController extends Controller
             'income_category' => 'nullable|string',
             'income_concept' => 'nullable|string',
             'income_amount' => 'nullable|numeric|min:0',
+            'income_payment_method' => 'nullable|in:cash,bank,card,datafono,tarjeta',
         ];
 
         // Si es cierre diario, agregar validaciones específicas
@@ -324,8 +325,8 @@ class FinancialController extends Controller
                 }
 
                 // Normalizar método de pago: datáfono, tarjeta o card se guardan como bank
-                if (isset($validated['expense_payment_method'])) {
-                    $paymentMethod = $validated['expense_payment_method'];
+                if (isset($validated['income_payment_method'])) {
+                    $paymentMethod = $validated['income_payment_method'];
                     if (in_array($paymentMethod, ['card', 'datafono', 'tarjeta'])) {
                         $entryData['expense_payment_method'] = 'bank';
                     } else {
@@ -373,7 +374,11 @@ class FinancialController extends Controller
                         $entryData['status'] = 'pagado';
                     }
                 } else {
-                    $entryData['paid_amount'] = 0;
+                    // Si el gasto se marca como pagado y no se detallan pagos, considerar pagado el total
+                    $totalAmount = (float) ($entryData['total_amount'] ?? 0);
+                    $entryData['paid_amount'] = ($entryData['status'] ?? 'pendiente') === 'pagado'
+                        ? $totalAmount
+                        : 0;
                 }
             }
 

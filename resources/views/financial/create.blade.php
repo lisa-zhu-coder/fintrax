@@ -413,12 +413,12 @@
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold text-slate-700">Método de pago</span>
-                            <select name="expense_payment_method" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                            <select name="income_payment_method" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                                 <option value="">Selecciona…</option>
-                                <option value="cash" {{ old('expense_payment_method') === 'cash' ? 'selected' : '' }}>Efectivo</option>
-                                <option value="bank" {{ old('expense_payment_method') === 'bank' ? 'selected' : '' }}>Banco</option>
-                                <option value="card" {{ old('expense_payment_method') === 'card' ? 'selected' : '' }}>Tarjeta</option>
-                                <option value="datafono" {{ old('expense_payment_method') === 'datafono' ? 'selected' : '' }}>Datáfono</option>
+                                <option value="cash" {{ old('income_payment_method') === 'cash' ? 'selected' : '' }}>Efectivo</option>
+                                <option value="bank" {{ old('income_payment_method') === 'bank' ? 'selected' : '' }}>Banco</option>
+                                <option value="card" {{ old('income_payment_method') === 'card' ? 'selected' : '' }}>Tarjeta</option>
+                                <option value="datafono" {{ old('income_payment_method') === 'datafono' ? 'selected' : '' }}>Datáfono</option>
                             </select>
                         </label>
                     </div>

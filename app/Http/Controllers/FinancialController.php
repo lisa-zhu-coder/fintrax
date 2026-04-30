@@ -518,6 +518,7 @@ class FinancialController extends Controller
             'supplier_id' => 'nullable|exists:suppliers,id',
             'income_category' => 'nullable|string',
             'income_concept' => 'nullable|string',
+            'income_payment_method' => 'nullable|in:cash,bank,card,datafono,tarjeta',
         ];
         // Cierre diario: total_amount y amount pueden ser negativos; no validar expense_payments
         if ($entry->type === 'daily_close') {
@@ -626,8 +627,8 @@ class FinancialController extends Controller
                 }
 
                 // Normalizar método de pago: datáfono, tarjeta o card se guardan como bank
-                if ($request->has('expense_payment_method')) {
-                    $paymentMethod = $request->input('expense_payment_method');
+                if ($request->has('income_payment_method')) {
+                    $paymentMethod = $request->input('income_payment_method');
                     if (in_array($paymentMethod, ['card', 'datafono', 'tarjeta'])) {
                         $validated['expense_payment_method'] = 'bank';
                     } else {
@@ -669,6 +670,16 @@ class FinancialController extends Controller
                         $validated['status'] = 'pagado';
                     } else {
                         $validated['status'] = $validated['status'] ?? 'pendiente';
+                    }
+                }
+
+                // Si se marca como pagado y no se detallan pagos, considerar pagado el total (corrige gastos antiguos)
+                if (! $request->has('expense_payments') && $request->has('status')) {
+                    $totalAmount = (float) ($validated['total_amount'] ?? $entry->total_amount ?? $entry->amount ?? 0);
+                    if (($validated['status'] ?? null) === 'pagado') {
+                        $validated['paid_amount'] = $totalAmount;
+                    } elseif (($validated['status'] ?? null) === 'pendiente') {
+                        $validated['paid_amount'] = 0;
                     }
                 }
             }

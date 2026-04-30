@@ -175,6 +175,15 @@
                                     required
                                     class="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"
                                 />
+                                <select
+                                    name="expense_items[{{ $idx }}][expense_category]"
+                                    class="w-48 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"
+                                >
+                                    <option value="">Categoría…</option>
+                                    @foreach($expenseCategories ?? [] as $cat)
+                                        <option value="{{ e($cat->name) }}" {{ ($item['expense_category'] ?? '') === $cat->name ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                    @endforeach
+                                </select>
                                 <input
                                     type="number"
                                     name="expense_items[{{ $idx }}][amount]"
@@ -523,8 +532,18 @@ function addExpenseItem() {
     const div = document.createElement('div');
     div.className = 'flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2';
     div.dataset.expenseIndex = index;
+    const categoryOptions = @json(
+        collect($expenseCategories ?? [])->map(fn ($c) => ['value' => $c->name, 'label' => $c->name])->values()
+    );
+    const categoryHtml = [
+        '<option value=\"\">Categoría…</option>',
+        ...categoryOptions.map(o => `<option value=\"${escapeHtml(o.value)}\">${escapeHtml(o.label)}</option>`)
+    ].join('');
     div.innerHTML = `
         <input type="text" name="expense_items[${index}][concept]" placeholder="Concepto" required class="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"/>
+        <select name="expense_items[${index}][expense_category]" class="w-48 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2">
+            ${categoryHtml}
+        </select>
         <input type="number" name="expense_items[${index}][amount]" step="0.01" placeholder="0.00" required class="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2"/>
         <button type="button" onclick="this.closest('div[data-expense-index]').remove(); updateDailyCloseTotals();" class="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -534,17 +553,17 @@ function addExpenseItem() {
     `;
     container.appendChild(div);
     
-    div.querySelectorAll('input').forEach(input => {
-        input.addEventListener('input', updateDailyCloseTotals);
+    div.querySelectorAll('input, select').forEach(el => {
+        el.addEventListener('input', updateDailyCloseTotals);
         
         // Aplicar limpieza de 0 a campos numéricos añadidos dinámicamente
-        if (input.type === 'number' && !input.readOnly) {
-            input.addEventListener('focus', function() {
+        if (el.tagName === 'INPUT' && el.type === 'number' && !el.readOnly) {
+            el.addEventListener('focus', function() {
                 if (parseFloat(this.value) === 0) {
                     this.value = '';
                 }
             });
-            input.addEventListener('keydown', function(e) {
+            el.addEventListener('keydown', function(e) {
                 if (parseFloat(this.value) === 0 && /[0-9]/.test(e.key)) {
                     this.value = '';
                 }
@@ -649,6 +668,18 @@ function formatEuro(amount) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     }).format(amount);
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (m) {
+        return ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        })[m];
+    });
 }
 
 function toggleDailyCloseRequired(isDailyClose) {

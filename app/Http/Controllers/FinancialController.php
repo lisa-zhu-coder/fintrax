@@ -184,6 +184,7 @@ class FinancialController extends Controller
             $rules['vouchers_result'] = 'nullable|numeric';
             $rules['expense_items'] = 'nullable|array';
             $rules['expense_items.*.concept'] = 'nullable|string';
+            $rules['expense_items.*.expense_category'] = 'nullable|string';
             $rules['expense_items.*.amount'] = 'nullable|numeric';
         } else {
             // Campos opcionales para otros tipos
@@ -198,6 +199,7 @@ class FinancialController extends Controller
             $rules['vouchers_result'] = 'nullable|numeric';
             $rules['expense_items'] = 'nullable|array';
             $rules['expense_items.*.concept'] = 'nullable|string';
+            $rules['expense_items.*.expense_category'] = 'nullable|string';
             $rules['expense_items.*.amount'] = 'nullable|numeric';
         }
 

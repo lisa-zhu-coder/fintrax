@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
 use App\Models\CashWallet;
-use App\Models\CashWalletTransfer;
-use App\Models\Store;
 use App\Models\Transfer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -75,7 +73,7 @@ class TransferController extends Controller
     {
         $this->syncStoresFromBusinesses();
 
-        $stores = $this->getAvailableStores();
+        $stores = $this->storesForCurrentUser();
         $wallets = CashWallet::all();
 
         return view('financial.transfers.create', compact('stores', 'wallets'));
@@ -103,7 +101,7 @@ class TransferController extends Controller
         ]);
 
         // Validar que origen ≠ destino (incluyendo el fondo)
-        if ($validated['origin_type'] === $validated['destination_type'] && 
+        if ($validated['origin_type'] === $validated['destination_type'] &&
             $validated['origin_id'] == $validated['destination_id'] &&
             $validated['origin_fund'] === $validated['destination_fund']) {
             return back()->withInput()->with('error', 'El origen y el destino no pueden ser iguales.');
@@ -162,7 +160,7 @@ class TransferController extends Controller
             $errorMessage = 'Combinación de fondos no permitida.';
         }
 
-        if (!$isValid) {
+        if (! $isValid) {
             return back()->withInput()->with('error', $errorMessage);
         }
 
@@ -188,15 +186,17 @@ class TransferController extends Controller
             // Actualizar el status a 'reconciled' ANTES de llamar a apply()
             $transfer->update(['status' => 'reconciled']);
             $transfer->refresh(); // Asegurar que el modelo tenga el status actualizado
-            
+
             // Ahora aplicar la transferencia
             $result = $transfer->apply();
-            if (!$result['success']) {
+            if (! $result['success']) {
                 // Si falla, revertir el status y eliminar el transfer
                 $transfer->update(['status' => 'pending']);
                 $transfer->delete();
+
                 return back()->withInput()->with('error', $result['message'] ?? 'Error al aplicar la transferencia. Verifica los datos.');
             }
+
             return redirect()->route('transfers.index')->with('success', 'Traspaso creado y aplicado correctamente.');
         }
 
@@ -238,7 +238,7 @@ class TransferController extends Controller
         ]);
 
         // Validar que origen ≠ destino
-        if ($validated['origin_type'] === $validated['destination_type'] && 
+        if ($validated['origin_type'] === $validated['destination_type'] &&
             $validated['origin_id'] == $validated['destination_id'] &&
             $validated['origin_fund'] === $validated['destination_fund']) {
             return back()->withInput()->with('error', 'El origen y el destino no pueden ser iguales.');
@@ -255,7 +255,7 @@ class TransferController extends Controller
         }
 
         // Detectar si hay cambios en campos que afectan los saldos
-        $hasBalanceChanges = 
+        $hasBalanceChanges =
             $transfer->amount != $validated['amount'] ||
             $transfer->origin_type != $validated['origin_type'] ||
             $transfer->origin_id != $validated['origin_id'] ||
@@ -269,9 +269,9 @@ class TransferController extends Controller
         $statusChanged = $wasReconciled !== $willBeReconciled;
 
         // Si estaba reconciliado, hacer rollback primero (antes de actualizar los datos)
-        if ($wasReconciled && ($hasBalanceChanges || !$willBeReconciled)) {
+        if ($wasReconciled && ($hasBalanceChanges || ! $willBeReconciled)) {
             $rollbackResult = $transfer->rollback();
-            if (!$rollbackResult['success']) {
+            if (! $rollbackResult['success']) {
                 return back()->withInput()->with('error', $rollbackResult['message'] ?? 'Error al revertir la transferencia anterior.');
             }
             // Actualizar el status a 'pending' después del rollback
@@ -281,7 +281,7 @@ class TransferController extends Controller
 
         // Actualizar los campos (excepto status si necesita procesamiento especial)
         $updateData = $validated;
-        if ($willBeReconciled && !$wasReconciled) {
+        if ($willBeReconciled && ! $wasReconciled) {
             // Si va a cambiar de pending a reconciled, primero actualizar sin el status
             unset($updateData['status']);
             $transfer->update($updateData);
@@ -295,23 +295,27 @@ class TransferController extends Controller
 
         // Si el status cambió de pending a reconciled, aplicar la transferencia
         // IMPORTANTE: Solo aplicar si el status cambió de != reconciled a reconciled
-        if ($willBeReconciled && !$wasReconciled) {
+        if ($willBeReconciled && ! $wasReconciled) {
             $result = $transfer->apply();
-            if (!$result['success']) {
+            if (! $result['success']) {
                 // Si falla, revertir el status a 'pending'
                 $transfer->update(['status' => 'pending']);
+
                 return back()->withInput()->with('error', $result['message'] ?? 'Error al aplicar la transferencia actualizada. Verifica los datos.');
             }
+
             return redirect()->route('transfers.index')->with('success', 'Traspaso actualizado y aplicado correctamente.');
         } elseif ($willBeReconciled && $wasReconciled && $hasBalanceChanges) {
             // Si estaba reconciliado, se hizo rollback, y ahora debe estar reconciliado de nuevo
             // Aplicar con los nuevos datos
             $result = $transfer->apply();
-            if (!$result['success']) {
+            if (! $result['success']) {
                 // Si falla, revertir el status a 'pending'
                 $transfer->update(['status' => 'pending']);
+
                 return back()->withInput()->with('error', $result['message'] ?? 'Error al aplicar la transferencia actualizada. Verifica los datos.');
             }
+
             return redirect()->route('transfers.index')->with('success', 'Traspaso actualizado y aplicado correctamente.');
         }
 
@@ -328,7 +332,7 @@ class TransferController extends Controller
         // Si está reconciliado, ejecutar rollback() para restaurar los saldos (ej. eliminar BankMovement creado)
         if ($transfer->status === 'reconciled') {
             $rollbackResult = $transfer->rollback();
-            if (!$rollbackResult['success']) {
+            if (! $rollbackResult['success']) {
                 return back()->with('error', $rollbackResult['message'] ?? 'Error al revertir la transferencia antes de eliminarla. Los saldos no se han restaurado.');
             }
             $transfer->update(['status' => 'pending']);
@@ -366,7 +370,7 @@ class TransferController extends Controller
         }
         $originOk = $transfer->origin_type === 'store' && (int) $transfer->origin_id === (int) $storeId;
         $destOk = $transfer->destination_type === 'store' && (int) $transfer->destination_id === (int) $storeId;
-        if (!$originOk && !$destOk) {
+        if (! $originOk && ! $destOk) {
             abort(403, 'No tienes acceso a este traspaso.');
         }
     }

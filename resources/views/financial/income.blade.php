@@ -11,6 +11,34 @@
                 <p class="text-sm text-slate-500">Registros de ingresos</p>
             </div>
             <div class="flex items-center gap-3">
+                <div class="relative" data-export-menu>
+                    <form method="GET" action="{{ route('financial.export') }}" class="flex items-center gap-2" data-export-form>
+                        <input type="hidden" name="scope" value="income">
+                        <input type="hidden" name="format" value="xlsx" data-export-format>
+                        @foreach(request()->query() as $k => $v)
+                            @if(!in_array($k, ['scope','format'], true))
+                                @if(is_array($v))
+                                    @foreach($v as $vv)
+                                        <input type="hidden" name="{{ $k }}[]" value="{{ e($vv) }}">
+                                    @endforeach
+                                @else
+                                    <input type="hidden" name="{{ $k }}" value="{{ e($v) }}">
+                                @endif
+                            @endif
+                        @endforeach
+                        <button type="button" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-export-trigger>
+                            Exportar
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="text-slate-500">
+                                <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </form>
+                    <div class="absolute right-0 mt-2 hidden w-40 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg z-10" data-export-dropdown>
+                        <button type="button" class="w-full px-4 py-2 text-left text-sm hover:bg-slate-50" data-export-option="xlsx">Excel</button>
+                        <button type="button" class="w-full px-4 py-2 text-left text-sm hover:bg-slate-50" data-export-option="pdf">PDF</button>
+                        <button type="button" class="w-full px-4 py-2 text-left text-sm hover:bg-slate-50" data-export-option="csv">CSV</button>
+                    </div>
+                </div>
                 @if(auth()->user()->hasPermission('financial.income.create'))
                 <a href="{{ route('financial.create', ['type' => 'income']) }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -255,6 +283,43 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Menú exportación (se despliega al clicar Exportar)
+        document.querySelectorAll('[data-export-menu]').forEach(function(root) {
+            const trigger = root.querySelector('[data-export-trigger]');
+            const dropdown = root.querySelector('[data-export-dropdown]');
+            const form = root.querySelector('[data-export-form]');
+            const formatInput = root.querySelector('[data-export-format]');
+            if (!trigger || !dropdown || !form || !formatInput) return;
+
+            function close() {
+                dropdown.classList.add('hidden');
+            }
+            function toggle() {
+                dropdown.classList.toggle('hidden');
+            }
+
+            trigger.addEventListener('click', function(e) {
+                e.stopPropagation();
+                toggle();
+            });
+
+            dropdown.querySelectorAll('[data-export-option]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const fmt = btn.getAttribute('data-export-option');
+                    formatInput.value = fmt || 'xlsx';
+                    form.submit();
+                });
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!root.contains(e.target)) close();
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') close();
+            });
+        });
+
         const periodSelect = document.getElementById('periodSelect');
         const customDateRange = document.getElementById('customDateRange');
         

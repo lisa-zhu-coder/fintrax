@@ -1091,8 +1091,290 @@ class FinancialController extends Controller
 
     public function export(Request $request)
     {
-        // Implementar exportación CSV
-        return response()->json(['message' => 'Exportación no implementada']);
+        $this->syncStoresFromBusinesses();
+
+        $validated = $request->validate([
+            'scope' => 'required|in:income,expenses',
+            'format' => 'required|in:csv,xlsx,pdf',
+        ]);
+
+        $scope = $validated['scope'];
+        $format = $validated['format'];
+
+        $query = FinancialEntry::with(['store', 'invoice'])
+            ->where('type', $scope === 'income' ? 'income' : 'expense');
+
+        $enforcedStoreId = auth()->user()->getEnforcedStoreId();
+        if ($enforcedStoreId !== null) {
+            $query->where('store_id', $enforcedStoreId);
+        } elseif ($request->has('store') && $request->store !== 'all' && $request->store !== '') {
+            $query->where('store_id', $request->store);
+        }
+
+        $period = $request->get('period', 'last_30');
+        $month = $request->get('month');
+        if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $driver = DB::getDriverName();
+            if ($driver === 'mysql') {
+                $query->whereRaw("COALESCE(reporting_month, DATE_FORMAT(date, '%Y-%m')) = ?", [$month]);
+            } else {
+                $query->whereRaw("COALESCE(reporting_month, strftime('%Y-%m', date)) = ?", [$month]);
+            }
+        } else {
+            $this->applyPeriodFilter($query, $period, $request);
+        }
+
+        if ($scope === 'income') {
+            if ($request->filled('category')) {
+                $query->where('income_category', $request->category);
+            }
+            if ($request->filled('payment_method')) {
+                if ($request->payment_method === 'cash') {
+                    $query->where('expense_payment_method', 'cash');
+                } elseif ($request->payment_method === 'bank') {
+                    $query->whereIn('expense_payment_method', ['bank', 'card', 'datafono', 'tarjeta']);
+                }
+            }
+            if ($request->filled('source')) {
+                $query->where('income_category', $request->source);
+            }
+        } else {
+            if ($request->filled('category')) {
+                $query->where('expense_category', $request->category);
+            }
+            if ($request->filled('payment_method')) {
+                if ($request->payment_method === 'cash') {
+                    $query->where('expense_payment_method', 'cash');
+                } elseif ($request->payment_method === 'bank') {
+                    $query->whereIn('expense_payment_method', ['bank', 'card', 'datafono', 'tarjeta']);
+                }
+            }
+            if ($request->has('only_pending') && $request->only_pending == '1') {
+                $query->whereRaw('(COALESCE(total_amount, 0) - COALESCE(paid_amount, 0)) > 0');
+            }
+            if ($request->filled('source')) {
+                $query->where('expense_source', $request->source);
+            }
+        }
+
+        $entries = $query->orderBy('date', 'desc')->orderBy('created_at', 'desc')->get();
+
+        $baseName = ($scope === 'income' ? 'ingresos' : 'gastos').'-'.now()->format('Y-m-d-His');
+
+        if ($format === 'csv') {
+            $filename = $baseName.'.csv';
+            $headers = [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            ];
+
+            return response()->streamDownload(function () use ($scope, $entries) {
+                $out = fopen('php://output', 'w');
+                fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM UTF-8
+
+                if ($scope === 'income') {
+                    fputcsv($out, ['Mes correspondiente', 'Fecha', 'Tienda', 'Concepto', 'Categoría', 'Modo de pago', 'Importe (€)'], ';');
+                    foreach ($entries as $e) {
+                        $pm = $e->expense_payment_method;
+                        $pmLabel = $pm === 'cash' ? 'Efectivo' : (in_array($pm, ['bank', 'card', 'datafono', 'tarjeta'], true) ? 'Banco' : '');
+                        fputcsv($out, [
+                            $e->getReportingMonth(),
+                            $e->date?->format('Y-m-d'),
+                            $e->store->name ?? '',
+                            $e->income_concept ?? $e->concept ?? '',
+                            $e->income_category ?? '',
+                            $pmLabel,
+                            number_format((float) ($e->amount ?? 0), 2, ',', '.'),
+                        ], ';');
+                    }
+                } else {
+                    fputcsv($out, ['Mes correspondiente', 'Fecha', 'Tienda', 'Concepto', 'Categoría', 'Modo de pago', 'Procedencia', 'Total (€)', 'Pagado (€)', 'Pendiente (€)', 'Estado', 'Factura'], ';');
+                    foreach ($entries as $e) {
+                        $pm = $e->expense_payment_method;
+                        $pmLabel = $pm === 'cash' ? 'Efectivo' : (in_array($pm, ['bank', 'card', 'datafono', 'tarjeta'], true) ? 'Banco' : '');
+                        $total = (float) ($e->total_amount ?? $e->expense_amount ?? $e->amount ?? 0);
+                        $paid = (float) ($e->paid_amount ?? 0);
+                        $pending = max(0, $total - $paid);
+                        fputcsv($out, [
+                            $e->getReportingMonth(),
+                            $e->date?->format('Y-m-d'),
+                            $e->store->name ?? '',
+                            $e->expense_concept ?? $e->concept ?? '',
+                            $e->expense_category ?? '',
+                            $pmLabel,
+                            $e->expense_source ?? '',
+                            number_format($total, 2, ',', '.'),
+                            number_format($paid, 2, ',', '.'),
+                            number_format($pending, 2, ',', '.'),
+                            $e->status ?? '',
+                            $e->invoice?->invoice_number ?? '',
+                        ], ';');
+                    }
+                }
+
+                fclose($out);
+            }, $filename, $headers);
+        }
+
+        if ($format === 'xlsx') {
+            $filename = $baseName.'.xlsx';
+
+            return response()->streamDownload(function () use ($scope, $entries) {
+                $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+                $sheet = $spreadsheet->getActiveSheet();
+
+                $row = 1;
+                if ($scope === 'income') {
+                    $headers = ['Mes correspondiente', 'Fecha', 'Tienda', 'Concepto', 'Categoría', 'Modo de pago', 'Importe (€)'];
+                } else {
+                    $headers = ['Mes correspondiente', 'Fecha', 'Tienda', 'Concepto', 'Categoría', 'Modo de pago', 'Procedencia', 'Total (€)', 'Pagado (€)', 'Pendiente (€)', 'Estado', 'Factura'];
+                }
+                $sheet->fromArray($headers, null, 'A'.$row);
+                $sheet->getStyle('A1:'.$sheet->getHighestColumn().'1')->getFont()->setBold(true);
+
+                $row++;
+                foreach ($entries as $e) {
+                    $pm = $e->expense_payment_method;
+                    $pmLabel = $pm === 'cash' ? 'Efectivo' : (in_array($pm, ['bank', 'card', 'datafono', 'tarjeta'], true) ? 'Banco' : '');
+
+                    if ($scope === 'income') {
+                        $data = [
+                            $e->getReportingMonth(),
+                            $e->date?->format('Y-m-d'),
+                            $e->store->name ?? '',
+                            $e->income_concept ?? $e->concept ?? '',
+                            $e->income_category ?? '',
+                            $pmLabel,
+                            (float) ($e->amount ?? 0),
+                        ];
+                    } else {
+                        $total = (float) ($e->total_amount ?? $e->expense_amount ?? $e->amount ?? 0);
+                        $paid = (float) ($e->paid_amount ?? 0);
+                        $pending = max(0, $total - $paid);
+                        $data = [
+                            $e->getReportingMonth(),
+                            $e->date?->format('Y-m-d'),
+                            $e->store->name ?? '',
+                            $e->expense_concept ?? $e->concept ?? '',
+                            $e->expense_category ?? '',
+                            $pmLabel,
+                            $e->expense_source ?? '',
+                            $total,
+                            $paid,
+                            $pending,
+                            $e->status ?? '',
+                            $e->invoice?->invoice_number ?? '',
+                        ];
+                    }
+
+                    $sheet->fromArray($data, null, 'A'.$row);
+                    $row++;
+                }
+
+                foreach (range('A', $sheet->getHighestColumn()) as $col) {
+                    $sheet->getColumnDimension($col)->setAutoSize(true);
+                }
+
+                $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+                $writer->save('php://output');
+            }, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            ]);
+        }
+
+        // PDF
+        $filename = $baseName.'.pdf';
+        $pdf = new \FPDF('L', 'mm', 'A4');
+        $pdf->SetMargins(8, 8, 8);
+        $pdf->SetAutoPageBreak(true, 10);
+        $pdf->AddPage();
+        $toPdfText = static function (?string $text): string {
+            $t = (string) ($text ?? '');
+            // FPDF no soporta UTF-8: convertir a Windows-1252 para acentos (Categoría, etc.)
+            $converted = @iconv('UTF-8', 'windows-1252//TRANSLIT', $t);
+
+            return $converted !== false ? $converted : $t;
+        };
+
+        $pdf->SetFont('Arial', 'B', 12);
+        $title = $scope === 'income' ? 'Ingresos' : 'Gastos';
+        $pdf->Cell(0, 8, $toPdfText($title.' - Export '.now()->format('Y-m-d H:i')), 0, 1, 'L');
+        $pdf->Ln(1);
+        $pdf->SetFont('Arial', '', 7);
+
+        if ($scope === 'income') {
+            $cols = [
+                ['Mes', 18],
+                ['Fecha', 18],
+                ['Tienda', 35],
+                ['Concepto', 85],
+                ['Categoría', 25],
+                ['Pago', 18],
+                ['Importe', 22],
+            ];
+            foreach ($cols as [$label, $w]) {
+                $pdf->Cell($w, 6, $toPdfText($label), 1, 0, 'C');
+            }
+            $pdf->Ln();
+            foreach ($entries as $e) {
+                $pm = $e->expense_payment_method;
+                $pmLabel = $pm === 'cash' ? 'Efectivo' : (in_array($pm, ['bank', 'card', 'datafono', 'tarjeta'], true) ? 'Banco' : '');
+                $pdf->Cell($cols[0][1], 6, $toPdfText($e->getReportingMonth()), 1);
+                $pdf->Cell($cols[1][1], 6, $toPdfText($e->date?->format('d/m/Y') ?? ''), 1);
+                $pdf->Cell($cols[2][1], 6, $toPdfText(mb_substr((string) ($e->store->name ?? ''), 0, 22)), 1);
+                $pdf->Cell($cols[3][1], 6, $toPdfText(mb_substr((string) ($e->income_concept ?? $e->concept ?? ''), 0, 60)), 1);
+                $pdf->Cell($cols[4][1], 6, $toPdfText(mb_substr((string) ($e->income_category ?? ''), 0, 14)), 1);
+                $pdf->Cell($cols[5][1], 6, $toPdfText($pmLabel), 1);
+                $pdf->Cell($cols[6][1], 6, $toPdfText(number_format((float) ($e->amount ?? 0), 2, ',', '.').' EUR'), 1, 0, 'R');
+                $pdf->Ln();
+            }
+        } else {
+            $cols = [
+                ['Mes', 18],
+                ['Fecha', 18],
+                ['Tienda', 28],
+                ['Concepto', 55],
+                ['Categoría', 24],
+                ['Pago', 16],
+                ['Origen', 18],
+                ['Total', 18],
+                ['Pagado', 18],
+                ['Pendiente', 18],
+                ['Estado', 16],
+                ['Factura', 20],
+            ];
+            foreach ($cols as [$label, $w]) {
+                $pdf->Cell($w, 6, $toPdfText($label), 1, 0, 'C');
+            }
+            $pdf->Ln();
+            foreach ($entries as $e) {
+                $pm = $e->expense_payment_method;
+                $pmLabel = $pm === 'cash' ? 'Efectivo' : (in_array($pm, ['bank', 'card', 'datafono', 'tarjeta'], true) ? 'Banco' : '');
+                $total = (float) ($e->total_amount ?? $e->expense_amount ?? $e->amount ?? 0);
+                $paid = (float) ($e->paid_amount ?? 0);
+                $pending = max(0, $total - $paid);
+
+                $pdf->Cell($cols[0][1], 6, $toPdfText($e->getReportingMonth()), 1);
+                $pdf->Cell($cols[1][1], 6, $toPdfText($e->date?->format('d/m/Y') ?? ''), 1);
+                $pdf->Cell($cols[2][1], 6, $toPdfText(mb_substr((string) ($e->store->name ?? ''), 0, 16)), 1);
+                $pdf->Cell($cols[3][1], 6, $toPdfText(mb_substr((string) ($e->expense_concept ?? $e->concept ?? ''), 0, 34)), 1);
+                $pdf->Cell($cols[4][1], 6, $toPdfText(mb_substr((string) ($e->expense_category ?? ''), 0, 14)), 1);
+                $pdf->Cell($cols[5][1], 6, $toPdfText($pmLabel), 1);
+                $pdf->Cell($cols[6][1], 6, $toPdfText(mb_substr((string) ($e->expense_source ?? ''), 0, 12)), 1);
+                $pdf->Cell($cols[7][1], 6, $toPdfText(number_format($total, 2, ',', '.').' EUR'), 1, 0, 'R');
+                $pdf->Cell($cols[8][1], 6, $toPdfText(number_format($paid, 2, ',', '.').' EUR'), 1, 0, 'R');
+                $pdf->Cell($cols[9][1], 6, $toPdfText(number_format($pending, 2, ',', '.').' EUR'), 1, 0, 'R');
+                $pdf->Cell($cols[10][1], 6, $toPdfText(mb_substr((string) ($e->status ?? ''), 0, 10)), 1);
+                $pdf->Cell($cols[11][1], 6, $toPdfText(mb_substr((string) ($e->invoice?->invoice_number ?? ''), 0, 14)), 1);
+                $pdf->Ln();
+            }
+        }
+
+        return response($pdf->Output('S'), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
     }
 
     public function generateDailyCloseEntries()

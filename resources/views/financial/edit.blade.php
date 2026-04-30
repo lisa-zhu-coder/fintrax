@@ -61,12 +61,13 @@
                     <span class="text-xs font-semibold text-slate-700">Mes correspondiente</span>
                     <select name="reporting_month" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                         @php $currentMonth = $entry->getReportingMonth(); @endphp
+                        @php $monthBase = now()->startOfMonth(); @endphp
                         @for($i = 12; $i >= 0; $i--)
-                            @php $m = now()->addMonths($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
+                            @php $m = $monthBase->copy()->addMonthsNoOverflow($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
                             <option value="{{ $val }}" {{ old('reporting_month', $currentMonth) === $val ? 'selected' : '' }}>{{ $lab }}</option>
                         @endfor
                         @for($i = 1; $i <= 24; $i++)
-                            @php $m = now()->subMonths($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
+                            @php $m = $monthBase->copy()->subMonthsNoOverflow($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
                             <option value="{{ $val }}" {{ old('reporting_month', $currentMonth) === $val ? 'selected' : '' }}>{{ $lab }}</option>
                         @endfor
                     </select>

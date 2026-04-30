@@ -39,7 +39,7 @@
                     <select name="reporting_month" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                         <option value="">Selecciona el mes al que corresponde</option>
                         @foreach($availableMonths as $m)
-                            <option value="{{ $m }}" {{ old('reporting_month', $withdrawal->reporting_month ?? $withdrawal->date->format('Y-m')) === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::createFromFormat('Y-m', $m)->locale('es')->isoFormat('MMMM YYYY') }}</option>
+                            <option value="{{ $m }}" {{ old('reporting_month', $withdrawal->reporting_month ?? $withdrawal->date->format('Y-m')) === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::createFromFormat('!Y-m', $m)->locale('es')->isoFormat('MMMM YYYY') }}</option>
                         @endforeach
                     </select>
                     <p class="mt-1 text-xs text-slate-500">Mes en el que se contabiliza en el control de efectivo</p>

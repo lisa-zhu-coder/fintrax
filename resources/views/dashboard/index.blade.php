@@ -67,7 +67,7 @@
                                 <option value="{{ $m['value'] }}" {{ $defaultReportingMonth === $m['value'] ? 'selected' : '' }}>{{ $m['label'] }}</option>
                             @endforeach
                             @if(collect($availableMonths)->pluck('value')->doesntContain($defaultReportingMonth))
-                                <option value="{{ $defaultReportingMonth }}" selected>{{ \Carbon\Carbon::createFromFormat('Y-m', $defaultReportingMonth)->locale('es')->isoFormat('MMMM YYYY') }}</option>
+                                <option value="{{ $defaultReportingMonth }}" selected>{{ \Carbon\Carbon::createFromFormat('!Y-m', $defaultReportingMonth)->locale('es')->isoFormat('MMMM YYYY') }}</option>
                             @endif
                         </select>
                     </label>

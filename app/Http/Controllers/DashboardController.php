@@ -44,11 +44,11 @@ class DashboardController extends Controller
         }
 
         $selectedStore = $request->get('store', 'all');
-        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
             if ($enforcedStoreId !== null) {
                 $selectedStore = (string) $enforcedStoreId;
-            } elseif ($selectedStore !== 'all' && !$user->canAccessStore((int) $selectedStore)) {
+            } elseif ($selectedStore !== 'all' && ! $user->canAccessStore((int) $selectedStore)) {
                 $selectedStore = 'all';
             }
         }
@@ -81,7 +81,7 @@ class DashboardController extends Controller
             $query->where('store_id', $selectedStore);
         } else {
             $allowed = $user->getAllowedStoreIds();
-            if (!empty($allowed)) {
+            if (! empty($allowed)) {
                 $query->whereIn('store_id', $allowed);
             }
         }
@@ -126,7 +126,7 @@ class DashboardController extends Controller
             $query->where('store_id', $selectedStore);
         } else {
             $allowed = $user->getAllowedStoreIds();
-            if (!empty($allowed)) {
+            if (! empty($allowed)) {
                 $query->whereIn('store_id', $allowed);
             }
         }
@@ -136,7 +136,7 @@ class DashboardController extends Controller
             ->map(function ($val) {
                 return [
                     'value' => $val,
-                    'label' => ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $val)->locale('es')->isoFormat('MMMM YYYY')),
+                    'label' => ucfirst(\Carbon\Carbon::createFromFormat('!Y-m', $val)->locale('es')->isoFormat('MMMM YYYY')),
                 ];
             })
             ->values()
@@ -144,7 +144,7 @@ class DashboardController extends Controller
 
         // Asegurar que el mes actual esté siempre disponible en el desplegable
         $currentMonth = now()->format('Y-m');
-        if (!$months->has($currentMonth)) {
+        if (! $months->has($currentMonth)) {
             $months->prepend([
                 'value' => $currentMonth,
                 'label' => ucfirst(now()->locale('es')->isoFormat('MMMM YYYY')),
@@ -200,7 +200,8 @@ class DashboardController extends Controller
     /** Rango de fechas para un mes YYYY-MM (inicio y fin del mes). */
     private function getDateRangeForMonth(string $month): array
     {
-        $date = \Carbon\Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+        $date = \Carbon\Carbon::createFromFormat('!Y-m', $month)->startOfMonth();
+
         return [$date->copy()->startOfDay(), $date->copy()->endOfMonth()->endOfDay()];
     }
 
@@ -253,10 +254,10 @@ class DashboardController extends Controller
     {
         $salesByDate = [];
         $expensesByDate = [];
-        
+
         foreach ($entries as $entry) {
             $date = $entry->date->format('Y-m-d');
-            
+
             if ($entry->type === 'daily_close') {
                 $sales = (float) ($entry->sales ?? $entry->amount ?? 0);
                 $expenses = (float) ($entry->expenses ?? 0);
@@ -276,19 +277,19 @@ class DashboardController extends Controller
                 $sales = 0;
                 $expenses = 0;
             }
-            
-            if (!isset($salesByDate[$date])) {
+
+            if (! isset($salesByDate[$date])) {
                 $salesByDate[$date] = 0;
                 $expensesByDate[$date] = 0;
             }
-            
+
             $salesByDate[$date] += $sales;
             $expensesByDate[$date] += $expenses;
         }
-        
+
         ksort($salesByDate);
         ksort($expensesByDate);
-        
+
         return [
             'labels' => array_keys($salesByDate),
             'sales' => array_values($salesByDate),
@@ -315,7 +316,7 @@ class DashboardController extends Controller
             $query->where('store_id', $selectedStore);
         } else {
             $allowed = $user->getAllowedStoreIds();
-            if (!empty($allowed)) {
+            if (! empty($allowed)) {
                 $query->whereIn('store_id', $allowed);
             }
         }
@@ -354,7 +355,7 @@ class DashboardController extends Controller
             $query->where('store_id', $selectedStore);
         } else {
             $allowed = $user->getAllowedStoreIds();
-            if (!empty($allowed)) {
+            if (! empty($allowed)) {
                 $query->whereIn('store_id', $allowed);
             }
         }
@@ -379,7 +380,7 @@ class DashboardController extends Controller
             $query->where('store_id', $selectedStore);
         } else {
             $allowed = $user->getAllowedStoreIds();
-            if (!empty($allowed)) {
+            if (! empty($allowed)) {
                 $query->whereIn('store_id', $allowed);
             }
         }
@@ -433,7 +434,7 @@ class DashboardController extends Controller
 
         foreach ($records as $record) {
             $employee = $record->employee;
-            if (!$employee || !$record->overtimeType) {
+            if (! $employee || ! $record->overtimeType) {
                 continue;
             }
             $price = OvertimeSetting::getPriceForEmployeeAndType($employee->id, $record->overtime_type_id);
@@ -442,12 +443,12 @@ class DashboardController extends Controller
 
             $stores = $employee->stores;
             foreach ($stores as $store) {
-                if (!in_array($store->id, $storeIds)) {
+                if (! in_array($store->id, $storeIds)) {
                     continue;
                 }
-                $key = $singleStore ? 'employee_' . $employee->id : 'store_' . $store->id;
+                $key = $singleStore ? 'employee_'.$employee->id : 'store_'.$store->id;
                 $label = $singleStore ? $employee->full_name : $store->name;
-                if (!isset($byKey[$key])) {
+                if (! isset($byKey[$key])) {
                     $byKey[$key] = [
                         'label' => $label,
                         'store_id' => $store->id,
@@ -456,7 +457,7 @@ class DashboardController extends Controller
                 }
                 $tid = $record->overtime_type_id;
                 $tname = $record->overtimeType->name;
-                if (!isset($byKey[$key]['by_type'][$tid])) {
+                if (! isset($byKey[$key]['by_type'][$tid])) {
                     $byKey[$key]['by_type'][$tid] = ['name' => $tname, 'hours' => 0, 'amount' => 0];
                 }
                 $byKey[$key]['by_type'][$tid]['hours'] += $hours;
@@ -475,11 +476,13 @@ class DashboardController extends Controller
         }
         if ($selectedStore === 'all') {
             $allowed = $user->getAllowedStoreIds();
-            return !empty($allowed) ? $allowed : Store::pluck('id')->all();
+
+            return ! empty($allowed) ? $allowed : Store::pluck('id')->all();
         }
         if ($user->canAccessStore((int) $selectedStore)) {
             return [(int) $selectedStore];
         }
+
         return $user->getAllowedStoreIds();
     }
 
@@ -507,7 +510,7 @@ class DashboardController extends Controller
                     'minimized' => $w->minimized,
                 ])->toArray();
 
-            if (!empty($layout)) {
+            if (! empty($layout)) {
                 return $layout;
             }
         }
@@ -522,6 +525,7 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
         $layout = $this->getWidgetLayoutForUser($user);
+
         return response()->json(['widgets' => $layout]);
     }
 
@@ -545,7 +549,7 @@ class DashboardController extends Controller
 
         foreach ($validated['widgets'] as $i => $item) {
             $key = $item['key'];
-            if (!WidgetRegistry::has($key) || !in_array($key, $available, true)) {
+            if (! WidgetRegistry::has($key) || ! in_array($key, $available, true)) {
                 continue;
             }
             DashboardWidget::updateOrCreate(
@@ -579,6 +583,7 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
         DashboardWidget::forUser($user->id)->delete();
+
         return response()->json(['success' => true]);
     }
 }

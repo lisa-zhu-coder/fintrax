@@ -52,13 +52,14 @@
                         @php
                             $defaultMonth = old('date', request('date', now()->format('Y-m-d')));
                             $defaultMonth = \Carbon\Carbon::parse($defaultMonth)->format('Y-m');
+                            $monthBase = now()->startOfMonth();
                         @endphp
                         @for($i = 12; $i >= 0; $i--)
-                            @php $m = now()->addMonths($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
+                            @php $m = $monthBase->copy()->addMonthsNoOverflow($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
                             <option value="{{ $val }}" {{ old('reporting_month', $defaultMonth) === $val ? 'selected' : '' }}>{{ $lab }}</option>
                         @endfor
                         @for($i = 1; $i <= 24; $i++)
-                            @php $m = now()->subMonths($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
+                            @php $m = $monthBase->copy()->subMonthsNoOverflow($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
                             <option value="{{ $val }}" {{ old('reporting_month', $defaultMonth) === $val ? 'selected' : '' }}>{{ $lab }}</option>
                         @endfor
                     </select>

@@ -47,7 +47,7 @@
                         <option value="">Selecciona el mes al que corresponde</option>
                         @forelse($availableMonths as $m)
                             @php $defaultMonth = old('reporting_month', isset($defaultReportingMonth) && $defaultReportingMonth ? $defaultReportingMonth : substr(old('date', now()->format('Y-m-d')), 0, 7)); @endphp
-                            <option value="{{ $m }}" {{ $defaultMonth === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::createFromFormat('Y-m', $m)->locale('es')->isoFormat('MMMM YYYY') }}</option>
+                            <option value="{{ $m }}" {{ $defaultMonth === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::createFromFormat('!Y-m', $m)->locale('es')->isoFormat('MMMM YYYY') }}</option>
                         @empty
                             <option value="" disabled>No hay meses con registro en control de efectivo</option>
                         @endforelse

@@ -174,25 +174,26 @@
                 <tbody class="divide-y divide-slate-100">
                     @forelse($entries as $entry)
                         <tr class="hover:bg-slate-50">
-                            <td class="px-3 py-2 align-middle reporting-month-cell" data-entry-id="{{ $entry->id }}" data-current-value="{{ e($entry->getReportingMonth()) }}" data-current-label="{{ ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}" data-readonly="{{ ($entry->income_category ?? '') === 'cierre_diario' ? '1' : '0' }}">
+                            <td class="px-3 py-2 align-middle reporting-month-cell" data-entry-id="{{ $entry->id }}" data-current-value="{{ e($entry->getReportingMonth()) }}" data-current-label="{{ ucfirst(\Carbon\Carbon::createFromFormat('!Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}" data-readonly="{{ ($entry->income_category ?? '') === 'cierre_diario' ? '1' : '0' }}">
                                 @if(($entry->income_category ?? '') === 'cierre_diario')
-                                    <span class="text-slate-600">{{ ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}</span>
+                                    <span class="text-slate-600">{{ ucfirst(\Carbon\Carbon::createFromFormat('!Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}</span>
                                 @elseif(auth()->user()->hasPermission('financial.income.edit') || auth()->user()->hasPermission('financial.registros.edit'))
                                     <span class="reporting-month-view inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700 cursor-pointer hover:ring-2 hover:ring-brand-300 hover:ring-offset-1 min-w-[2rem]" title="Clic para cambiar mes">
-                                        {{ ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}
+                                        {{ ucfirst(\Carbon\Carbon::createFromFormat('!Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}
                                     </span>
                                     <select class="reporting-month-edit hidden w-full max-w-[160px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2" data-entry-id="{{ $entry->id }}">
+                                        @php $monthBase = now()->startOfMonth(); @endphp
                                         @for($i = 12; $i >= 0; $i--)
-                                            @php $m = now()->addMonths($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
+                                            @php $m = $monthBase->copy()->addMonthsNoOverflow($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
                                             <option value="{{ $val }}" {{ $entry->getReportingMonth() === $val ? 'selected' : '' }}>{{ $lab }}</option>
                                         @endfor
                                         @for($i = 1; $i <= 24; $i++)
-                                            @php $m = now()->subMonths($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
+                                            @php $m = $monthBase->copy()->subMonthsNoOverflow($i); $val = $m->format('Y-m'); $lab = ucfirst($m->locale('es')->isoFormat('MMMM YYYY')); @endphp
                                             <option value="{{ $val }}" {{ $entry->getReportingMonth() === $val ? 'selected' : '' }}>{{ $lab }}</option>
                                         @endfor
                                     </select>
                                 @else
-                                    <span class="text-slate-600">{{ ucfirst(\Carbon\Carbon::createFromFormat('Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}</span>
+                                    <span class="text-slate-600">{{ ucfirst(\Carbon\Carbon::createFromFormat('!Y-m', $entry->getReportingMonth())->locale('es')->isoFormat('MMMM YYYY')) }}</span>
                                 @endif
                             </td>
                             <td class="px-3 py-2">{{ $entry->date->format('d/m/Y') }}</td>

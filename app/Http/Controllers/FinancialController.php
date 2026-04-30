@@ -792,7 +792,7 @@ class FinancialController extends Controller
         $value = $validated['reporting_month'] ?? null;
         $entry->update(['reporting_month' => $value]);
 
-        $label = $value ? \Carbon\Carbon::createFromFormat('Y-m', $value)->locale('es')->isoFormat('MMMM YYYY') : '—';
+        $label = $value ? \Carbon\Carbon::createFromFormat('!Y-m', $value)->locale('es')->isoFormat('MMMM YYYY') : '—';
 
         return response()->json([
             'success' => true,
@@ -3523,7 +3523,7 @@ class FinancialController extends Controller
             return response()->json(['incomes' => []]);
         }
 
-        $start = \Carbon\Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+        $start = \Carbon\Carbon::createFromFormat('!Y-m', $month)->startOfMonth();
         $end = $start->copy()->endOfMonth();
 
         $entries = FinancialEntry::where('store_id', $storeId)

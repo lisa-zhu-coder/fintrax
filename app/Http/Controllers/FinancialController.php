@@ -2391,14 +2391,23 @@ class FinancialController extends Controller
 
     public function storeCashControlExpense($storeId, $monthKey, Request $request)
     {
+        if (! preg_match('/^\d{4}-\d{2}$/', (string) $monthKey)) {
+            abort(404);
+        }
+
         $request->validate([
             'date' => 'required|date',
-            'procedence_date' => 'required|string',
+            'procedence_date' => ['required', 'string', 'regex:/^\d{4}-\d{2}(-\d{2})?$/'],
             'supplier_id' => 'nullable|exists:suppliers,id',
             'expense_category' => 'required|string',
             'expense_concept' => 'required|string',
             'expense_amount' => 'required|numeric',
         ]);
+
+        $procedence = $request->procedence_date;
+        $reportingMonth = preg_match('/^\d{4}-\d{2}$/', $procedence)
+            ? $procedence
+            : substr($procedence, 0, 7);
 
         $notes = json_encode([
             'procedence_date' => $request->procedence_date,
@@ -2408,6 +2417,7 @@ class FinancialController extends Controller
         $amount = (float) $request->expense_amount;
         FinancialEntry::create([
             'date' => $request->date,
+            'reporting_month' => $reportingMonth,
             'store_id' => $storeId,
             'type' => 'expense',
             'expense_category' => $request->expense_category,

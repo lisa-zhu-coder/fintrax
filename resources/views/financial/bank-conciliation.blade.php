@@ -294,6 +294,20 @@
                                                     </svg>
                                                     Enlazar ingreso
                                                 </button>
+                                                @if(auth()->user()->hasPermission('financial.expenses.create'))
+                                                <button type="button"
+                                                    class="btn-create-expense inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-600 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50"
+                                                    data-movement-id="{{ $movement->id }}"
+                                                    data-description="{{ e($movement->description) }}"
+                                                    data-amount="{{ abs($movement->amount) }}"
+                                                    data-date="{{ $movement->date->format('Y-m-d') }}"
+                                                    data-store-id="{{ $movement->bankAccount->store_id ?? '' }}">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                    </svg>
+                                                    Crear gasto
+                                                </button>
+                                                @endif
                                             @else
                                                 <button type="button" 
                                                     class="btn-link-expense inline-flex items-center justify-center gap-1 rounded-xl border border-brand-600 bg-white px-3 py-1.5 text-xs font-semibold text-brand-600 hover:bg-brand-50"

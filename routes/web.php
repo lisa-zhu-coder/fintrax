@@ -12,18 +12,18 @@ use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\LoanPaymentController;
 use App\Http\Controllers\LoanTypeController;
+use App\Http\Controllers\ModuleSettingsController;
+use App\Http\Controllers\MonthlyObjectiveController;
+use App\Http\Controllers\MonthlyObjectiveSettingController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OvertimeController;
+use App\Http\Controllers\OvertimeSettingController;
+use App\Http\Controllers\RingInventoryController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\StoreCashReductionController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\TransferController;
 use App\Http\Controllers\TrashController;
-use App\Http\Controllers\MonthlyObjectiveController;
-use App\Http\Controllers\ModuleSettingsController;
-use App\Http\Controllers\MonthlyObjectiveSettingController;
-use App\Http\Controllers\RingInventoryController;
-use App\Http\Controllers\OvertimeController;
-use App\Http\Controllers\OvertimeSettingController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VacationController;
 use Illuminate\Support\Facades\Route;
@@ -37,7 +37,7 @@ Route::post('/register', [AuthController::class, 'register']);
 // Rutas de autenticación sin middleware de empresa (para super_admin)
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-    
+
     // Selección de empresa (solo super_admin)
     Route::get('/company/select', [CompanySelectController::class, 'index'])->name('company.select');
     Route::post('/company/switch', [CompanySelectController::class, 'switch'])->name('company.switch');
@@ -55,10 +55,10 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::get('/dashboard/widgets', [DashboardController::class, 'getWidgetLayout'])->name('dashboard.widgets.index');
     Route::post('/dashboard/widgets', [DashboardController::class, 'storeWidgetLayout'])->name('dashboard.widgets.store');
     Route::post('/dashboard/widgets/reset', [DashboardController::class, 'resetWidgetLayout'])->name('dashboard.widgets.reset');
-    
+
     // Usuarios
     Route::resource('users', UserController::class);
-    
+
     // Empleados (quick-user antes del resource para que no coincida con {employee})
     Route::post('employees/quick-user', [EmployeeController::class, 'storeQuickUser'])->name('employees.quick-user');
     Route::post('employees/reorder', [EmployeeController::class, 'reorder'])->name('employees.reorder');
@@ -70,7 +70,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::delete('employees/{employee}/documents/{document}', [EmployeeController::class, 'destroyDocument'])->name('employees.documents.destroy');
     Route::post('employees/{employee}/payrolls', [EmployeeController::class, 'uploadPayroll'])->name('employees.payrolls');
     Route::post('employees/payrolls/upload', [EmployeeController::class, 'uploadPayrollAuto'])->name('employees.payrolls.upload');
-    
+
     // Nóminas
     Route::get('payrolls/{payroll}/view', [\App\Http\Controllers\PayrollController::class, 'view'])->name('payrolls.view');
     Route::get('payroll/pending-send', [\App\Http\Controllers\PayrollController::class, 'pendingSend'])->name('payroll.pending-send');
@@ -81,7 +81,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::post('payroll/pending-remove', [\App\Http\Controllers\PayrollController::class, 'pendingRemove'])->name('payroll.pending-remove');
     Route::patch('payroll/{payroll}/assign', [\App\Http\Controllers\PayrollController::class, 'assignEmployee'])->name('payroll.assign');
     Route::delete('payroll/{payroll}', [\App\Http\Controllers\PayrollController::class, 'destroy'])->name('payroll.destroy');
-    
+
     // Pedidos (vista principal = listado de proveedores; segundo nivel = pedidos del proveedor)
     Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/supplier/{supplier}', [OrderController::class, 'supplierOrders'])->name('orders.supplier');
@@ -136,12 +136,12 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::post('/company/businesses', [CompanyController::class, 'storeBusiness'])->name('company.businesses.store');
     Route::put('/company/businesses/{business}', [CompanyController::class, 'updateBusiness'])->name('company.businesses.update');
     Route::delete('/company/businesses/{business}', [CompanyController::class, 'destroyBusiness'])->name('company.businesses.destroy');
-    
+
     // Tiendas
     Route::get('/stores/{store}/edit', [StoreController::class, 'edit'])->name('stores.edit');
     Route::post('/stores/{store}/bank-accounts', [StoreController::class, 'storeBankAccount'])->name('stores.bank-accounts.store');
     Route::delete('/bank-accounts/{bankAccount}', [StoreController::class, 'destroyBankAccount'])->name('bank-accounts.destroy');
-    
+
     // Registros financieros - Rutas específicas ANTES del resource para evitar conflictos
     Route::get('/financial/export', [FinancialController::class, 'export'])->name('financial.export');
     Route::get('/financial/cash-control', [FinancialController::class, 'cashControl'])->name('financial.cash-control');
@@ -173,16 +173,17 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::post('/financial/cash-control/{store}/day-comment', [FinancialController::class, 'storeCashControlDayComment'])->name('financial.cash-control-day-comment');
     Route::post('/financial/entry/{entry}/cash-real', [FinancialController::class, 'updateCashReal'])->name('financial.update-cash-real');
     Route::post('/financial/entry/{entry}/tpv-difference-expense', [FinancialController::class, 'storeTpvDifferenceExpense'])->name('financial.store-tpv-difference-expense');
-    Route::get('/financial/add-cash-real-column', function() {
+    Route::get('/financial/add-cash-real-column', function () {
         try {
             \Illuminate\Support\Facades\Schema::table('financial_entries', function (\Illuminate\Database\Schema\Blueprint $table) {
-                if (!\Illuminate\Support\Facades\Schema::hasColumn('financial_entries', 'cash_real')) {
+                if (! \Illuminate\Support\Facades\Schema::hasColumn('financial_entries', 'cash_real')) {
                     $table->decimal('cash_real', 10, 2)->nullable()->after('cash_expenses');
                 }
             });
+
             return redirect()->back()->with('success', 'Columna cash_real añadida correctamente');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Error: '.$e->getMessage());
         }
     })->name('financial.add-cash-real-column');
     Route::get('/financial/income', [FinancialController::class, 'income'])->name('financial.income');
@@ -195,7 +196,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::delete('/trash/force-delete/{id}', [TrashController::class, 'forceDelete'])->name('trash.force-delete');
     Route::post('/trash/empty', [TrashController::class, 'emptyTrash'])->name('trash.empty');
     Route::post('/financial/generate-daily-close-entries', [FinancialController::class, 'generateDailyCloseEntries'])->name('financial.generate-daily-close-entries');
-    
+
     // Recogida de efectivo
     Route::get('/financial/cash-withdrawals/create', [FinancialController::class, 'createCashWithdrawal'])->name('financial.cash-withdrawals.create');
     Route::post('/financial/cash-withdrawals', [FinancialController::class, 'storeCashWithdrawal'])->name('financial.cash-withdrawals.store');
@@ -204,7 +205,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::patch('/financial/{entry}/reporting-month', [FinancialController::class, 'updateReportingMonth'])->name('financial.update-reporting-month');
 
     Route::resource('financial', FinancialController::class);
-    
+
     // Roles
     Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
     Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
@@ -212,7 +213,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::get('/roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
     Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
     Route::post('/roles/{role}/reset-permissions', [RoleController::class, 'resetPermissions'])->name('roles.reset-permissions');
-    
+
     // Facturas
     Route::get('/invoices/upload', [InvoiceController::class, 'upload'])->name('invoices.upload');
     Route::post('/invoices/upload', [InvoiceController::class, 'storeFromUpload'])->name('invoices.upload.store');
@@ -221,12 +222,12 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::get('/invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');
     Route::get('/invoices/{invoice}/preview', [InvoiceController::class, 'preview'])->name('invoices.preview');
     Route::get('/invoices/{invoice}/serve', [InvoiceController::class, 'serve'])->name('invoices.serve');
-    
+
     // Ventas Declaradas
     Route::get('/declared-sales', [DeclaredSalesController::class, 'index'])->name('declared-sales.index');
     Route::get('/declared-sales/export', [DeclaredSalesController::class, 'export'])->name('declared-sales.export');
     Route::post('/declared-sales/generate-from-daily-closes', [DeclaredSalesController::class, 'generateFromDailyCloses'])->name('declared-sales.generate-from-daily-closes');
-    
+
     // Configuración - Reducción de Efectivo por Tienda
     Route::get('/settings/cash-reductions', [StoreCashReductionController::class, 'index'])->name('store-cash-reductions.index');
     Route::put('/settings/cash-reductions', [StoreCashReductionController::class, 'update'])->name('store-cash-reductions.update');
@@ -330,6 +331,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::put('/cash-wallets/{cashWallet}', [CashWalletController::class, 'update'])->name('cash-wallets.update');
     Route::delete('/cash-wallets/{cashWallet}', [CashWalletController::class, 'destroy'])->name('cash-wallets.destroy');
     Route::post('/cash-wallets/{cashWallet}/expense', [CashWalletController::class, 'storeExpense'])->name('cash-wallets.expense');
+    Route::post('/cash-wallets/expense-quick', [CashWalletController::class, 'storeExpenseQuick'])->name('cash-wallets.expense-quick');
     Route::get('/cash-wallets/{cashWallet}/expenses/{expense}/edit', [CashWalletController::class, 'editExpense'])->name('cash-wallets.expenses.edit');
     Route::put('/cash-wallets/{cashWallet}/expenses/{expense}', [CashWalletController::class, 'updateExpense'])->name('cash-wallets.expenses.update');
     Route::delete('/cash-wallets/{cashWallet}/expenses/{expense}', [CashWalletController::class, 'destroyExpense'])->name('cash-wallets.expenses.destroy');
@@ -340,7 +342,7 @@ Route::middleware(['auth', 'company'])->group(function () {
     Route::get('/cash-wallets/{cashWallet}/withdrawals/{withdrawal}/edit', [CashWalletController::class, 'editWithdrawal'])->name('cash-wallets.withdrawals.edit');
     Route::put('/cash-wallets/{cashWallet}/withdrawals/{withdrawal}', [CashWalletController::class, 'updateWithdrawal'])->name('cash-wallets.withdrawals.update');
     Route::delete('/cash-wallets/{cashWallet}/withdrawals/{withdrawal}', [CashWalletController::class, 'destroyWithdrawal'])->name('cash-wallets.withdrawals.destroy');
-    
+
     // Traspasos
     Route::get('/transfers', [TransferController::class, 'index'])->name('transfers.index');
     Route::get('/transfers/create', [TransferController::class, 'create'])->name('transfers.create');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
 use App\Models\CashWallet;
 use App\Models\DashboardWidget;
+use App\Models\ExpenseCategory;
 use App\Models\FinancialEntry;
 use App\Models\Order;
 use App\Models\OvertimeRecord;
@@ -62,12 +63,13 @@ class DashboardController extends Controller
         $ordersPaidVsPending = $this->getOrdersPaidVsPending($selectedStore, $user, $month);
         $overtimeByStore = $this->getOvertimeByStore($selectedStore, $user, $month);
         $cashWallets = CashWallet::orderBy('name')->get();
+        $expenseCategories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
 
         $widgetLayout = $this->getWidgetLayoutForUser($user);
         $availableWidgetKeys = WidgetRegistry::getAvailableKeys($user);
         $availableMonths = $this->getAvailableMonths($selectedStore, $user);
 
-        return view('dashboard.index', compact('stores', 'selectedStore', 'period', 'fromDate', 'toDate', 'month', 'availableMonths', 'entries', 'summary', 'chartData', 'expensesByCategory', 'incomeByPaymentMethod', 'ordersPaidVsPending', 'overtimeByStore', 'cashWallets', 'widgetLayout', 'availableWidgetKeys'));
+        return view('dashboard.index', compact('stores', 'selectedStore', 'period', 'fromDate', 'toDate', 'month', 'availableMonths', 'entries', 'summary', 'chartData', 'expensesByCategory', 'incomeByPaymentMethod', 'ordersPaidVsPending', 'overtimeByStore', 'cashWallets', 'expenseCategories', 'widgetLayout', 'availableWidgetKeys'));
     }
 
     private function getFilteredEntries($selectedStore, $period, $user, $fromDate = null, $toDate = null, $month = null)

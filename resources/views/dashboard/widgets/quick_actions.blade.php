@@ -3,6 +3,7 @@
     $canDailyClose = auth()->user()->hasPermission('financial.daily_closes.create');
     $canCashWithdrawal = auth()->user()->hasPermission('treasury.cash_control.view');
     $canCashDeposit = auth()->user()->hasPermission('treasury.cash_wallets.create');
+    $canCashWalletExpense = auth()->user()->hasPermission('treasury.cash_wallets.create');
     $canCreateOrder = auth()->user()->hasPermission('orders.main.create');
     $defaultStoreId = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() ? '' : (auth()->user()->getEnforcedStoreId() ?? '');
 @endphp
@@ -25,6 +26,12 @@
         <button type="button" onclick="document.getElementById('modalIngresarDinero').classList.remove('hidden')" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
             Ingresar dinero
+        </button>
+        @endif
+        @if($canCashWalletExpense)
+        <button type="button" onclick="document.getElementById('modalGastoCartera').classList.remove('hidden')" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 12v-2M6 12a6 6 0 1112 0 6 6 0 01-12 0z"/></svg>
+            Gasto de cartera
         </button>
         @endif
         @if($canCreateOrder)

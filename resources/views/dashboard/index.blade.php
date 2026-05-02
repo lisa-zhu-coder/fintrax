@@ -145,6 +145,77 @@
     </div>
     @endif
 
+    @if(auth()->user()->hasPermission('treasury.cash_wallets.create'))
+    <div id="modalGastoCartera" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog">
+        <div class="flex min-h-screen items-center justify-center p-4">
+            <div class="fixed inset-0 bg-slate-900/50 dark:bg-black/60" onclick="document.getElementById('modalGastoCartera').classList.add('hidden')"></div>
+            <div class="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-xl ring-1 ring-slate-200 dark:ring-slate-700">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Gasto de cartera</h3>
+                <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">Registrar un gasto pagado en efectivo desde una cartera</p>
+                <form method="POST" action="{{ route('cash-wallets.expense-quick') }}" class="space-y-4">
+                    @csrf
+                    <input type="hidden" name="redirect_to" value="dashboard">
+
+                    <label class="block">
+                        <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Cartera (procedencia) *</span>
+                        <select name="cash_wallet_id" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
+                            @foreach($cashWallets as $w)
+                                <option value="{{ $w->id }}">{{ $w->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+
+                    <label class="block">
+                        <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Fecha *</span>
+                        <input type="date" name="date" value="{{ now()->format('Y-m-d') }}" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
+                    </label>
+
+                    <label class="block">
+                        <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Mes correspondiente *</span>
+                        <select name="reporting_month" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
+                            @foreach($availableMonths as $m)
+                                <option value="{{ $m['value'] }}" {{ ($month ?? now()->format('Y-m')) === $m['value'] ? 'selected' : '' }}>{{ $m['label'] }}</option>
+                            @endforeach
+                            @if(collect($availableMonths)->pluck('value')->doesntContain($month ?? now()->format('Y-m')))
+                                <option value="{{ $month ?? now()->format('Y-m') }}" selected>{{ \Carbon\Carbon::createFromFormat('!Y-m', $month ?? now()->format('Y-m'))->locale('es')->isoFormat('MMMM YYYY') }}</option>
+                            @endif
+                        </select>
+                    </label>
+
+                    <label class="block">
+                        <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Tienda *</span>
+                        <select name="store_id" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
+                            @foreach($stores as $store)
+                                <option value="{{ $store->id }}" {{ $defaultStoreId == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+
+                    <label class="block">
+                        <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Categoría *</span>
+                        <select name="expense_category" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
+                            <option value="">Selecciona...</option>
+                            @foreach($expenseCategories ?? [] as $cat)
+                                <option value="{{ e($cat->name) }}">{{ $cat->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+
+                    <label class="block">
+                        <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Importe (€) *</span>
+                        <input type="number" name="amount" step="0.01" min="0.01" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100" placeholder="0,00">
+                    </label>
+
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="document.getElementById('modalGastoCartera').classList.add('hidden')" class="rounded-xl border border-slate-200 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">Cancelar</button>
+                        <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <!-- Filtros -->
     <div class="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
         <form method="GET" action="{{ route('dashboard') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3">

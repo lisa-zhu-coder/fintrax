@@ -26,7 +26,7 @@ class CashWalletController extends Controller
     public function __construct()
     {
         $this->middleware('permission:treasury.cash_wallets.view')->only(['index', 'show']);
-        $this->middleware('permission:treasury.cash_wallets.create')->only(['create', 'store', 'storeExpense', 'storeTransfer']);
+        $this->middleware('permission:treasury.cash_wallets.create')->only(['create', 'store', 'storeExpense', 'storeExpenseQuick', 'storeTransfer']);
         $this->middleware('permission:treasury.cash_wallets.edit')->only(['edit', 'update', 'editExpense', 'updateExpense', 'editTransfer', 'updateTransfer', 'editWithdrawal', 'updateWithdrawal']);
         $this->middleware('permission:treasury.cash_wallets.delete')->only(['destroy', 'destroyExpense', 'destroyTransfer', 'destroyWithdrawal']);
     }
@@ -322,6 +322,7 @@ class CashWalletController extends Controller
     {
         $validated = $request->validate([
             'date' => 'required|date',
+            'reporting_month' => 'nullable|date_format:Y-m',
             'store_id' => 'required|exists:stores,id',
             'supplier_id' => 'nullable|exists:suppliers,id',
             'expense_category' => 'nullable|string|max:255',
@@ -333,6 +334,7 @@ class CashWalletController extends Controller
             // Crear registro financiero (supplier_id debe ser null cuando está vacío, no "")
             $financialEntry = FinancialEntry::create([
                 'date' => $validated['date'],
+                'reporting_month' => $validated['reporting_month'] ?? \Carbon\Carbon::parse($validated['date'])->format('Y-m'),
                 'store_id' => $validated['store_id'],
                 'supplier_id' => ! empty($validated['supplier_id']) ? $validated['supplier_id'] : null,
                 'type' => 'expense',
@@ -366,6 +368,64 @@ class CashWalletController extends Controller
         } catch (\Exception $e) {
             return redirect()->route('cash-wallets.show', $cashWallet)
                 ->with('error', 'Error al registrar el gasto: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Registrar gasto desde cartera (acceso rápido desde dashboard).
+     */
+    public function storeExpenseQuick(Request $request)
+    {
+        $validated = $request->validate([
+            'cash_wallet_id' => 'required|exists:cash_wallets,id',
+            'date' => 'required|date',
+            'reporting_month' => 'required|date_format:Y-m',
+            'store_id' => 'required|exists:stores,id',
+            'expense_category' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0.01',
+        ]);
+
+        $cashWallet = CashWallet::findOrFail($validated['cash_wallet_id']);
+        $amount = round((float) $validated['amount'], 2);
+
+        try {
+            $financialEntry = FinancialEntry::create([
+                'date' => $validated['date'],
+                'reporting_month' => $validated['reporting_month'],
+                'store_id' => $validated['store_id'],
+                'supplier_id' => null,
+                'type' => 'expense',
+                'expense_payment_method' => 'cash',
+                'expense_amount' => $amount,
+                'amount' => $amount,
+                'total_amount' => $amount,
+                'status' => 'pagado',
+                'paid_amount' => $amount,
+                'expense_category' => $validated['expense_category'],
+                'expense_source' => 'cartera',
+                'expense_concept' => 'Gasto de cartera',
+                'concept' => 'Gasto de cartera',
+                'notes' => json_encode([
+                    'source' => 'cash_wallet',
+                    'cash_wallet_id' => $cashWallet->id,
+                    'source_ui' => 'dashboard_quick_action',
+                ]),
+                'created_by' => Auth::id(),
+            ]);
+
+            CashWalletExpense::create([
+                'cash_wallet_id' => $cashWallet->id,
+                'financial_entry_id' => $financialEntry->id,
+                'amount' => $amount,
+            ]);
+
+            if ($request->input('redirect_to') === 'dashboard') {
+                return redirect()->route('dashboard')->with('success', 'Gasto de cartera registrado correctamente.');
+            }
+
+            return redirect()->route('cash-wallets.show', $cashWallet)->with('success', 'Gasto de cartera registrado correctamente.');
+        } catch (\Exception $e) {
+            return back()->withInput()->with('error', 'Error al registrar el gasto de cartera: '.$e->getMessage());
         }
     }
 

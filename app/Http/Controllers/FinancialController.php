@@ -729,6 +729,14 @@ class FinancialController extends Controller
             }
 
             // Redirigir a la lista correspondiente al tipo de registro (mantenerse en la misma sección)
+            $redirectTo = $request->input('redirect_to');
+            if ($redirectTo && is_string($redirectTo)) {
+                $host = parse_url($redirectTo, PHP_URL_HOST);
+                if (($host === null && str_starts_with($redirectTo, '/')) || ($host !== null && $host === $request->getHost())) {
+                    return redirect($redirectTo)->with('success', 'Registro actualizado correctamente.');
+                }
+            }
+
             if ($entry->type === 'daily_close') {
                 return redirect()->route('financial.daily-closes')->with('success', 'Cierre diario actualizado correctamente.');
             }

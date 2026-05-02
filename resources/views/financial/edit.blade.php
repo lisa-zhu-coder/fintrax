@@ -37,6 +37,9 @@
         <form method="POST" action="{{ route('financial.update', $entry->id) }}" class="space-y-6" id="financialForm" novalidate>
             @csrf
             @method('PUT')
+            @if(isset($returnTo) && $returnTo)
+                <input type="hidden" name="redirect_to" value="{{ $returnTo }}">
+            @endif
             
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label class="block">

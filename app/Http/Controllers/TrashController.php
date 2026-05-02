@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\EnforcesStoreScope;
 use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
 use App\Models\FinancialEntry;
-use App\Models\Store;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -61,7 +60,8 @@ class TrashController extends Controller
 
             return redirect()->route('trash.index')->with('success', 'Registro restaurado correctamente');
         } catch (\Exception $e) {
-            Log::error('Error restaurando registro: ' . $e->getMessage());
+            Log::error('Error restaurando registro: '.$e->getMessage());
+
             return back()->with('error', 'Error al restaurar el registro');
         }
     }
@@ -74,11 +74,19 @@ class TrashController extends Controller
         try {
             $entry = FinancialEntry::onlyTrashed()->findOrFail($id);
             $this->authorizeStoreAccess($entry->store_id);
+
+            // Si es un cierre diario, eliminar también los ingresos/gastos automáticos generados desde ese cierre
+            // para evitar que queden registros huérfanos visibles en ingresos/gastos tras el borrado permanente.
+            if ($entry->type === 'daily_close') {
+                $this->deleteDailyCloseGeneratedEntries($entry);
+            }
+
             $entry->forceDelete();
 
             return redirect()->route('trash.index')->with('success', 'Registro eliminado permanentemente');
         } catch (\Exception $e) {
-            Log::error('Error eliminando permanentemente: ' . $e->getMessage());
+            Log::error('Error eliminando permanentemente: '.$e->getMessage());
+
             return back()->with('error', 'Error al eliminar permanentemente');
         }
     }
@@ -91,13 +99,58 @@ class TrashController extends Controller
         try {
             $query = FinancialEntry::onlyTrashed();
             $this->scopeStoreForCurrentUser($query);
+
+            // Antes de vaciar, asegurar que los cierres diarios arrastren sus ingresos/gastos generados
+            // (estos pueden no estar en la papelera si se generaron con otro formato o quedaron huérfanos).
+            $query->where('type', 'daily_close')->orderBy('id')->chunkById(200, function ($entries) {
+                foreach ($entries as $entry) {
+                    $this->deleteDailyCloseGeneratedEntries($entry);
+                }
+            });
+
+            // Rehacer query para forzar borrado de todo lo filtrado por tienda/permisos
+            $query = FinancialEntry::onlyTrashed();
+            $this->scopeStoreForCurrentUser($query);
             $query->forceDelete();
 
             return redirect()->route('trash.index')->with('success', 'Papelera vaciada correctamente');
         } catch (\Exception $e) {
-            Log::error('Error vaciando papelera: ' . $e->getMessage());
+            Log::error('Error vaciando papelera: '.$e->getMessage());
+
             return back()->with('error', 'Error al vaciar la papelera');
         }
+    }
+
+    /**
+     * Elimina ingresos y gastos generados automáticamente por un cierre diario.
+     * Se ejecuta tanto en borrado permanente como al vaciar papelera para evitar huérfanos.
+     */
+    private function deleteDailyCloseGeneratedEntries(FinancialEntry $dailyClose): void
+    {
+        if ($dailyClose->type !== 'daily_close') {
+            return;
+        }
+
+        $id = (int) $dailyClose->id;
+
+        // Ingresos automáticos del cierre diario (soporta ambos formatos de notes)
+        FinancialEntry::where('type', 'income')
+            ->where('store_id', $dailyClose->store_id)
+            ->where('date', $dailyClose->date)
+            ->where(function ($q) use ($id) {
+                $q->where('notes', 'LIKE', '%daily_close_id:'.$id.'%')
+                    ->orWhere('notes', 'LIKE', '%Generado automáticamente desde cierre diario #'.$id.'%');
+            })
+            ->delete();
+
+        // Gastos automáticos del cierre diario (expense_items)
+        FinancialEntry::where('type', 'expense')
+            ->where('expense_source', 'cierre_diario')
+            ->where(function ($q) use ($id) {
+                $q->where('notes', 'like', '%"daily_close_id":'.$id.',%')
+                    ->orWhere('notes', 'like', '%"daily_close_id":'.$id.'}%');
+            })
+            ->delete();
     }
 
     protected function getAvailableStores()
@@ -115,6 +168,7 @@ class TrashController extends Controller
                 $start = \Carbon\Carbon::parse($request->date_from)->startOfDay();
                 $end = \Carbon\Carbon::parse($request->date_to)->endOfDay();
                 $query->whereBetween('deleted_at', [$start, $end]);
+
                 return;
             } catch (\Exception $e) {
             }

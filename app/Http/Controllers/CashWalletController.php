@@ -382,6 +382,7 @@ class CashWalletController extends Controller
             'reporting_month' => 'required|date_format:Y-m',
             'store_id' => 'required|exists:stores,id',
             'expense_category' => 'required|string|max:255',
+            'concept' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0.01',
         ]);
 
@@ -403,8 +404,8 @@ class CashWalletController extends Controller
                 'paid_amount' => $amount,
                 'expense_category' => $validated['expense_category'],
                 'expense_source' => 'cartera',
-                'expense_concept' => 'Gasto de cartera',
-                'concept' => 'Gasto de cartera',
+                'expense_concept' => $validated['concept'],
+                'concept' => $validated['concept'],
                 'notes' => json_encode([
                     'source' => 'cash_wallet',
                     'cash_wallet_id' => $cashWallet->id,

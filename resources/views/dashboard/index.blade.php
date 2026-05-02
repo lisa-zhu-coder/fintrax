@@ -202,6 +202,11 @@
                     </label>
 
                     <label class="block">
+                        <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Concepto *</span>
+                        <input type="text" name="concept" required maxlength="255" class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100" placeholder="Ej: Taxi, material, etc.">
+                    </label>
+
+                    <label class="block">
                         <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">Importe (€) *</span>
                         <input type="number" name="amount" step="0.01" min="0.01" required class="mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100" placeholder="0,00">
                     </label>

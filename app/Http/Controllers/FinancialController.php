@@ -697,6 +697,16 @@ class FinancialController extends Controller
                     $dataToUpdate[$key] = null;
                 }
             }
+
+            // Campos enteros nullable (p. ej. selects con opción vacía) pueden llegar como '' desde HTML.
+            // MySQL no acepta '' en columnas INT: convertir a null.
+            $nullableIntegerFields = ['supplier_id', 'invoice_id', 'source_income_id', 'refund_original_id'];
+            foreach ($nullableIntegerFields as $key) {
+                if (array_key_exists($key, $dataToUpdate) && ($dataToUpdate[$key] === '' || $dataToUpdate[$key] === null)) {
+                    $dataToUpdate[$key] = null;
+                }
+            }
+
             $entry->update($dataToUpdate);
             $entry->refresh();
 

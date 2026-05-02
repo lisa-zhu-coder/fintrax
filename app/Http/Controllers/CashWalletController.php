@@ -8,6 +8,7 @@ use App\Models\CashWallet;
 use App\Models\CashWalletExpense;
 use App\Models\CashWalletTransfer;
 use App\Models\CashWithdrawal;
+use App\Models\ExpenseCategory;
 use App\Models\FinancialEntry;
 use App\Models\OrderPayment;
 use App\Models\Store;
@@ -590,8 +591,9 @@ class CashWalletController extends Controller
 
         $stores = $this->storesForCurrentUser();
         $suppliers = Supplier::orderBy('name')->get();
+        $expenseCategories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
 
-        return view('cash-wallets.expenses.edit', compact('cashWallet', 'expense', 'stores', 'suppliers'));
+        return view('cash-wallets.expenses.edit', compact('cashWallet', 'expense', 'stores', 'suppliers', 'expenseCategories'));
     }
 
     /**
@@ -608,6 +610,7 @@ class CashWalletController extends Controller
             'date' => 'required|date',
             'store_id' => 'required|exists:stores,id',
             'supplier_id' => 'nullable|exists:suppliers,id',
+            'expense_category' => 'nullable|string|max:255',
             'concept' => 'nullable|string|max:255',
             'amount' => 'required|numeric',
         ]);
@@ -627,6 +630,7 @@ class CashWalletController extends Controller
                     'expense_amount' => round($validated['amount'], 2),
                     'amount' => round($validated['amount'], 2),
                     'total_amount' => round($validated['amount'], 2),
+                    'expense_category' => $validated['expense_category'] ?? null,
                     'expense_concept' => $validated['concept'] ?? null,
                     'concept' => $validated['concept'] ?? null,
                 ]);

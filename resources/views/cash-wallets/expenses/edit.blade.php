@@ -58,6 +58,21 @@
                     </select>
                 </label>
 
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Categoría</span>
+                    <select name="expense_category" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">— Sin categoría —</option>
+                        @foreach($expenseCategories ?? [] as $cat)
+                            <option value="{{ e($cat->name) }}" {{ old('expense_category', $expense->financialEntry->expense_category) === $cat->name ? 'selected' : '' }}>
+                                {{ $cat->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('expense_category')
+                        <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
+                    @enderror
+                </label>
+
                 <label class="block md:col-span-2">
                     <span class="text-xs font-semibold text-slate-700">Concepto</span>
                     <input type="text" name="concept" value="{{ old('concept', $expense->financialEntry->expense_concept ?? $expense->financialEntry->concept) }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>

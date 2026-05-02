@@ -33,15 +33,12 @@ class CashWalletController extends Controller
     /**
      * Calcular el saldo de una cartera
      * Usa la misma lógica que el historial para garantizar consistencia
-     * 
-     * @param CashWallet $wallet
-     * @return float
      */
     private function calculateBalance(CashWallet $wallet): float
     {
         // Obtener retiros de efectivo (entradas)
         $withdrawalsList = CashWithdrawal::where('cash_wallet_id', $wallet->id)->get();
-        
+
         // Obtener gastos pagados desde la cartera (salidas) SOLO si existe el financial_entry asociado
         $expensesList = CashWalletExpense::where('cash_wallet_id', $wallet->id)
             ->whereExists(function ($query) {
@@ -51,31 +48,31 @@ class CashWalletController extends Controller
             })
             ->with(['financialEntry'])
             ->get();
-        
+
         // Obtener transferencias a banco (salidas)
         $transfersList = CashWalletTransfer::where('cash_wallet_id', $wallet->id)->get();
-        
+
         // Calcular totales usando la misma lógica que el historial
         $totalWithdrawals = 0;
         foreach ($withdrawalsList as $withdrawal) {
             $totalWithdrawals += (float) $withdrawal->amount;
         }
-        
+
         $totalExpenses = 0;
         foreach ($expensesList as $expense) {
             if ($expense->financialEntry) {
                 $totalExpenses += (float) $expense->amount;
             }
         }
-        
+
         $totalTransfers = 0;
         foreach ($transfersList as $transfer) {
             $totalTransfers += (float) $transfer->amount;
         }
-        
+
         // Calcular saldo: retiros (entradas) - gastos (salidas) - transferencias (salidas)
         $balance = $totalWithdrawals - $totalExpenses - $totalTransfers;
-        
+
         return round($balance, 2);
     }
 
@@ -91,13 +88,13 @@ class CashWalletController extends Controller
         // Calcular el saldo de cada cartera usando el método centralizado
         $walletsWithBalance = $cashWallets->map(function ($wallet) {
             $balance = $this->calculateBalance($wallet);
-            
+
             return [
                 'wallet' => $wallet,
                 'balance' => $balance,
             ];
         });
-        
+
         return view('cash-wallets.index', compact('walletsWithBalance', 'stores'));
     }
 
@@ -128,7 +125,7 @@ class CashWalletController extends Controller
 
         } catch (\Exception $e) {
             return redirect()->route('cash-wallets.index')
-                ->with('error', 'Error al crear la cartera: ' . $e->getMessage());
+                ->with('error', 'Error al crear la cartera: '.$e->getMessage());
         }
     }
 
@@ -139,12 +136,12 @@ class CashWalletController extends Controller
     {
         // Calcular saldo usando el método centralizado
         $finalBalance = $this->calculateBalance($cashWallet);
-        
+
         // Obtener retiros de efectivo (entradas)
         $withdrawalsList = CashWithdrawal::where('cash_wallet_id', $cashWallet->id)
             ->with(['store'])
             ->get();
-        
+
         // Obtener gastos pagados desde la cartera (salidas) SOLO si existe el financial_entry asociado
         $expensesList = CashWalletExpense::where('cash_wallet_id', $cashWallet->id)
             ->whereExists(function ($query) {
@@ -154,81 +151,82 @@ class CashWalletController extends Controller
             })
             ->with(['financialEntry.store'])
             ->get();
-        
+
         // Obtener transferencias a banco (salidas)
         $transfersList = CashWalletTransfer::where('cash_wallet_id', $cashWallet->id)
             ->with(['store'])
             ->get();
-        
+
         // Unificar todos los movimientos en una sola colección
         $movements = collect();
-        
+
         // Añadir retiros (entradas - positivos)
         foreach ($withdrawalsList as $withdrawal) {
             $movements->push([
                 'date' => $withdrawal->date,
                 'type' => 'withdrawal',
-                'description' => 'Retiro de efectivo - ' . ($withdrawal->store->name ?? '—'),
+                'description' => 'Retiro de efectivo - '.($withdrawal->store->name ?? '—'),
                 'amount' => (float) $withdrawal->amount,
                 'id' => $withdrawal->id,
                 'model_type' => 'CashWithdrawal',
             ]);
         }
-        
+
         // Añadir gastos (salidas - negativos)
         // Ya están filtrados por whereExists, pero verificamos por seguridad
         foreach ($expensesList as $expense) {
             // Verificar que financialEntry existe y está cargado
-            if (!$expense->financialEntry) {
+            if (! $expense->financialEntry) {
                 continue; // Saltar si no tiene financialEntry (no debería pasar con whereExists, pero por seguridad)
             }
-            
+
             $entry = $expense->financialEntry;
             $concept = $entry->expense_concept ?? $entry->concept ?? 'Gasto';
             $store = $entry->store->name ?? '—';
-            $category = $entry->expense_category ? ' (' . ucfirst(str_replace('_', ' ', $entry->expense_category)) . ')' : '';
-            
+            $category = $entry->expense_category ? ' ('.ucfirst(str_replace('_', ' ', $entry->expense_category)).')' : '';
+
             $movements->push([
                 'date' => $entry->date,
                 'type' => 'expense',
-                'description' => $concept . ' - ' . $store . $category,
+                'description' => $concept.' - '.$store.$category,
                 'amount' => -(float) $expense->amount, // Negativo porque es salida
                 'id' => $expense->id,
                 'model_type' => 'CashWalletExpense',
                 'financial_entry_id' => $entry->id,
             ]);
         }
-        
+
         // Añadir transferencias (salidas - negativos)
         foreach ($transfersList as $transfer) {
             $movements->push([
                 'date' => $transfer->date,
                 'type' => 'transfer',
-                'description' => 'Ingreso en banco - ' . ($transfer->store->name ?? '—'),
+                'description' => 'Ingreso en banco - '.($transfer->store->name ?? '—'),
                 'amount' => -(float) $transfer->amount, // Negativo porque es salida
                 'id' => $transfer->id,
                 'model_type' => 'CashWalletTransfer',
             ]);
         }
-        
+
         // Ordenar por fecha ascendente
         $movements = $movements->sortBy(function ($movement) {
             return $movement['date']->format('Y-m-d');
         })->values();
-        
+
         // Calcular saldo acumulado línea a línea
         $runningBalance = 0;
         $movementsWithBalance = $movements->map(function ($movement) use (&$runningBalance) {
             $runningBalance += $movement['amount'];
             $movement['balance'] = round($runningBalance, 2);
+
             return $movement;
         });
-        
+
         // Calcular el saldo final desde los movimientos (para verificar)
-        $calculatedFromMovements = $movementsWithBalance->isNotEmpty() 
-            ? $movementsWithBalance->last()['balance'] 
+        $calculatedFromMovements = $movementsWithBalance->isNotEmpty()
+            ? $movementsWithBalance->last()['balance']
             : 0;
-        
+
         // Usar el saldo calculado desde movimientos si coincide, sino usar el método centralizado
         // Esto ayuda a identificar discrepancias
         if (abs($calculatedFromMovements - $finalBalance) > 0.01) {
@@ -241,22 +239,22 @@ class CashWalletController extends Controller
             // Usar el cálculo desde movimientos como referencia
             $finalBalance = $calculatedFromMovements;
         }
-        
+
         // Obtener traspasos relacionados (Transfer) donde la cartera es origen o destino
-        $relatedTransfers = Transfer::where(function($query) use ($cashWallet) {
-                $query->where(function($q) use ($cashWallet) {
-                    $q->where('origin_type', 'wallet')
-                      ->where('origin_id', $cashWallet->id);
-                })->orWhere(function($q) use ($cashWallet) {
-                    $q->where('destination_type', 'wallet')
-                      ->where('destination_id', $cashWallet->id);
-                });
-            })
+        $relatedTransfers = Transfer::where(function ($query) use ($cashWallet) {
+            $query->where(function ($q) use ($cashWallet) {
+                $q->where('origin_type', 'wallet')
+                    ->where('origin_id', $cashWallet->id);
+            })->orWhere(function ($q) use ($cashWallet) {
+                $q->where('destination_type', 'wallet')
+                    ->where('destination_id', $cashWallet->id);
+            });
+        })
             ->with(['origin', 'destination', 'creator', 'bankMovements'])
             ->orderBy('date', 'desc')
             ->orderBy('created_at', 'desc')
             ->get();
-        
+
         return view('cash-wallets.show', compact('cashWallet', 'movementsWithBalance', 'finalBalance', 'relatedTransfers'));
     }
 
@@ -287,7 +285,7 @@ class CashWalletController extends Controller
 
         } catch (\Exception $e) {
             return redirect()->route('cash-wallets.index')
-                ->with('error', 'Error al actualizar la cartera: ' . $e->getMessage());
+                ->with('error', 'Error al actualizar la cartera: '.$e->getMessage());
         }
     }
 
@@ -312,7 +310,7 @@ class CashWalletController extends Controller
 
         } catch (\Exception $e) {
             return redirect()->route('cash-wallets.index')
-                ->with('error', 'Error al eliminar la cartera: ' . $e->getMessage());
+                ->with('error', 'Error al eliminar la cartera: '.$e->getMessage());
         }
     }
 
@@ -335,7 +333,7 @@ class CashWalletController extends Controller
             $financialEntry = FinancialEntry::create([
                 'date' => $validated['date'],
                 'store_id' => $validated['store_id'],
-                'supplier_id' => !empty($validated['supplier_id']) ? $validated['supplier_id'] : null,
+                'supplier_id' => ! empty($validated['supplier_id']) ? $validated['supplier_id'] : null,
                 'type' => 'expense',
                 'expense_payment_method' => 'cash',
                 'expense_amount' => $validated['amount'],
@@ -366,7 +364,7 @@ class CashWalletController extends Controller
 
         } catch (\Exception $e) {
             return redirect()->route('cash-wallets.show', $cashWallet)
-                ->with('error', 'Error al registrar el gasto: ' . $e->getMessage());
+                ->with('error', 'Error al registrar el gasto: '.$e->getMessage());
         }
     }
 
@@ -384,18 +382,19 @@ class CashWalletController extends Controller
         try {
             // Calcular saldo actual usando el método centralizado
             $currentBalance = $this->calculateBalance($cashWallet);
-            
+
             // Verificar que la cartera tiene saldo suficiente
             if ($currentBalance < $validated['amount']) {
                 return redirect()->route('cash-wallets.show', $cashWallet)
-                    ->with('error', 'La cartera no tiene saldo suficiente. Saldo disponible: ' . number_format($currentBalance, 2, ',', '.') . ' €');
+                    ->with('error', 'La cartera no tiene saldo suficiente. Saldo disponible: '.number_format($currentBalance, 2, ',', '.').' €');
             }
 
             // Verificar que la tienda de destino tiene una cuenta bancaria configurada
             $bankAccount = BankAccount::where('store_id', $validated['store_id'])->first();
-            if (!$bankAccount) {
+            if (! $bankAccount) {
                 $store = Store::find($validated['store_id']);
-                $storeName = $store ? $store->name : 'Tienda #' . $validated['store_id'];
+                $storeName = $store ? $store->name : 'Tienda #'.$validated['store_id'];
+
                 return redirect()->route('cash-wallets.show', $cashWallet)
                     ->with('error', "La tienda \"{$storeName}\" no tiene una cuenta bancaria configurada. Configura la cuenta en la ficha de la tienda (Datos de la empresa / Tiendas) antes de ingresar efectivo en banco.");
             }
@@ -424,7 +423,7 @@ class CashWalletController extends Controller
                 'destination_fund' => 'bank',
                 'method' => 'manual',
                 'status' => 'pending', // Crear como pending inicialmente
-                'notes' => 'Ingreso de efectivo desde cartera ' . $cashWallet->name,
+                'notes' => 'Ingreso de efectivo desde cartera '.$cashWallet->name,
                 'created_by' => Auth::id(),
             ]);
 
@@ -435,11 +434,12 @@ class CashWalletController extends Controller
             // Aplicar la transferencia (suma al banco de la tienda)
             // La resta de la cartera ya se hizo con CashWalletTransfer
             $result = $transfer->apply();
-            if (!$result['success']) {
+            if (! $result['success']) {
                 // Si falla la aplicación, eliminar los registros creados
                 $transfer->update(['status' => 'pending']);
                 $cashWalletTransfer->delete();
                 $transfer->delete();
+
                 return redirect()->route('cash-wallets.show', $cashWallet)
                     ->with('error', $result['message'] ?? 'Error al aplicar la transferencia. Verifica los datos.');
             }
@@ -453,8 +453,9 @@ class CashWalletController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return redirect()->route('cash-wallets.show', $cashWallet)
-                ->with('error', 'Error al registrar la transferencia: ' . $e->getMessage());
+                ->with('error', 'Error al registrar la transferencia: '.$e->getMessage());
         }
     }
 
@@ -479,6 +480,7 @@ class CashWalletController extends Controller
             ->whereNotNull('reporting_month')
             ->distinct()
             ->pluck('reporting_month');
+
         return $fromEntries->merge($fromWithdrawals)->unique()->sortDesc()->values()->toArray();
     }
 
@@ -527,7 +529,7 @@ class CashWalletController extends Controller
             return redirect()->route('cash-wallets.show', $cashWallet)
                 ->with('success', 'Retiro actualizado correctamente.');
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', 'Error al actualizar el retiro: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Error al actualizar el retiro: '.$e->getMessage());
         }
     }
 
@@ -541,6 +543,7 @@ class CashWalletController extends Controller
             if ($redirectTo) {
                 return redirect($redirectTo)->with('error', 'El retiro no pertenece a esta cartera.');
             }
+
             return redirect()->route('cash-wallets.show', $cashWallet)
                 ->with('error', 'El retiro no pertenece a esta cartera.');
         }
@@ -560,10 +563,11 @@ class CashWalletController extends Controller
             $redirectTo = $request->input('redirect_to');
             if ($redirectTo) {
                 return redirect($redirectTo)
-                    ->with('error', 'Error al eliminar el retiro: ' . $e->getMessage());
+                    ->with('error', 'Error al eliminar el retiro: '.$e->getMessage());
             }
+
             return redirect()->route('cash-wallets.show', $cashWallet)
-                ->with('error', 'Error al eliminar el retiro: ' . $e->getMessage());
+                ->with('error', 'Error al eliminar el retiro: '.$e->getMessage());
         }
     }
 
@@ -578,12 +582,12 @@ class CashWalletController extends Controller
         }
 
         $expense->load('financialEntry.store');
-        
-        if (!$expense->financialEntry) {
+
+        if (! $expense->financialEntry) {
             return redirect()->route('cash-wallets.show', $cashWallet)
                 ->with('error', 'El gasto no tiene un registro financiero asociado.');
         }
-        
+
         $stores = $this->storesForCurrentUser();
         $suppliers = Supplier::orderBy('name')->get();
 
@@ -619,7 +623,7 @@ class CashWalletController extends Controller
                 $expense->financialEntry->update([
                     'date' => $validated['date'],
                     'store_id' => $validated['store_id'],
-                    'supplier_id' => $validated['supplier_id'] ?? null,
+                    'supplier_id' => ! empty($validated['supplier_id']) ? $validated['supplier_id'] : null,
                     'expense_amount' => round($validated['amount'], 2),
                     'amount' => round($validated['amount'], 2),
                     'total_amount' => round($validated['amount'], 2),
@@ -631,7 +635,7 @@ class CashWalletController extends Controller
             return redirect()->route('cash-wallets.show', $cashWallet)
                 ->with('success', 'Gasto actualizado correctamente.');
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', 'Error al actualizar el gasto: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Error al actualizar el gasto: '.$e->getMessage());
         }
     }
 
@@ -651,7 +655,7 @@ class CashWalletController extends Controller
             // Si el gasto proviene de un pedido, eliminar el pago del pedido para que desaparezca en todas las vistas
             if ($financialEntry) {
                 $notes = is_string($financialEntry->notes) ? json_decode($financialEntry->notes, true) : $financialEntry->notes;
-                if (is_array($notes) && !empty($notes['order_payment_id'])) {
+                if (is_array($notes) && ! empty($notes['order_payment_id'])) {
                     $orderPayment = OrderPayment::find($notes['order_payment_id']);
                     if ($orderPayment) {
                         $orderPayment->delete();
@@ -668,7 +672,7 @@ class CashWalletController extends Controller
                 ->with('success', 'Gasto eliminado correctamente. El registro financiero asociado también ha sido eliminado.');
         } catch (\Exception $e) {
             return redirect()->route('cash-wallets.show', $cashWallet)
-                ->with('error', 'Error al eliminar el gasto: ' . $e->getMessage());
+                ->with('error', 'Error al eliminar el gasto: '.$e->getMessage());
         }
     }
 
@@ -709,14 +713,14 @@ class CashWalletController extends Controller
             $currentBalance = $this->calculateBalance($cashWallet);
             $oldAmount = (float) $transfer->amount;
             $newAmount = (float) $validated['amount'];
-            
+
             // Calcular el saldo después de revertir el importe anterior y aplicar el nuevo
             $balanceAfterChange = $currentBalance + $oldAmount - $newAmount;
-            
+
             if ($balanceAfterChange < 0) {
-                return back()->withInput()->with('error', 
-                    'La cartera no tendría saldo suficiente con este importe. Saldo disponible después del cambio: ' . 
-                    number_format($balanceAfterChange, 2, ',', '.') . ' €');
+                return back()->withInput()->with('error',
+                    'La cartera no tendría saldo suficiente con este importe. Saldo disponible después del cambio: '.
+                    number_format($balanceAfterChange, 2, ',', '.').' €');
             }
 
             $transfer->update([
@@ -728,7 +732,7 @@ class CashWalletController extends Controller
             return redirect()->route('cash-wallets.show', $cashWallet)
                 ->with('success', 'Transferencia actualizada correctamente.');
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', 'Error al actualizar la transferencia: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Error al actualizar la transferencia: '.$e->getMessage());
         }
     }
 
@@ -760,8 +764,9 @@ class CashWalletController extends Controller
             if ($relatedTransfer) {
                 if ($relatedTransfer->status === 'reconciled') {
                     $rollbackResult = $relatedTransfer->rollback();
-                    if (!$rollbackResult['success']) {
+                    if (! $rollbackResult['success']) {
                         DB::rollBack();
+
                         return redirect()->route('cash-wallets.show', $cashWallet)
                             ->with('error', $rollbackResult['message'] ?? 'Error al revertir el traspaso asociado.');
                     }
@@ -782,8 +787,9 @@ class CashWalletController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return redirect()->route('cash-wallets.show', $cashWallet)
-                ->with('error', 'Error al eliminar la transferencia: ' . $e->getMessage());
+                ->with('error', 'Error al eliminar la transferencia: '.$e->getMessage());
         }
     }
 }

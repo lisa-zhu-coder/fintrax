@@ -702,7 +702,13 @@ class FinancialController extends Controller
             // MySQL no acepta '' en columnas INT: convertir a null.
             $nullableIntegerFields = ['supplier_id', 'invoice_id', 'source_income_id', 'refund_original_id'];
             foreach ($nullableIntegerFields as $key) {
-                if (array_key_exists($key, $dataToUpdate) && ($dataToUpdate[$key] === '' || $dataToUpdate[$key] === null)) {
+                if (! array_key_exists($key, $dataToUpdate)) {
+                    continue;
+                }
+
+                $val = $dataToUpdate[$key];
+                // Puede venir como '' o incluso como '   ' desde algunos formularios.
+                if ($val === null || $val === '' || (is_string($val) && trim($val) === '')) {
                     $dataToUpdate[$key] = null;
                 }
             }

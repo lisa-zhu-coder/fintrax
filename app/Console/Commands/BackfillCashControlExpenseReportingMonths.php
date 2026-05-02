@@ -75,8 +75,9 @@ class BackfillCashControlExpenseReportingMonths extends Command
 
         $updated = 0;
         $baseQuery->orderBy('id')->chunkById(200, function ($entries) use (&$updated) {
+            $dummySkipped = null;
             foreach ($entries as $entry) {
-                $newMonth = $this->reportingMonthFromNotes($entry, null);
+                $newMonth = $this->reportingMonthFromNotes($entry, $dummySkipped);
                 if ($newMonth === null || $entry->reporting_month === $newMonth) {
                     continue;
                 }

@@ -8,7 +8,7 @@
     $backUrl = $entry->type === 'daily_close' ? route('financial.daily-closes') : route('financial.index');
     if ($returnTo && is_string($returnTo)) {
         $host = parse_url($returnTo, PHP_URL_HOST);
-        if ($host === null || $host === request()->getHost()) {
+        if (($host === null && str_starts_with($returnTo, '/')) || ($host !== null && $host === request()->getHost())) {
             $backUrl = $returnTo;
         }
     }
@@ -38,7 +38,7 @@
             @csrf
             @method('PUT')
             @if(isset($returnTo) && $returnTo)
-                <input type="hidden" name="redirect_to" value="{{ $returnTo }}">
+                <input type="hidden" name="redirect_to" value="{{ e($returnTo) }}">
             @endif
             
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">

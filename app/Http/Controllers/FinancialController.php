@@ -53,6 +53,22 @@ class FinancialController extends Controller
         $this->middleware('permission:treasury.cash_wallets.create')->only(['storeCashDeposit']);
     }
 
+    /**
+     * Destino seguro para redirección tras guardar/borrar (p. ej. lista con query de filtros).
+     */
+    private function safeFinancialRedirectTarget(Request $request, mixed $redirectTo): ?string
+    {
+        if (! is_string($redirectTo) || $redirectTo === '') {
+            return null;
+        }
+        $host = parse_url($redirectTo, PHP_URL_HOST);
+        if (($host === null && str_starts_with($redirectTo, '/')) || ($host !== null && $host === $request->getHost())) {
+            return $redirectTo;
+        }
+
+        return null;
+    }
+
     public function index(Request $request)
     {
         $this->syncStoresFromBusinesses();
@@ -744,13 +760,10 @@ class FinancialController extends Controller
                 }
             }
 
-            // Redirigir a la lista correspondiente al tipo de registro (mantenerse en la misma sección)
-            $redirectTo = $request->input('redirect_to');
-            if ($redirectTo && is_string($redirectTo)) {
-                $host = parse_url($redirectTo, PHP_URL_HOST);
-                if (($host === null && str_starts_with($redirectTo, '/')) || ($host !== null && $host === $request->getHost())) {
-                    return redirect($redirectTo)->with('success', 'Registro actualizado correctamente.');
-                }
+            // Redirigir a la lista correspondiente al tipo de registro (mantenerse en la misma sección / filtros)
+            $redirectTo = $this->safeFinancialRedirectTarget($request, $request->input('redirect_to'));
+            if ($redirectTo !== null) {
+                return redirect($redirectTo)->with('success', 'Registro actualizado correctamente.');
             }
 
             if ($entry->type === 'daily_close') {
@@ -897,13 +910,9 @@ class FinancialController extends Controller
 
             $entry->delete();
 
-            // Si se envió redirect_to (ej. desde control de efectivo), redirigir allí si es URL segura
-            $redirectTo = request()->input('redirect_to');
-            if ($redirectTo && is_string($redirectTo)) {
-                $host = parse_url($redirectTo, PHP_URL_HOST);
-                if ($host === null || $host === request()->getHost()) {
-                    return redirect($redirectTo)->with('success', $entry->type === 'expense' ? 'Gasto eliminado correctamente.' : ($entry->type === 'income' ? 'Ingreso eliminado correctamente.' : 'Registro eliminado correctamente.'));
-                }
+            $redirectTo = $this->safeFinancialRedirectTarget(request(), request()->input('redirect_to'));
+            if ($redirectTo !== null) {
+                return redirect($redirectTo)->with('success', $entry->type === 'expense' ? 'Gasto eliminado correctamente.' : ($entry->type === 'income' ? 'Ingreso eliminado correctamente.' : 'Registro eliminado correctamente.'));
             }
 
             // Redirigir a la lista correspondiente al tipo (mantenerse en la misma sección)

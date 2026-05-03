@@ -71,8 +71,17 @@ class CashWalletController extends Controller
             $totalTransfers += (float) $transfer->amount;
         }
 
-        // Calcular saldo: retiros (entradas) - gastos (salidas) - transferencias (salidas)
-        $balance = $totalWithdrawals - $totalExpenses - $totalTransfers;
+        // Traspasos banco tienda → esta cartera (efectivo): no generan CashWithdrawal; el efecto es solo Transfer reconciliado.
+        $bankToWallet = (float) (Transfer::where('destination_type', 'wallet')
+            ->where('destination_id', $wallet->id)
+            ->where('destination_fund', 'cash')
+            ->where('origin_type', 'store')
+            ->where('origin_fund', 'bank')
+            ->where('status', 'reconciled')
+            ->sum('amount') ?? 0);
+
+        // Calcular saldo: retiros (entradas) - gastos (salidas) - transferencias cartera→banco + entradas banco→cartera
+        $balance = $totalWithdrawals - $totalExpenses - $totalTransfers + $bankToWallet;
 
         return round($balance, 2);
     }
@@ -206,6 +215,27 @@ class CashWalletController extends Controller
                 'amount' => -(float) $transfer->amount, // Negativo porque es salida
                 'id' => $transfer->id,
                 'model_type' => 'CashWalletTransfer',
+            ]);
+        }
+
+        $bankToWalletTransfers = Transfer::where('destination_type', 'wallet')
+            ->where('destination_id', $cashWallet->id)
+            ->where('destination_fund', 'cash')
+            ->where('origin_type', 'store')
+            ->where('origin_fund', 'bank')
+            ->where('status', 'reconciled')
+            ->with(['origin'])
+            ->get();
+
+        foreach ($bankToWalletTransfers as $tr) {
+            $storeName = optional($tr->origin)->name ?? 'Tienda #'.$tr->origin_id;
+            $movements->push([
+                'date' => $tr->date,
+                'type' => 'bank_to_wallet',
+                'description' => 'Traspaso desde banco — '.$storeName,
+                'amount' => (float) $tr->amount,
+                'id' => $tr->id,
+                'model_type' => 'Transfer',
             ]);
         }
 

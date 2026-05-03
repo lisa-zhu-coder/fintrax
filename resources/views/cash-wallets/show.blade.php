@@ -67,6 +67,10 @@
                                         <span class="inline-flex items-center rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">
                                             Transferencia
                                         </span>
+                                    @elseif($movement['type'] === 'bank_to_wallet')
+                                        <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">
+                                            Banco → cartera
+                                        </span>
                                     @endif
                                 </td>
                                 <td class="px-3 py-3 text-slate-900">
@@ -147,6 +151,14 @@
                                                     Eliminar
                                                 </button>
                                             </form>
+                                        @elseif($movement['type'] === 'bank_to_wallet' && auth()->user()->hasPermission('treasury.transfers.edit'))
+                                            <a href="{{ route('transfers.edit', ['transfer' => $movement['id']]) }}" class="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" title="Editar traspaso">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                    <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                </svg>
+                                                Editar traspaso
+                                            </a>
                                         @endif
                                     </div>
                                 </td>

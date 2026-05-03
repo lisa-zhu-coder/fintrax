@@ -789,7 +789,15 @@ class OrderController extends Controller
             })
             ->sum('amount');
         $transfers = \App\Models\CashWalletTransfer::where('cash_wallet_id', $wallet->id)->sum('amount');
-        return (float) $withdrawals - (float) $expenses - (float) $transfers;
+        $bankToWallet = (float) (\App\Models\Transfer::where('destination_type', 'wallet')
+            ->where('destination_id', $wallet->id)
+            ->where('destination_fund', 'cash')
+            ->where('origin_type', 'store')
+            ->where('origin_fund', 'bank')
+            ->where('status', 'reconciled')
+            ->sum('amount') ?? 0);
+
+        return (float) $withdrawals - (float) $expenses - (float) $transfers + $bankToWallet;
     }
 
     private function mapPaymentMethod(string $orderMethod): string

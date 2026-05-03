@@ -319,7 +319,14 @@ class Transfer extends Model
                 }
             }
         } elseif ($this->destination_type === 'wallet') {
-            // Wallet + cash: crear CashWithdrawal para sumar al saldo de la cartera
+            // Banco tienda → cartera efectivo: no crear CashWithdrawal (no es recogida en tienda;
+            // el control de efectivo y “recogidas” solo deben reflejar efectivo físico de la tienda).
+            // El ingreso en la cartera queda reflejado por el Transfer reconciliado (ver CashWalletController::calculateBalance).
+            if ($this->destination_fund === 'cash' && $this->origin_type === 'store' && $this->origin_fund === 'bank') {
+                return null;
+            }
+
+            // Wallet + cash (resto de casos, p. ej. efectivo tienda → cartera): sí es retiro / recogida
             $withdrawal = CashWithdrawal::create([
                 'cash_wallet_id' => $this->destination_id,
                 'store_id' => $this->origin_type === 'store' ? $this->origin_id : null,
@@ -388,7 +395,7 @@ class Transfer extends Model
         $notes = json_decode($this->notes ?? '{}', true);
         $appliedRecords = $notes['applied_records'] ?? null;
         
-        if ($appliedRecords && isset($appliedRecords['destination'])) {
+        if ($appliedRecords && array_key_exists('destination', $appliedRecords)) {
             $record = $appliedRecords['destination'];
             if ($record && isset($record['type']) && isset($record['id'])) {
                 switch ($record['type']) {
@@ -402,8 +409,12 @@ class Transfer extends Model
                         CashWithdrawal::where('id', $record['id'])->delete();
                         break;
                 }
+
                 return;
             }
+
+            // Destino sin fila extra (p. ej. banco tienda → cartera): no usar fallback que borraría un retiro ajeno.
+            return;
         }
         
         // Fallback: búsqueda por características si no hay IDs guardados
@@ -750,6 +761,12 @@ class Transfer extends Model
         if ($this->method === 'bank_import' && $this->destination_type === 'store' && $this->destination_fund === 'bank') {
             return false;
         }
+        // Banco tienda → cartera efectivo: solo Transfer + débito bancario; sin CashWithdrawal.
+        if ($this->destination_type === 'wallet' && $this->destination_fund === 'cash'
+            && $this->origin_type === 'store' && $this->origin_fund === 'bank') {
+            return false;
+        }
+
         return true;
     }
 

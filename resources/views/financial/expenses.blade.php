@@ -109,6 +109,11 @@
                     <p class="mt-1 text-xs text-slate-500">Filtrar por mes al que corresponde el registro (opcional)</p>
                 </label>
             </div>
+
+            <label class="block max-w-xl">
+                <span class="text-xs font-semibold text-slate-700">Buscar por concepto</span>
+                <input type="search" name="search" value="{{ request('search') }}" placeholder="Escribe parte del concepto…" autocomplete="off" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
+            </label>
             
             <div class="flex items-center gap-4">
                 <label class="flex items-center gap-2 cursor-pointer">

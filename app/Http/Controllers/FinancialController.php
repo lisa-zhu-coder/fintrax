@@ -1199,6 +1199,16 @@ class FinancialController extends Controller
             $query->where('expense_source', $request->source);
         }
 
+        // Búsqueda por concepto (campo de gasto y concepto genérico)
+        if ($request->filled('search')) {
+            $raw = trim((string) $request->get('search'));
+            $term = '%'.addcslashes($raw, '%_\\').'%';
+            $query->where(function ($q) use ($term) {
+                $q->where('expense_concept', 'like', $term)
+                    ->orWhere('concept', 'like', $term);
+            });
+        }
+
         $entries = $query->orderBy('date', 'desc')->get();
         $stores = $this->getAvailableStores();
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();

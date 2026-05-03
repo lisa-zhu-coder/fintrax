@@ -62,9 +62,10 @@ Route::middleware(['auth', 'active.user', 'company'])->group(function () {
     // Empleados (quick-user antes del resource para que no coincida con {employee})
     Route::post('employees/quick-user', [EmployeeController::class, 'storeQuickUser'])->name('employees.quick-user');
     Route::post('employees/reorder', [EmployeeController::class, 'reorder'])->name('employees.reorder');
+    // Archivados: usar {id} para no aplicar route model binding (los eliminados con SoftDeletes darían 404 con {employee})
+    Route::post('employees/{id}/restore', [EmployeeController::class, 'restore'])->whereNumber('id')->name('employees.restore');
+    Route::delete('employees/{id}/force', [EmployeeController::class, 'forceDestroy'])->whereNumber('id')->name('employees.force-destroy');
     Route::resource('employees', EmployeeController::class);
-    Route::post('employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
-    Route::delete('employees/{employee}/force', [EmployeeController::class, 'forceDestroy'])->name('employees.force-destroy');
     Route::post('employees/{employee}/documents', [EmployeeController::class, 'storeDocument'])->name('employees.documents.store');
     Route::get('employees/{employee}/documents/{document}/download', [EmployeeController::class, 'downloadDocument'])->name('employees.documents.download');
     Route::delete('employees/{employee}/documents/{document}', [EmployeeController::class, 'destroyDocument'])->name('employees.documents.destroy');

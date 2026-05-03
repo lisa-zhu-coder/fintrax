@@ -598,10 +598,10 @@ class EmployeeController extends Controller
         return redirect()->route('employees.index')->with('success', 'Empleado archivado correctamente. Puedes verlo y restaurarlo en la lista de archivados.');
     }
 
-    public function restore($employee)
+    public function restore(int|string $id)
     {
         $user = Auth::user();
-        $employee = Employee::onlyTrashed()->findOrFail($employee);
+        $employee = Employee::onlyTrashed()->findOrFail($id);
         if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
             if ($enforcedStoreId !== null && ! $employee->stores->contains('id', $enforcedStoreId)) {
@@ -620,10 +620,10 @@ class EmployeeController extends Controller
     /**
      * Borrado definitivo (solo empleados archivados).
      */
-    public function forceDestroy($employee)
+    public function forceDestroy(int|string $id)
     {
         $user = Auth::user();
-        $employee = Employee::onlyTrashed()->findOrFail($employee);
+        $employee = Employee::onlyTrashed()->findOrFail($id);
 
         if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();

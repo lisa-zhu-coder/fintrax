@@ -64,6 +64,10 @@ class FinancialController extends Controller
 
         $redirectTo = trim($redirectTo);
 
+        if (str_contains($redirectTo, '..')) {
+            return null;
+        }
+
         // Ruta interna (recomendada tras proxies: evita desajuste host esquema entre fullUrl() y getHost())
         if (str_starts_with($redirectTo, '/') && ! str_starts_with($redirectTo, '//')) {
             return $redirectTo;
@@ -104,6 +108,62 @@ class FinancialController extends Controller
             if ($host !== '' && $parsedNorm === $host) {
                 return $redirectTo;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Tras borrar, volver a ingresos/gastos/cierres manteniendo querystring (desde redirect_to o Referer).
+     */
+    private function redirectBackToFinancialListing(Request $request, string $entryType): ?\Illuminate\Http\RedirectResponse
+    {
+        $routeName = match ($entryType) {
+            'expense' => 'financial.expenses',
+            'income' => 'financial.income',
+            'daily_close' => 'financial.daily-closes',
+            default => null,
+        };
+
+        if ($routeName === null) {
+            return null;
+        }
+
+        $expectedSuffix = match ($entryType) {
+            'expense' => '/financial/expenses',
+            'income' => '/financial/income',
+            'daily_close' => '/financial/daily-closes',
+            default => '',
+        };
+
+        $candidates = array_unique(array_values(array_filter([
+            $request->input('redirect_to'),
+            $request->headers->get('Referer'),
+        ], fn ($v) => is_string($v) && trim($v) !== '')));
+
+        foreach ($candidates as $candidate) {
+            $safe = $this->safeFinancialRedirectTarget($request, $candidate);
+            if ($safe === null) {
+                continue;
+            }
+
+            $path = parse_url($safe, PHP_URL_PATH);
+            if (! is_string($path) || $path === '') {
+                continue;
+            }
+
+            $normalizedPath = rtrim($path, '/') ?: '/';
+            if (! str_ends_with($normalizedPath, $expectedSuffix)) {
+                continue;
+            }
+
+            $queryString = parse_url($safe, PHP_URL_QUERY);
+            $queryParams = [];
+            if (is_string($queryString) && $queryString !== '') {
+                parse_str($queryString, $queryParams);
+            }
+
+            return redirect()->route($routeName, $queryParams);
         }
 
         return null;
@@ -948,25 +1008,41 @@ class FinancialController extends Controller
                 }
             }
 
+            $recordType = $entry->type;
+
             $entry->delete();
+
+            $successMessage = match ($recordType) {
+                'expense' => 'Gasto eliminado correctamente.',
+                'income' => 'Ingreso eliminado correctamente.',
+                'daily_close' => 'Cierre diario eliminado correctamente.',
+                default => 'Registro eliminado correctamente.',
+            };
+
+            if (in_array($recordType, ['expense', 'income', 'daily_close'], true)) {
+                $listingRedirect = $this->redirectBackToFinancialListing(request(), $recordType);
+                if ($listingRedirect !== null) {
+                    return $listingRedirect->with('success', $successMessage);
+                }
+            }
 
             $redirectTo = $this->safeFinancialRedirectTarget(request(), request()->input('redirect_to'));
             if ($redirectTo !== null) {
-                return redirect($redirectTo)->with('success', $entry->type === 'expense' ? 'Gasto eliminado correctamente.' : ($entry->type === 'income' ? 'Ingreso eliminado correctamente.' : 'Registro eliminado correctamente.'));
+                return redirect($redirectTo)->with('success', $successMessage);
             }
 
             // Redirigir a la lista correspondiente al tipo (mantenerse en la misma sección)
-            if ($entry->type === 'daily_close') {
-                return redirect()->route('financial.daily-closes')->with('success', 'Cierre diario eliminado correctamente.');
+            if ($recordType === 'daily_close') {
+                return redirect()->route('financial.daily-closes')->with('success', $successMessage);
             }
-            if ($entry->type === 'income') {
-                return redirect()->route('financial.income')->with('success', 'Ingreso eliminado correctamente.');
+            if ($recordType === 'income') {
+                return redirect()->route('financial.income')->with('success', $successMessage);
             }
-            if ($entry->type === 'expense') {
-                return redirect()->route('financial.expenses')->with('success', 'Gasto eliminado correctamente.');
+            if ($recordType === 'expense') {
+                return redirect()->route('financial.expenses')->with('success', $successMessage);
             }
 
-            return redirect()->route('financial.index')->with('success', 'Registro eliminado correctamente');
+            return redirect()->route('financial.index')->with('success', $successMessage);
         } catch (\Exception $e) {
             Log::error('Error eliminando registro: '.$e->getMessage());
 

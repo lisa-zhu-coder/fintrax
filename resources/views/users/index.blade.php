@@ -9,8 +9,12 @@
             <div>
                 <h1 class="text-lg font-semibold">Usuarios</h1>
                 <p class="text-sm text-slate-500">Gestiona las cuentas de usuario del sistema</p>
+                <div class="mt-2 flex gap-1">
+                    <a href="{{ route('users.index') }}" class="rounded-lg px-3 py-1.5 text-sm font-medium {{ !($showInactive ?? false) ? 'bg-brand-100 text-brand-800' : 'text-slate-600 hover:bg-slate-100' }}">Activos</a>
+                    <a href="{{ route('users.index', ['inactive' => 1]) }}" class="rounded-lg px-3 py-1.5 text-sm font-medium {{ ($showInactive ?? false) ? 'bg-slate-200 text-slate-800' : 'text-slate-600 hover:bg-slate-100' }}">Desactivados</a>
+                </div>
             </div>
-            @if(auth()->user()->hasPermission('admin.users.create'))
+            @if(auth()->user()->hasPermission('admin.users.create') && !($showInactive ?? false))
             <button onclick="openUserModal()" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -30,6 +34,9 @@
                         <th class="px-3 py-2">Nombre</th>
                         <th class="px-3 py-2">Rol</th>
                         <th class="px-3 py-2">Tienda</th>
+                        @if($showInactive ?? false)
+                        <th class="px-3 py-2">Estado</th>
+                        @endif
                         <th class="px-3 py-2"></th>
                     </tr>
                 </thead>
@@ -53,6 +60,11 @@
                     {{ $userStores->pluck('name')->join(', ') }}
                 @endif
             </td>
+                            @if($showInactive ?? false)
+                            <td class="px-3 py-2">
+                                <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-slate-200 text-slate-700">Desactivado</span>
+                            </td>
+                            @endif
                             <td class="px-3 py-2">
                                 <div class="flex items-center gap-2">
                                     @if(auth()->user()->hasPermission('admin.users.edit'))
@@ -67,6 +79,9 @@
                                     <form method="POST" action="{{ route('users.destroy', $user) }}" class="inline">
                                         @csrf
                                         @method('DELETE')
+                                        @if($showInactive ?? false)
+                                        <input type="hidden" name="redirect_inactive" value="1">
+                                        @endif
                                         <button type="submit" class="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                 <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -79,7 +94,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-3 py-6 text-center text-slate-500">No hay usuarios registrados</td>
+                            <td colspan="{{ ($showInactive ?? false) ? 6 : 5 }}" class="px-3 py-6 text-center text-slate-500">No hay usuarios registrados</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -93,6 +108,9 @@
     <div class="w-full max-w-md rounded-2xl bg-white p-5 shadow-soft">
         <form id="userForm" method="POST" action="{{ route('users.store') }}" class="space-y-3" autocomplete="off">
             @csrf
+            @if($showInactive ?? false)
+            <input type="hidden" name="redirect_inactive" value="1">
+            @endif
             <input type="hidden" name="_method" id="formMethod" value="POST">
             
             <div class="flex items-start justify-between gap-4 mb-4">

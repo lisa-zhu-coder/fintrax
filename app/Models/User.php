@@ -5,12 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Hash;
 
 class User extends Authenticatable
 {
     use Notifiable;
-    
+
     protected $fillable = [
         'company_id',
         'username',
@@ -19,6 +18,7 @@ class User extends Authenticatable
         'password',
         'role_id',
         'store_id',
+        'is_active',
     ];
 
     /**
@@ -37,7 +37,16 @@ class User extends Authenticatable
 
     protected $casts = [
         'password' => 'hashed',
+        'is_active' => 'boolean',
     ];
+
+    /**
+     * Cuenta habilitada para iniciar sesión (empleado archivado puede desactivarla).
+     */
+    public function isActiveAccount(): bool
+    {
+        return (bool) ($this->is_active ?? true);
+    }
 
     public function role()
     {
@@ -105,6 +114,7 @@ class User extends Authenticatable
                 return $pivot->role;
             }
         }
+
         return $this->role;
     }
 
@@ -114,26 +124,28 @@ class User extends Authenticatable
     public function getEffectiveRoleId(): ?int
     {
         $role = $this->getEffectiveRole();
+
         return $role ? (int) $role->id : null;
     }
 
     public function hasPermission(string $permission): bool
     {
         $role = $this->getEffectiveRole();
-        if (!$role) {
+        if (! $role) {
             return false;
         }
         if ($role->key === 'super_admin' || $role->key === 'admin') {
             return true;
         }
         $companyId = session('company_id') ?? $this->company_id;
+
         return $role->hasPermission($permission, $companyId);
     }
 
     /**
      * Comprueba si el usuario tiene al menos uno de los permisos indicados.
      *
-     * @param array<string> $permissions
+     * @param  array<string>  $permissions
      */
     public function hasAnyPermission(array $permissions): bool
     {
@@ -142,6 +154,7 @@ class User extends Authenticatable
                 return true;
             }
         }
+
         return false;
     }
 
@@ -160,6 +173,7 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         $role = $this->getEffectiveRole();
+
         return $role && $role->key === 'admin';
     }
 
@@ -169,6 +183,7 @@ class User extends Authenticatable
     public function isManager(): bool
     {
         $role = $this->getEffectiveRole();
+
         return $role && $role->key === 'manager';
     }
 
@@ -178,6 +193,7 @@ class User extends Authenticatable
     public function isEmployee(): bool
     {
         $role = $this->getEffectiveRole();
+
         return $role && $role->key === 'employee';
     }
 
@@ -187,6 +203,7 @@ class User extends Authenticatable
     public function isViewer(): bool
     {
         $role = $this->getEffectiveRole();
+
         return $role && $role->key === 'viewer';
     }
 
@@ -196,13 +213,16 @@ class User extends Authenticatable
     public function canCreate(): bool
     {
         $role = $this->getEffectiveRole();
-        if (!$role) return false;
+        if (! $role) {
+            return false;
+        }
         $perms = $role->permissions ?? [];
         foreach (array_keys($perms) as $key) {
             if ($perms[$key] && str_ends_with($key, '.create')) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -212,13 +232,16 @@ class User extends Authenticatable
     public function canEdit(): bool
     {
         $role = $this->getEffectiveRole();
-        if (!$role) return false;
+        if (! $role) {
+            return false;
+        }
         $perms = $role->permissions ?? [];
         foreach (array_keys($perms) as $key) {
             if ($perms[$key] && str_ends_with($key, '.edit')) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -228,13 +251,16 @@ class User extends Authenticatable
     public function canDelete(): bool
     {
         $role = $this->getEffectiveRole();
-        if (!$role) return false;
+        if (! $role) {
+            return false;
+        }
         $perms = $role->permissions ?? [];
         foreach (array_keys($perms) as $key) {
             if ($perms[$key] && str_ends_with($key, '.delete')) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -251,6 +277,7 @@ class User extends Authenticatable
         if (empty($ids) && $this->store_id) {
             return [(int) $this->store_id];
         }
+
         return $ids;
     }
 
@@ -267,6 +294,7 @@ class User extends Authenticatable
         if (count($allowed) === 1) {
             return $allowed[0];
         }
+
         return null;
     }
 
@@ -283,6 +311,7 @@ class User extends Authenticatable
         if (empty($allowed)) {
             return false;
         }
+
         return in_array((int) $storeId, $allowed, true);
     }
 

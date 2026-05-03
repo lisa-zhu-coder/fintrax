@@ -11,11 +11,11 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use setasign\Fpdi\Fpdi;
 use Smalot\PdfParser\Parser as PdfParser;
 
@@ -43,7 +43,7 @@ class EmployeeController extends Controller
         $user = Auth::user();
         $canViewStore = $user->hasPermission('hr.employees.view_store');
         $canViewOwn = $user->hasPermission('hr.employees.view_own');
-        if (!$canViewStore && !$canViewOwn) {
+        if (! $canViewStore && ! $canViewOwn) {
             abort(403, 'No tienes permiso para ver empleados.');
         }
 
@@ -176,9 +176,10 @@ class EmployeeController extends Controller
             return Role::orderBy('level')->get();
         }
         $effectiveRole = $user->getEffectiveRole();
-        if (!$effectiveRole) {
+        if (! $effectiveRole) {
             return Role::orderBy('level')->get();
         }
+
         return Role::where('level', '>=', $effectiveRole->level)->orderBy('level')->get();
     }
 
@@ -198,7 +199,7 @@ class EmployeeController extends Controller
     {
         // Sincronizar stores antes de validar
         $this->syncStoresFromBusinesses();
-        
+
         try {
             $validated = $request->validate([
                 'full_name' => 'required|string|max:255',
@@ -261,7 +262,7 @@ class EmployeeController extends Controller
             $validated['position'] = $jp->name;
 
             $user = Auth::user();
-            if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+            if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
                 $enforcedStoreId = $user->getEnforcedStoreId();
                 if ($enforcedStoreId !== null) {
                     $validated['store_ids'] = array_values(array_unique(array_merge($validated['store_ids'], [$enforcedStoreId])));
@@ -271,7 +272,7 @@ class EmployeeController extends Controller
 
             // Asegurar company_id: sesión o, si no hay, de la primera tienda seleccionada (evita empleados huérfanos en producción)
             $companyId = session('company_id');
-            if ($companyId === null && !empty($validated['store_ids'])) {
+            if ($companyId === null && ! empty($validated['store_ids'])) {
                 $firstStore = Store::withoutGlobalScope(\App\Models\Scopes\BelongsToCompanyScope::class)
                     ->find($validated['store_ids'][0]);
                 if ($firstStore && $firstStore->company_id !== null) {
@@ -284,7 +285,7 @@ class EmployeeController extends Controller
             unset($validated['store_ids']);
 
             // Solo permitir salarios si el usuario tiene permiso (en creación solo view_salary_store)
-            if (!$user->hasPermission('hr.employees.view_salary_store')) {
+            if (! $user->hasPermission('hr.employees.view_salary_store')) {
                 unset($validated['gross_salary'], $validated['net_salary']);
             }
 
@@ -313,6 +314,7 @@ class EmployeeController extends Controller
             $roles = $this->rolesAllowedForNewUser();
             $jobPositions = JobPosition::orderBy('sort_order')->orderBy('name')->get();
             $oldInput = $request->except('password', '_token');
+
             return view('employees.create', compact('stores', 'users', 'roles', 'jobPositions', 'oldInput'))
                 ->withErrors($e->errors());
         } catch (\Exception $e) {
@@ -326,8 +328,9 @@ class EmployeeController extends Controller
             $roles = $this->rolesAllowedForNewUser();
             $jobPositions = JobPosition::orderBy('sort_order')->orderBy('name')->get();
             $oldInput = $request->except('password', '_token');
+
             return view('employees.create', compact('stores', 'users', 'roles', 'jobPositions', 'oldInput'))
-                ->withErrors(['error' => 'Error al crear el empleado: ' . $e->getMessage()]);
+                ->withErrors(['error' => 'Error al crear el empleado: '.$e->getMessage()]);
         }
     }
 
@@ -336,7 +339,7 @@ class EmployeeController extends Controller
         $user = Auth::user();
         $canViewStore = $user->hasPermission('hr.employees.view_store');
         $canViewOwn = $user->hasPermission('hr.employees.view_own');
-        if (!$canViewStore && !$canViewOwn) {
+        if (! $canViewStore && ! $canViewOwn) {
             abort(403, 'No tienes permiso para ver fichas de empleado.');
         }
 
@@ -347,7 +350,7 @@ class EmployeeController extends Controller
             // Ve solo su ficha y es la suya
         } elseif ($canViewStore) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            if ($enforcedStoreId === null || !$employee->stores->contains('id', $enforcedStoreId)) {
+            if ($enforcedStoreId === null || ! $employee->stores->contains('id', $enforcedStoreId)) {
                 abort(403, 'No tienes acceso a los datos de este empleado.');
             }
         } else {
@@ -356,18 +359,19 @@ class EmployeeController extends Controller
 
         $employee->load(['user.role', 'stores', 'payrolls', 'documents']);
         $totalStores = Store::count();
+
         return view('employees.show', compact('employee', 'totalStores'));
     }
 
     public function edit(Employee $employee)
     {
         $user = Auth::user();
-        if (!$user->hasPermission('hr.employees.edit')) {
+        if (! $user->hasPermission('hr.employees.edit')) {
             abort(403, 'No tienes permiso para editar empleados.');
         }
-        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+            if ($enforcedStoreId !== null && ! $employee->stores->contains('id', $enforcedStoreId)) {
                 abort(403, 'No tienes acceso a los datos de este empleado.');
             }
         }
@@ -385,19 +389,19 @@ class EmployeeController extends Controller
     public function update(Request $request, Employee $employee)
     {
         $user = Auth::user();
-        if (!$user->hasPermission('hr.employees.edit')) {
+        if (! $user->hasPermission('hr.employees.edit')) {
             abort(403, 'No tienes permiso para editar empleados.');
         }
-        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+            if ($enforcedStoreId !== null && ! $employee->stores->contains('id', $enforcedStoreId)) {
                 abort(403, 'No tienes acceso a los datos de este empleado.');
             }
         }
 
         // Sincronizar stores antes de validar
         $this->syncStoresFromBusinesses();
-        
+
         try {
             $hasJobCatalog = JobPosition::count() > 0;
             $rules = [
@@ -471,7 +475,7 @@ class EmployeeController extends Controller
             }
 
             $user = Auth::user();
-            if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+            if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
                 $enforcedStoreId = $user->getEnforcedStoreId();
                 if ($enforcedStoreId !== null) {
                     $validated['store_ids'] = array_values(array_filter($validated['store_ids'], fn ($id) => (int) $id === $enforcedStoreId));
@@ -485,7 +489,7 @@ class EmployeeController extends Controller
             $user = Auth::user();
             $canSetSalary = $user->hasPermission('hr.employees.view_salary_store')
                 || ($user->hasPermission('hr.employees.view_salary_own') && $employee->user_id === $user->id);
-            if (!$canSetSalary) {
+            if (! $canSetSalary) {
                 unset($validated['gross_salary'], $validated['net_salary']);
             }
 
@@ -501,7 +505,7 @@ class EmployeeController extends Controller
                 ->withInput();
         } catch (\Exception $e) {
             return redirect()->back()
-                ->withErrors(['error' => 'Error al actualizar el empleado: ' . $e->getMessage()])
+                ->withErrors(['error' => 'Error al actualizar el empleado: '.$e->getMessage()])
                 ->withInput();
         }
     }
@@ -524,7 +528,7 @@ class EmployeeController extends Controller
             ]);
 
             $effectiveRole = Auth::user()->getEffectiveRole();
-            if (!Auth::user()->isSuperAdmin() && $effectiveRole) {
+            if (! Auth::user()->isSuperAdmin() && $effectiveRole) {
                 $selectedRole = Role::find($validated['role_id']);
                 if ($selectedRole && $selectedRole->level < $effectiveRole->level) {
                     return response()->json([
@@ -533,9 +537,9 @@ class EmployeeController extends Controller
                 }
             }
 
-            if (!empty($validated['store_id']) && $companyId) {
+            if (! empty($validated['store_id']) && $companyId) {
                 $store = Store::withoutGlobalScopes()->find($validated['store_id']);
-                if (!$store || (int) $store->company_id !== (int) $companyId) {
+                if (! $store || (int) $store->company_id !== (int) $companyId) {
                     return response()->json(['message' => 'La tienda seleccionada no pertenece a la empresa actual.'], 422);
                 }
             }
@@ -562,12 +566,13 @@ class EmployeeController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
-            Log::error('Error en storeQuickUser: ' . $e->getMessage(), [
+            Log::error('Error en storeQuickUser: '.$e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
                 'request' => $request->except(['password']),
             ]);
+
             return response()->json([
-                'message' => 'Error al crear el usuario: ' . $e->getMessage(),
+                'message' => 'Error al crear el usuario: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -578,13 +583,18 @@ class EmployeeController extends Controller
         if ($user->isEmployee()) {
             abort(403, 'No tienes permiso para eliminar empleados.');
         }
-        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+            if ($enforcedStoreId !== null && ! $employee->stores->contains('id', $enforcedStoreId)) {
                 abort(403, 'No tienes acceso a los datos de este empleado.');
             }
         }
+        if ($employee->user_id) {
+            User::where('id', $employee->user_id)->update(['is_active' => false]);
+        }
+
         $employee->delete();
+
         return redirect()->route('employees.index')->with('success', 'Empleado archivado correctamente. Puedes verlo y restaurarlo en la lista de archivados.');
     }
 
@@ -592,13 +602,18 @@ class EmployeeController extends Controller
     {
         $user = Auth::user();
         $employee = Employee::onlyTrashed()->findOrFail($employee);
-        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+            if ($enforcedStoreId !== null && ! $employee->stores->contains('id', $enforcedStoreId)) {
                 abort(403, 'No tienes acceso a este empleado.');
             }
         }
         $employee->restore();
+
+        if ($employee->user_id) {
+            User::where('id', $employee->user_id)->update(['is_active' => true]);
+        }
+
         return redirect()->route('employees.index', ['archived' => 1])->with('success', 'Empleado restaurado correctamente.');
     }
 
@@ -610,9 +625,9 @@ class EmployeeController extends Controller
         $user = Auth::user();
         $employee = Employee::onlyTrashed()->findOrFail($employee);
 
-        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+            if ($enforcedStoreId !== null && ! $employee->stores->contains('id', $enforcedStoreId)) {
                 abort(403, 'No tienes acceso a este empleado.');
             }
         }
@@ -644,9 +659,9 @@ class EmployeeController extends Controller
     public function storeDocument(Request $request, Employee $employee)
     {
         $user = Auth::user();
-        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+            if ($enforcedStoreId !== null && ! $employee->stores->contains('id', $enforcedStoreId)) {
                 abort(403, 'No tienes acceso a este empleado.');
             }
         }
@@ -657,8 +672,8 @@ class EmployeeController extends Controller
             'file' => 'required|file|mimes:pdf|max:20480',
         ]);
         $file = $request->file('file');
-        $dir = 'employee_documents/' . $employee->id;
-        $filename = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
+        $dir = 'employee_documents/'.$employee->id;
+        $filename = time().'_'.preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
         $path = $file->storeAs($dir, $filename, 'local');
         $employee->documents()->create([
             'type' => $validated['type'],
@@ -667,6 +682,7 @@ class EmployeeController extends Controller
             'file_path' => $path,
             'uploaded_by' => $user->id,
         ]);
+
         return redirect()->route('employees.show', $employee)->with('success', 'Documento subido correctamente.');
     }
 
@@ -676,14 +692,15 @@ class EmployeeController extends Controller
             abort(404);
         }
         $user = Auth::user();
-        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+            if ($enforcedStoreId !== null && ! $employee->stores->contains('id', $enforcedStoreId)) {
                 abort(403, 'No tienes acceso a este empleado.');
             }
         }
         Storage::disk('local')->delete($document->file_path);
         $document->delete();
+
         return redirect()->route('employees.show', $employee)->with('success', 'Documento eliminado.');
     }
 
@@ -693,21 +710,22 @@ class EmployeeController extends Controller
             abort(404);
         }
         $user = Auth::user();
-        if (!$user->hasPermission('hr.documents.download')) {
+        if (! $user->hasPermission('hr.documents.download')) {
             abort(403);
         }
-        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+        if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
             $enforcedStoreId = $user->getEnforcedStoreId();
-            if ($enforcedStoreId !== null && !$employee->stores->contains('id', $enforcedStoreId)) {
+            if ($enforcedStoreId !== null && ! $employee->stores->contains('id', $enforcedStoreId)) {
                 abort(403, 'No tienes acceso a este empleado.');
             }
         }
-        if (!Storage::disk('local')->exists($document->file_path)) {
+        if (! Storage::disk('local')->exists($document->file_path)) {
             abort(404, 'Archivo no encontrado.');
         }
+
         return Storage::disk('local')->download(
             $document->file_path,
-            $document->title . '.pdf',
+            $document->title.'.pdf',
             ['Content-Type' => 'application/pdf']
         );
     }
@@ -715,7 +733,7 @@ class EmployeeController extends Controller
     public function uploadPayroll(Request $request, Employee $employee)
     {
         $user = Auth::user();
-        if (!$user->hasPermission('hr.payroll.upload') && !$user->hasPermission('hr.employees.configure')) {
+        if (! $user->hasPermission('hr.payroll.upload') && ! $user->hasPermission('hr.employees.configure')) {
             abort(403, 'No tienes permiso para subir nóminas.');
         }
 
@@ -735,10 +753,11 @@ class EmployeeController extends Controller
             $year = (int) $date->year;
             $originalBase = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
             $fileName = $this->suggestedPayrollFileName($originalBase, $employee->full_name);
-            $dir = 'temp_payrolls/' . $uploadId;
-            $tempPath = $file->storeAs($dir, $index . '.pdf', 'local');
-            if (!$tempPath) {
+            $dir = 'temp_payrolls/'.$uploadId;
+            $tempPath = $file->storeAs($dir, $index.'.pdf', 'local');
+            if (! $tempPath) {
                 $errors[] = 'No se pudo guardar temporalmente el archivo.';
+
                 continue;
             }
             $pending[$index] = [
@@ -758,17 +777,18 @@ class EmployeeController extends Controller
         }
         $request->session()->put('pending_payroll_uploads', $pending);
         $request->session()->put('pending_payroll_upload_id', $uploadId);
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             $request->session()->flash('warning', implode(' ', $errors));
         }
-        $request->session()->flash('success', ($index - (int) array_key_first($pending)) . ' nómina(s) listas para enviar. Revisa y pulsa Guardar y enviar.');
+        $request->session()->flash('success', ($index - (int) array_key_first($pending)).' nómina(s) listas para enviar. Revisa y pulsa Guardar y enviar.');
+
         return redirect()->route('payroll.pending-send');
     }
 
     public function uploadPayrollAuto(Request $request)
     {
         $user = Auth::user();
-        if (!$user->hasPermission('hr.payroll.upload') && !$user->hasPermission('hr.employees.configure')) {
+        if (! $user->hasPermission('hr.payroll.upload') && ! $user->hasPermission('hr.employees.configure')) {
             abort(403, 'No tienes permiso para subir nóminas.');
         }
 
@@ -789,8 +809,8 @@ class EmployeeController extends Controller
         }
 
         $token = uniqid('pdf_', true);
-        $storagePath = 'temp_payroll_uploads/' . $token . '.pdf';
-        $file->storeAs('temp_payroll_uploads', $token . '.pdf', 'local');
+        $storagePath = 'temp_payroll_uploads/'.$token.'.pdf';
+        $file->storeAs('temp_payroll_uploads', $token.'.pdf', 'local');
 
         $processor = app(\App\Services\PayrollPdfProcessor::class);
         $result = $processor->processMultiPage($storagePath, $originalFileName, $companyId);
@@ -804,7 +824,7 @@ class EmployeeController extends Controller
         }
 
         // Guardar en caché para que "Guardar y enviar" funcione aunque la sesión no persista (varios servidores)
-        \Illuminate\Support\Facades\Cache::put('payroll_result_' . $token, [
+        \Illuminate\Support\Facades\Cache::put('payroll_result_'.$token, [
             'pending' => $result['pending'],
             'upload_id' => $result['upload_id'],
             'message' => $result['message'] ?? '',
@@ -819,10 +839,10 @@ class EmployeeController extends Controller
     private function findEmployeeByFile($fileName, $pdfText = '')
     {
         $fileNameLower = mb_strtolower($fileName);
-        $allText = mb_strtolower($fileName . ' ' . $pdfText);
-        
+        $allText = mb_strtolower($fileName.' '.$pdfText);
+
         $employees = Employee::all();
-        
+
         foreach ($employees as $employee) {
             // Buscar por DNI
             if ($employee->dni) {
@@ -832,7 +852,7 @@ class EmployeeController extends Controller
                     return $employee;
                 }
             }
-            
+
             // Buscar por número de seguridad social
             if ($employee->social_security) {
                 $ssNormalized = preg_replace('/[-\s]/', '', $employee->social_security);
@@ -841,13 +861,13 @@ class EmployeeController extends Controller
                     return $employee;
                 }
             }
-            
+
             // Buscar por nombre (al menos 2 partes del nombre)
             if ($employee->full_name) {
-                $nameParts = array_filter(explode(' ', mb_strtolower($employee->full_name)), function($part) {
+                $nameParts = array_filter(explode(' ', mb_strtolower($employee->full_name)), function ($part) {
                     return mb_strlen(trim($part)) > 2;
                 });
-                
+
                 $matches = 0;
                 foreach ($nameParts as $part) {
                     $part = trim($part);
@@ -855,13 +875,13 @@ class EmployeeController extends Controller
                         $matches++;
                     }
                 }
-                
+
                 if ($matches >= 2) {
                     return $employee;
                 }
             }
         }
-        
+
         return null;
     }
 
@@ -872,18 +892,19 @@ class EmployeeController extends Controller
     {
         $texts = [];
         try {
-            if (!class_exists(PdfParser::class)) {
+            if (! class_exists(PdfParser::class)) {
                 return $texts;
             }
-            $parser = new PdfParser();
+            $parser = new PdfParser;
             $document = $parser->parseFile($path);
             $pages = $document->getPages();
             foreach ($pages as $page) {
                 $texts[] = $page->getText() ?? '';
             }
         } catch (\Exception $e) {
-            Log::warning('Error extrayendo texto del PDF de nómina: ' . $e->getMessage());
+            Log::warning('Error extrayendo texto del PDF de nómina: '.$e->getMessage());
         }
+
         return $texts;
     }
 
@@ -893,10 +914,12 @@ class EmployeeController extends Controller
     private function getPdfPageCount(string $path): int
     {
         try {
-            $fpdi = new Fpdi();
+            $fpdi = new Fpdi;
+
             return $fpdi->setSourceFile($path);
         } catch (\Exception $e) {
-            Log::warning('Error leyendo número de páginas del PDF: ' . $e->getMessage());
+            Log::warning('Error leyendo número de páginas del PDF: '.$e->getMessage());
+
             return 0;
         }
     }
@@ -907,15 +930,17 @@ class EmployeeController extends Controller
     private function extractSinglePageAsBase64(string $path, int $pageNumber): ?string
     {
         try {
-            $fpdi = new Fpdi();
+            $fpdi = new Fpdi;
             $fpdi->setSourceFile($path);
             $tplId = $fpdi->importPage($pageNumber);
             $fpdi->AddPage();
             $fpdi->useTemplate($tplId, 0, 0, null, null, true);
             $pdfString = $fpdi->Output('S', '');
+
             return base64_encode($pdfString);
         } catch (\Exception $e) {
-            Log::warning('Error extrayendo página ' . $pageNumber . ' del PDF: ' . $e->getMessage());
+            Log::warning('Error extrayendo página '.$pageNumber.' del PDF: '.$e->getMessage());
+
             return null;
         }
     }
@@ -1001,7 +1026,7 @@ class EmployeeController extends Controller
             $text = '';
             if (class_exists(PdfParser::class)) {
                 try {
-                    $parser = new PdfParser();
+                    $parser = new PdfParser;
                     $document = $parser->parseFile($file->getRealPath());
                     $text = $document->getText() ?? '';
                 } catch (\Exception $e) {
@@ -1012,9 +1037,10 @@ class EmployeeController extends Controller
             $dateFromPdf = $this->extractDateFromPageText($text);
             $dateFromFileName = $this->extractDateFromFileName($fileName);
             $date = $dateFromPdf ?? $dateFromFileName;
-            if (!$date instanceof \Carbon\Carbon) {
+            if (! $date instanceof \Carbon\Carbon) {
                 $date = now()->copy()->startOfMonth();
             }
+
             return [
                 'text' => $text,
                 'date' => $date,
@@ -1031,26 +1057,27 @@ class EmployeeController extends Controller
     {
         $months = [
             'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-            'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+            'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
         ];
-        
+
         $fileNameLower = mb_strtolower($fileName);
-        
+
         foreach ($months as $index => $month) {
             if (mb_strpos($fileNameLower, $month) !== false) {
                 // Buscar año en el nombre
                 if (preg_match('/\b(20\d{2})\b/', $fileName, $matches)) {
                     $year = $matches[1];
+
                     return \Carbon\Carbon::createFromDate($year, $index + 1, 1);
                 }
             }
         }
-        
+
         // Buscar formato de fecha en el nombre (YYYY-MM, YYYY/MM, etc.)
         if (preg_match('/(\d{4})[\/\-](\d{1,2})/', $fileName, $matches)) {
             return \Carbon\Carbon::createFromDate($matches[1], $matches[2], 1);
         }
-        
+
         return now();
     }
 
@@ -1061,6 +1088,7 @@ class EmployeeController extends Controller
             1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio',
             7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
         ];
+
         return $months[$month] ?? 'Enero';
     }
 
@@ -1069,7 +1097,8 @@ class EmployeeController extends Controller
     {
         $base = trim(preg_replace('/[\\\\\/:*?"<>|]/', '', $originalBase));
         $name = trim(preg_replace('/\s+/', ' ', $employeeFullName));
-        $fileName = $base . ' ' . $name . '.pdf';
+        $fileName = $base.' '.$name.'.pdf';
+
         return trim(preg_replace('/\s+/', ' ', $fileName));
     }
 
@@ -1079,6 +1108,7 @@ class EmployeeController extends Controller
         $monthName = $this->getSpanishMonthName($date->month);
         $year = $date->year;
         $name = trim(preg_replace('/\s+/', ' ', $employeeName));
+
         return "Nomina {$name} {$monthName} {$year}.pdf";
     }
 
@@ -1087,9 +1117,9 @@ class EmployeeController extends Controller
         if (empty($pdfText)) {
             return 'manual';
         }
-        
+
         $normalizedText = mb_strtolower($pdfText);
-        
+
         // Buscar por DNI
         if ($employee->dni) {
             $dniNormalized = preg_replace('/[-\s]/', '', mb_strtoupper($employee->dni));
@@ -1097,7 +1127,7 @@ class EmployeeController extends Controller
                 return 'dni';
             }
         }
-        
+
         // Buscar por Seguridad Social
         if ($employee->social_security) {
             $ssNormalized = preg_replace('/[-\s]/', '', $employee->social_security);
@@ -1105,13 +1135,13 @@ class EmployeeController extends Controller
                 return 'social_security';
             }
         }
-        
+
         // Buscar por nombre (al menos 2 partes del nombre)
         if ($employee->full_name) {
-            $nameParts = array_filter(explode(' ', mb_strtolower($employee->full_name)), function($part) {
+            $nameParts = array_filter(explode(' ', mb_strtolower($employee->full_name)), function ($part) {
                 return mb_strlen(trim($part)) > 2;
             });
-            
+
             $matches = 0;
             foreach ($nameParts as $part) {
                 $part = trim($part);
@@ -1119,12 +1149,12 @@ class EmployeeController extends Controller
                     $matches++;
                 }
             }
-            
+
             if ($matches >= 2) {
                 return 'name';
             }
         }
-        
+
         return 'manual';
     }
 }

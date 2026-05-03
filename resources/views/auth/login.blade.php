@@ -79,6 +79,12 @@
                     </div>
                 @endif
 
+                @if(session('error'))
+                    <div class="rounded-xl bg-rose-50 dark:bg-rose-900/30 p-3 text-sm text-rose-800 dark:text-rose-200 ring-1 ring-rose-100 dark:ring-rose-800/50">
+                        {{ session('error') }}
+                    </div>
+                @endif
+
                 @if($errors->any())
                     <div class="rounded-xl bg-rose-50 dark:bg-rose-900/30 p-3 text-sm text-rose-800 dark:text-rose-200 ring-1 ring-rose-100 dark:ring-rose-800/50">
                         {{ $errors->first() }}

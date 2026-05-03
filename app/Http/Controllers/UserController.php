@@ -15,7 +15,7 @@ use Illuminate\Validation\Rule;
 class UserController extends Controller
 {
     use SyncsStoresFromBusinesses;
-    
+
     public function __construct()
     {
         $this->middleware('permission:admin.users.view')->only(['index']);
@@ -24,13 +24,15 @@ class UserController extends Controller
         $this->middleware('permission:admin.users.delete')->only(['destroy']);
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $this->syncStoresFromBusinesses();
-        
+
+        $showInactive = $request->boolean('inactive');
+
         $usersQuery = User::with(['role', 'store']);
         $rolesQuery = Role::query();
-        
+
         $companyId = session('company_id');
         if ($companyId) {
             $usersQuery->where(function ($q) use ($companyId) {
@@ -44,15 +46,25 @@ class UserController extends Controller
                 });
             });
         }
-        
-        if (!auth()->user()->isSuperAdmin()) {
+
+        if (! auth()->user()->isSuperAdmin()) {
             $usersQuery->whereHas('role', function ($q) {
                 $q->where('key', '!=', 'super_admin');
             });
             $rolesQuery->where('key', '!=', 'super_admin');
         }
-        
-        $users = $usersQuery->get();
+
+        if ($showInactive) {
+            $usersQuery->where(function ($q) {
+                $q->where('is_active', false)->orWhere('is_active', 0);
+            });
+        } else {
+            $usersQuery->where(function ($q) {
+                $q->where('is_active', true)->orWhereNull('is_active');
+            });
+        }
+
+        $users = $usersQuery->orderBy('username')->get();
         $roles = $rolesQuery->get();
         $stores = Store::all();
         $companies = auth()->user()->isSuperAdmin() ? Company::orderBy('name')->get() : collect();
@@ -62,8 +74,18 @@ class UserController extends Controller
             $allStores = Store::withoutGlobalScopes()->get();
             $storesByCompany = $allStores->groupBy('company_id')->map(fn ($group) => $group->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values()->all())->all();
         }
-        
-        return view('users.index', compact('users', 'roles', 'stores', 'companies', 'storesByCompany'));
+
+        return view('users.index', compact('users', 'roles', 'stores', 'companies', 'storesByCompany', 'showInactive'));
+    }
+
+    /**
+     * @return array<string, int|string|null>
+     */
+    private function usersIndexQuery(Request $request): array
+    {
+        return array_filter([
+            'inactive' => $request->boolean('redirect_inactive') ? 1 : null,
+        ], fn ($v) => $v !== null && $v !== '');
     }
 
     public function store(Request $request)
@@ -89,26 +111,26 @@ class UserController extends Controller
         ]);
 
         $role = Role::find($validated['role_id']);
-        
-        if ($role && $role->key === 'super_admin' && !$isSuperAdmin) {
+
+        if ($role && $role->key === 'super_admin' && ! $isSuperAdmin) {
             return redirect()->back()->withInput()->withErrors(['role_id' => 'No tienes permiso para crear usuarios con rol Super Admin.']);
         }
-        
+
         $storeIds = array_values(array_unique(array_filter($validated['store_ids'] ?? [])));
-        if ($role && !in_array($role->key, ['admin', 'super_admin']) && empty($storeIds)) {
+        if ($role && ! in_array($role->key, ['admin', 'super_admin']) && empty($storeIds)) {
             return redirect()->back()->withInput()->withErrors(['store_ids' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.']);
         }
 
         $validated['password'] = Hash::make($validated['password']);
-        $validated['store_id'] = !empty($storeIds) ? (int) $storeIds[0] : null;
+        $validated['store_id'] = ! empty($storeIds) ? (int) $storeIds[0] : null;
 
         if ($role && $role->key === 'super_admin') {
             $validated['company_id'] = null;
-        } elseif ($isSuperAdmin && !empty($validated['company_access'])) {
+        } elseif ($isSuperAdmin && ! empty($validated['company_access'])) {
             $first = $validated['company_access'][0] ?? null;
             $validated['company_id'] = $first ? (int) $first['company_id'] : session('company_id');
             $validated['role_id'] = $first ? (int) $first['role_id'] : $validated['role_id'];
-            $firstStoreId = $first && !empty($first['store_id']) ? (int) $first['store_id'] : null;
+            $firstStoreId = $first && ! empty($first['store_id']) ? (int) $first['store_id'] : null;
             $validated['store_id'] = $firstStoreId;
             $storeIds = $firstStoreId ? [$firstStoreId] : [];
         } else {
@@ -116,16 +138,17 @@ class UserController extends Controller
         }
 
         try {
+            $validated['is_active'] = true;
             $user = User::create($validated);
-            if ($isSuperAdmin && !empty($validated['company_access']) && $role && $role->key !== 'super_admin') {
+            if ($isSuperAdmin && ! empty($validated['company_access']) && $role && $role->key !== 'super_admin') {
                 $sync = [];
                 $cuStoreIds = [];
                 foreach ($validated['company_access'] as $row) {
                     $sync[(int) $row['company_id']] = [
                         'role_id' => (int) $row['role_id'],
-                        'store_id' => !empty($row['store_id']) ? (int) $row['store_id'] : null,
+                        'store_id' => ! empty($row['store_id']) ? (int) $row['store_id'] : null,
                     ];
-                    if (!empty($row['store_id'])) {
+                    if (! empty($row['store_id'])) {
                         $cuStoreIds[] = (int) $row['store_id'];
                     }
                 }
@@ -134,17 +157,18 @@ class UserController extends Controller
             } else {
                 $user->stores()->sync($storeIds);
             }
-            if (!$user->isSuperAdmin() && $user->company_id) {
+            if (! $user->isSuperAdmin() && $user->company_id) {
                 CompanyUser::firstOrCreate(
                     ['user_id' => $user->id, 'company_id' => $user->company_id],
                     ['role_id' => $user->role_id, 'store_id' => $user->store_id]
                 );
             }
-            return redirect()->route('users.index')->with('success', 'Usuario creado correctamente.');
+
+            return redirect()->route('users.index', $this->usersIndexQuery($request))->with('success', 'Usuario creado correctamente.');
         } catch (\Exception $e) {
-            return redirect()->route('users.index')
+            return redirect()->route('users.index', $this->usersIndexQuery($request))
                 ->withInput()
-                ->withErrors(['error' => 'Error al crear el usuario: ' . $e->getMessage()]);
+                ->withErrors(['error' => 'Error al crear el usuario: '.$e->getMessage()]);
         }
     }
 
@@ -154,10 +178,10 @@ class UserController extends Controller
         $canSee = $user->company_id == $companyId
             || $user->company_id === null
             || CompanyUser::where('user_id', $user->id)->where('company_id', $companyId)->exists();
-        if ($companyId && !$canSee) {
+        if ($companyId && ! $canSee) {
             abort(403, 'No tienes permiso para ver este usuario.');
         }
-        
+
         $storeIds = \Illuminate\Support\Facades\DB::table('user_store')->where('user_id', $user->id)->pluck('store_id')->map(fn ($id) => (int) $id)->values()->all();
         if (empty($storeIds) && $user->store_id) {
             $storeIds = [(int) $user->store_id];
@@ -169,6 +193,7 @@ class UserController extends Controller
             'role_id' => $user->role_id,
             'store_id' => $user->store_id,
             'store_ids' => array_map('intval', $storeIds),
+            'is_active' => $user->is_active ?? true,
         ];
         if (auth()->user()->isSuperAdmin()) {
             $data['company_access'] = $user->companyAccess()->get()->map(function ($company) {
@@ -179,6 +204,7 @@ class UserController extends Controller
                 ];
             })->values()->all();
         }
+
         return response()->json($data);
     }
 
@@ -188,14 +214,14 @@ class UserController extends Controller
         $canEdit = $user->company_id == $companyId
             || $user->company_id === null
             || CompanyUser::where('user_id', $user->id)->where('company_id', $companyId)->exists();
-        if ($companyId && !$canEdit) {
+        if ($companyId && ! $canEdit) {
             return redirect()->route('users.index')->with('error', 'No tienes permiso para editar este usuario.');
         }
-        
-        if ($user->isSuperAdmin() && !auth()->user()->isSuperAdmin()) {
+
+        if ($user->isSuperAdmin() && ! auth()->user()->isSuperAdmin()) {
             return redirect()->route('users.index')->with('error', 'No tienes permiso para editar usuarios Super Admin.');
         }
-        
+
         $isSuperAdmin = auth()->user()->isSuperAdmin();
         $rules = [
             'username' => ['required', 'string', 'max:255', Rule::unique('users')->ignore($user->id)],
@@ -214,35 +240,35 @@ class UserController extends Controller
         }
         $validated = $request->validate($rules);
 
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
         } else {
             unset($validated['password']);
         }
 
         $newRole = Role::find($validated['role_id']);
-        
-        if ($newRole && $newRole->key === 'super_admin' && !$isSuperAdmin) {
+
+        if ($newRole && $newRole->key === 'super_admin' && ! $isSuperAdmin) {
             return redirect()->back()->withInput()->withErrors(['role_id' => 'No tienes permiso para asignar el rol Super Admin.']);
         }
-        
-        if ($user->isSuperAdmin() && $newRole && $newRole->key !== 'super_admin' && !$isSuperAdmin) {
+
+        if ($user->isSuperAdmin() && $newRole && $newRole->key !== 'super_admin' && ! $isSuperAdmin) {
             return redirect()->back()->withInput()->withErrors(['role_id' => 'No tienes permiso para cambiar el rol de un Super Admin.']);
         }
-        
+
         $storeIds = array_values(array_unique(array_filter($validated['store_ids'] ?? [])));
-        if ($newRole && !in_array($newRole->key, ['admin', 'super_admin']) && empty($storeIds)) {
+        if ($newRole && ! in_array($newRole->key, ['admin', 'super_admin']) && empty($storeIds)) {
             return redirect()->back()->withInput()->withErrors(['store_ids' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.']);
         }
 
-        $validated['store_id'] = !empty($storeIds) ? (int) $storeIds[0] : null;
+        $validated['store_id'] = ! empty($storeIds) ? (int) $storeIds[0] : null;
 
         if ($isSuperAdmin && $user->isSuperAdmin() === false && isset($validated['company_access']) && is_array($validated['company_access'])) {
             $first = $validated['company_access'][0] ?? null;
             if ($first) {
                 $validated['company_id'] = (int) $first['company_id'];
                 $validated['role_id'] = (int) $first['role_id'];
-                $validated['store_id'] = !empty($first['store_id']) ? (int) $first['store_id'] : null;
+                $validated['store_id'] = ! empty($first['store_id']) ? (int) $first['store_id'] : null;
             }
         }
 
@@ -254,9 +280,9 @@ class UserController extends Controller
                 foreach ($validated['company_access'] as $row) {
                     $sync[(int) $row['company_id']] = [
                         'role_id' => (int) $row['role_id'],
-                        'store_id' => !empty($row['store_id']) ? (int) $row['store_id'] : null,
+                        'store_id' => ! empty($row['store_id']) ? (int) $row['store_id'] : null,
                     ];
-                    if (!empty($row['store_id'])) {
+                    if (! empty($row['store_id'])) {
                         $cuStoreIds[] = (int) $row['store_id'];
                     }
                 }
@@ -265,34 +291,35 @@ class UserController extends Controller
             } else {
                 $user->stores()->sync($storeIds);
             }
-            return redirect()->route('users.index')->with('success', 'Usuario actualizado correctamente.');
+
+            return redirect()->route('users.index', $this->usersIndexQuery($request))->with('success', 'Usuario actualizado correctamente.');
         } catch (\Exception $e) {
-            return redirect()->route('users.index')
+            return redirect()->route('users.index', $this->usersIndexQuery($request))
                 ->withInput()
-                ->withErrors(['error' => 'Error al actualizar el usuario: ' . $e->getMessage()]);
+                ->withErrors(['error' => 'Error al actualizar el usuario: '.$e->getMessage()]);
         }
     }
 
-    public function destroy(User $user)
+    public function destroy(Request $request, User $user)
     {
         if ($user->id === auth()->id()) {
             return redirect()->route('users.index')->with('error', 'No puedes eliminar tu propio usuario.');
         }
-        
+
         $companyId = session('company_id');
         $canSee = $user->company_id == $companyId
             || $user->company_id === null
             || CompanyUser::where('user_id', $user->id)->where('company_id', $companyId)->exists();
-        if ($companyId && !$canSee) {
+        if ($companyId && ! $canSee) {
             return redirect()->route('users.index')->with('error', 'No tienes permiso para eliminar este usuario.');
         }
-        
-        if ($user->isSuperAdmin() && !auth()->user()->isSuperAdmin()) {
+
+        if ($user->isSuperAdmin() && ! auth()->user()->isSuperAdmin()) {
             return redirect()->route('users.index')->with('error', 'No tienes permiso para eliminar usuarios Super Admin.');
         }
 
         $user->delete();
 
-        return redirect()->route('users.index')->with('success', 'Usuario eliminado correctamente.');
+        return redirect()->route('users.index', $this->usersIndexQuery($request))->with('success', 'Usuario eliminado correctamente.');
     }
 }

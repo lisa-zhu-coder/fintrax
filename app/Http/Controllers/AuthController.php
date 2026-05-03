@@ -16,6 +16,7 @@ class AuthController extends Controller
         if (Auth::check()) {
             return redirect()->route('dashboard');
         }
+
         return view('auth.register');
     }
 
@@ -35,7 +36,7 @@ class AuthController extends Controller
         $roleKey = $isFirstUser ? 'super_admin' : 'viewer';
         $role = $this->ensureRoleExists($roleKey);
 
-        if (!$role) {
+        if (! $role) {
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['error' => 'No se pudo completar el registro. Contacta con el administrador.']);
@@ -54,7 +55,7 @@ class AuthController extends Controller
         } catch (\Throwable $e) {
             return redirect()->back()
                 ->withInput()
-                ->withErrors(['error' => 'No se pudo crear la cuenta. ' . ($e->getMessage())]);
+                ->withErrors(['error' => 'No se pudo crear la cuenta. '.($e->getMessage())]);
         }
 
         $message = $isFirstUser
@@ -98,7 +99,7 @@ class AuthController extends Controller
         ];
 
         $data = $rolesDefinition[$key] ?? null;
-        if (!$data) {
+        if (! $data) {
             return null;
         }
 
@@ -119,14 +120,15 @@ class AuthController extends Controller
     {
         if (Auth::check()) {
             $user = Auth::user();
-            
+
             // Si es super_admin sin empresa seleccionada, ir a selección
-            if ($user->isSuperAdmin() && !session()->has('company_id')) {
+            if ($user->isSuperAdmin() && ! session()->has('company_id')) {
                 return redirect()->route('company.select');
             }
-            
+
             return redirect()->route('dashboard');
         }
+
         return view('auth.login');
     }
 
@@ -140,12 +142,12 @@ class AuthController extends Controller
         // Si el usuario es 'admin' y no existe, crearlo automáticamente
         if ($request->username === 'admin' && $request->password === 'admin123') {
             $user = User::where('username', 'admin')->first();
-            
-            if (!$user) {
+
+            if (! $user) {
                 // Buscar o crear el rol admin
                 $adminRole = \App\Models\Role::where('key', 'admin')->first();
-                
-                if (!$adminRole) {
+
+                if (! $adminRole) {
                     // Si no existe el rol, crear roles básicos
                     $adminRole = \App\Models\Role::create([
                         'key' => 'admin',
@@ -169,7 +171,7 @@ class AuthController extends Controller
                         ],
                     ]);
                 }
-                
+
                 // Crear el usuario admin
                 $user = User::create([
                     'username' => 'admin',
@@ -184,7 +186,7 @@ class AuthController extends Controller
             $user = User::where('username', $request->username)->first();
         }
 
-        if (!$user) {
+        if (! $user) {
             throw ValidationException::withMessages([
                 'username' => ['Las credenciales proporcionadas son incorrectas.'],
             ]);
@@ -192,10 +194,16 @@ class AuthController extends Controller
 
         // Obtener el password hash directamente de la base de datos
         $passwordHash = $user->getOriginal('password') ?? $user->password;
-        
-        if (!Hash::check($request->password, $passwordHash)) {
+
+        if (! Hash::check($request->password, $passwordHash)) {
             throw ValidationException::withMessages([
                 'username' => ['Las credenciales proporcionadas son incorrectas.'],
+            ]);
+        }
+
+        if (! $user->isActiveAccount()) {
+            throw ValidationException::withMessages([
+                'username' => ['Esta cuenta está desactivada. Contacta con un administrador.'],
             ]);
         }
 

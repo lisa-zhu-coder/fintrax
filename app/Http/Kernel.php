@@ -29,6 +29,7 @@ class Kernel extends HttpKernel
         'auth' => \Illuminate\Auth\Middleware\Authenticate::class,
         'permission' => CheckPermission::class,
         'company' => EnsureCompanySelected::class,
+        'active.user' => \App\Http\Middleware\EnsureUserIsActive::class,
         'rings.enabled' => \App\Http\Middleware\EnsureRingsInventoryEnabled::class,
     ];
 }

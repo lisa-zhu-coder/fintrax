@@ -35,7 +35,7 @@ Route::get('/register', [AuthController::class, 'showRegisterForm'])->name('regi
 Route::post('/register', [AuthController::class, 'register']);
 
 // Rutas de autenticación sin middleware de empresa (para super_admin)
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active.user'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     // Selección de empresa (solo super_admin)
@@ -49,7 +49,7 @@ Route::middleware('auth')->group(function () {
 });
 
 // Rutas que requieren empresa seleccionada
-Route::middleware(['auth', 'company'])->group(function () {
+Route::middleware(['auth', 'active.user', 'company'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/widgets', [DashboardController::class, 'getWidgetLayout'])->name('dashboard.widgets.index');

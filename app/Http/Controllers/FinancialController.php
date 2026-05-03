@@ -163,10 +163,54 @@ class FinancialController extends Controller
                 parse_str($queryString, $queryParams);
             }
 
+            // Sin query en candidato: seguir (evita volver "limpios" cuando redirect_to o Referer llegan truncados)
+            if ($queryParams === []) {
+                continue;
+            }
+
             return redirect()->route($routeName, $queryParams);
         }
 
         return null;
+    }
+
+    /**
+     * Guarda los filtros actuales de la lista para recuperarlos tras POST (p. ej. borrar) si falta la query en redirect_to/Referer.
+     */
+    private function rememberFinancialListingQuery(Request $request, string $sessionKey): void
+    {
+        if (! $request->isMethod('GET')) {
+            return;
+        }
+
+        $qs = $request->getQueryString();
+        $params = [];
+        if (is_string($qs) && $qs !== '') {
+            parse_str($qs, $params);
+        }
+
+        session([$sessionKey => $params]);
+    }
+
+    private function redirectToFinancialListingFromSession(string $entryType): ?\Illuminate\Http\RedirectResponse
+    {
+        [$routeName, $sessionKey] = match ($entryType) {
+            'expense' => ['financial.expenses', 'financial_list_query_expenses'],
+            'income' => ['financial.income', 'financial_list_query_income'],
+            'daily_close' => ['financial.daily-closes', 'financial_list_query_daily_closes'],
+            default => [null, null],
+        };
+
+        if ($routeName === null || $sessionKey === null) {
+            return null;
+        }
+
+        $saved = session($sessionKey);
+        if (! is_array($saved)) {
+            return null;
+        }
+
+        return redirect()->route($routeName, $saved);
     }
 
     public function index(Request $request)
@@ -1024,6 +1068,11 @@ class FinancialController extends Controller
                 if ($listingRedirect !== null) {
                     return $listingRedirect->with('success', $successMessage);
                 }
+
+                $sessionListingRedirect = $this->redirectToFinancialListingFromSession($recordType);
+                if ($sessionListingRedirect !== null) {
+                    return $sessionListingRedirect->with('success', $successMessage);
+                }
             }
 
             $redirectTo = $this->safeFinancialRedirectTarget(request(), request()->input('redirect_to'));
@@ -1053,6 +1102,7 @@ class FinancialController extends Controller
     public function income(Request $request)
     {
         $this->syncStoresFromBusinesses();
+        $this->rememberFinancialListingQuery($request, 'financial_list_query_income');
 
         $query = FinancialEntry::with(['store', 'creator'])
             ->where('type', 'income');
@@ -1106,6 +1156,7 @@ class FinancialController extends Controller
     public function expenses(Request $request)
     {
         $this->syncStoresFromBusinesses();
+        $this->rememberFinancialListingQuery($request, 'financial_list_query_expenses');
 
         $query = FinancialEntry::with(['store', 'creator', 'invoice'])
             ->where('type', 'expense');
@@ -1164,6 +1215,7 @@ class FinancialController extends Controller
     public function dailyCloses(Request $request)
     {
         $this->syncStoresFromBusinesses();
+        $this->rememberFinancialListingQuery($request, 'financial_list_query_daily_closes');
 
         $query = FinancialEntry::with(['store', 'creator'])
             ->where('type', 'daily_close');

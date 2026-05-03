@@ -61,9 +61,49 @@ class FinancialController extends Controller
         if (! is_string($redirectTo) || $redirectTo === '') {
             return null;
         }
-        $host = parse_url($redirectTo, PHP_URL_HOST);
-        if (($host === null && str_starts_with($redirectTo, '/')) || ($host !== null && $host === $request->getHost())) {
+
+        $redirectTo = trim($redirectTo);
+
+        // Ruta interna (recomendada tras proxies: evita desajuste host esquema entre fullUrl() y getHost())
+        if (str_starts_with($redirectTo, '/') && ! str_starts_with($redirectTo, '//')) {
             return $redirectTo;
+        }
+
+        $scheme = parse_url($redirectTo, PHP_URL_SCHEME);
+        if ($scheme !== null && ! in_array(strtolower((string) $scheme), ['http', 'https'], true)) {
+            return null;
+        }
+
+        $parsedHost = parse_url($redirectTo, PHP_URL_HOST);
+        if (! is_string($parsedHost) || $parsedHost === '') {
+            return null;
+        }
+
+        $normalizeHost = static function (string $host): string {
+            return strtolower(preg_replace('/^www\./i', '', $host));
+        };
+
+        $candidateHosts = [];
+        $candidateHosts[] = $normalizeHost($request->getHost());
+
+        $forwarded = $request->header('X-Forwarded-Host');
+        if (is_string($forwarded) && $forwarded !== '') {
+            $candidateHosts[] = $normalizeHost(trim(explode(',', $forwarded)[0]));
+        }
+
+        $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
+        if (is_string($appHost) && $appHost !== '') {
+            $candidateHosts[] = $normalizeHost($appHost);
+        }
+
+        $candidateHosts = array_values(array_unique(array_filter($candidateHosts)));
+
+        $parsedNorm = $normalizeHost($parsedHost);
+
+        foreach ($candidateHosts as $host) {
+            if ($host !== '' && $parsedNorm === $host) {
+                return $redirectTo;
+            }
         }
 
         return null;

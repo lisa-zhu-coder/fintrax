@@ -301,7 +301,8 @@
                                                     data-description="{{ e($movement->description) }}"
                                                     data-amount="{{ abs($movement->amount) }}"
                                                     data-date="{{ $movement->date->format('Y-m-d') }}"
-                                                    data-store-id="{{ $movement->bankAccount->store_id ?? '' }}">
+                                                    data-store-id="{{ $movement->bankAccount->store_id ?? '' }}"
+                                                    data-movement-type="{{ $movement->type }}">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                         <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                                     </svg>
@@ -339,7 +340,8 @@
                                                     data-description="{{ e($movement->description) }}"
                                                     data-amount="{{ abs($movement->amount) }}"
                                                     data-date="{{ $movement->date->format('Y-m-d') }}"
-                                                    data-store-id="{{ $movement->bankAccount->store_id ?? '' }}">
+                                                    data-store-id="{{ $movement->bankAccount->store_id ?? '' }}"
+                                                    data-movement-type="{{ $movement->type }}">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                         <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                                     </svg>
@@ -634,6 +636,7 @@
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Importe</span>
                         <input type="number" name="amount" id="createAmount" step="0.01" readonly class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 cursor-not-allowed"/>
+                        <p id="createAmountCreditHint" class="mt-1 hidden text-xs text-slate-500">Movimiento de ingreso en banco: el gasto se registra en negativo y reduce el total de gastos del mes.</p>
                     </label>
                 </div>
                 
@@ -779,7 +782,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const amount = this.getAttribute('data-amount');
             const date = this.getAttribute('data-date');
             const storeId = this.getAttribute('data-store-id');
-            openCreateModal(movementId, description, amount, date, storeId);
+            const movementType = this.getAttribute('data-movement-type') || '';
+            openCreateModal(movementId, description, amount, date, storeId, movementType);
         });
     });
 
@@ -1072,7 +1076,7 @@ function closeLoanPaymentModal() {
     }
 }
 
-function openCreateModal(movementId, description, amount, date, storeId) {
+function openCreateModal(movementId, description, amount, date, storeId, movementType) {
     currentMovementId = movementId;
     var prog = document.getElementById('createModalBulkProgress');
     if (prog && !window.bulkCreateQueue) prog.classList.add('hidden');
@@ -1083,7 +1087,14 @@ function openCreateModal(movementId, description, amount, date, storeId) {
     document.getElementById('createReportingMonth').value = date ? date.substring(0, 7) : '';
     document.getElementById('createStoreId').value = storeId;
     document.getElementById('createConcept').value = description;
-    document.getElementById('createAmount').value = parseFloat(amount).toFixed(2);
+    var parsed = parseFloat(amount);
+    var absAmt = Math.abs(isNaN(parsed) ? 0 : parsed);
+    var signed = (movementType === 'credit') ? -absAmt : absAmt;
+    document.getElementById('createAmount').value = signed.toFixed(2);
+    var hint = document.getElementById('createAmountCreditHint');
+    if (hint) {
+        hint.classList.toggle('hidden', movementType !== 'credit');
+    }
     
     document.getElementById('createModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -1094,6 +1105,8 @@ function closeCreateModal() {
     window.bulkCreateIndex = null;
     var prog = document.getElementById('createModalBulkProgress');
     if (prog) prog.classList.add('hidden');
+    var hint = document.getElementById('createAmountCreditHint');
+    if (hint) hint.classList.add('hidden');
     document.getElementById('createModal').classList.add('hidden');
     document.body.style.overflow = '';
     document.getElementById('createForm').reset();
@@ -1185,7 +1198,8 @@ function getSelectedMovementData(filter) {
             description: cb.dataset.description || '',
             amount: cb.dataset.amount || '0',
             date: cb.dataset.date || '',
-            storeId: cb.dataset.storeId || ''
+            storeId: cb.dataset.storeId || '',
+            movementType: cb.dataset.type || ''
         });
     });
     return list;
@@ -1221,7 +1235,7 @@ function openCreateModalBulk(queue, index) {
     var prog = document.getElementById('createModalBulkProgress');
     var text = document.getElementById('createModalBulkProgressText');
     if (prog && text) { prog.classList.remove('hidden'); text.textContent = (index + 1) + '/' + queue.length; }
-    openCreateModal(item.id, item.description, item.amount, item.date, item.storeId);
+    openCreateModal(item.id, item.description, item.amount, item.date, item.storeId, item.movementType || '');
 }
 
 function openLoanPaymentModalBulk(queue, index) {

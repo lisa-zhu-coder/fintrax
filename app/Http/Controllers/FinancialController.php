@@ -3013,6 +3013,16 @@ class FinancialController extends Controller
     }
 
     /**
+     * Importe del gasto al crearlo desde conciliación: movimiento crédito (entrada en banco) → negativo para restar del total de gastos.
+     */
+    private function expenseAmountForConciliationExpense(BankMovement $bankMovement, float $validatedAmount): float
+    {
+        $abs = abs($validatedAmount);
+
+        return $bankMovement->type === 'credit' ? -$abs : $abs;
+    }
+
+    /**
      * Crear gasto desde movimiento bancario
      */
     public function createExpenseFromBankMovement(Request $request, BankMovement $bankMovement)
@@ -3027,6 +3037,8 @@ class FinancialController extends Controller
         ]);
 
         try {
+            $amount = $this->expenseAmountForConciliationExpense($bankMovement, (float) $validated['amount']);
+
             // Crear FinancialEntry (expense)
             $financialEntry = FinancialEntry::create([
                 'date' => $validated['date'],
@@ -3035,11 +3047,11 @@ class FinancialController extends Controller
                 'supplier_id' => $validated['supplier_id'] ?? null,
                 'type' => 'expense',
                 'expense_payment_method' => 'bank',
-                'expense_amount' => $validated['amount'],
-                'amount' => $validated['amount'],
-                'total_amount' => $validated['amount'],
+                'expense_amount' => $amount,
+                'amount' => $amount,
+                'total_amount' => $amount,
                 'status' => 'pagado',
-                'paid_amount' => $validated['amount'],
+                'paid_amount' => $amount,
                 'expense_category' => $validated['expense_category'] ?? null,
                 'expense_source' => 'conciliacion_bancaria',
                 'expense_concept' => $validated['expense_concept'],
@@ -3692,17 +3704,19 @@ class FinancialController extends Controller
                 return back()->with('error', 'Este movimiento ya está conciliado.');
             }
 
+            $amount = $this->expenseAmountForConciliationExpense($bankMovement, (float) $validated['amount']);
+
             // Crear registro financiero de gasto
             $financialEntry = FinancialEntry::create([
                 'date' => $bankMovement->date,
                 'store_id' => $validated['store_id'],
                 'type' => 'expense',
                 'expense_payment_method' => 'bank',
-                'expense_amount' => $validated['amount'],
-                'amount' => $validated['amount'],
-                'total_amount' => $validated['amount'],
+                'expense_amount' => $amount,
+                'amount' => $amount,
+                'total_amount' => $amount,
                 'status' => 'pagado',
-                'paid_amount' => $validated['amount'],
+                'paid_amount' => $amount,
                 'expense_category' => $validated['expense_category'] ?? null,
                 'expense_source' => 'conciliacion_bancaria',
                 'expense_concept' => $validated['expense_concept'],

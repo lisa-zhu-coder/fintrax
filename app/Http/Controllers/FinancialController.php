@@ -183,13 +183,7 @@ class FinancialController extends Controller
             return;
         }
 
-        $qs = $request->getQueryString();
-        $params = [];
-        if (is_string($qs) && $qs !== '') {
-            parse_str($qs, $params);
-        }
-
-        session([$sessionKey => $params]);
+        session([$sessionKey => $request->query->all()]);
     }
 
     private function redirectToFinancialListingFromSession(string $entryType): ?\Illuminate\Http\RedirectResponse

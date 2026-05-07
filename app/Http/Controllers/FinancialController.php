@@ -31,6 +31,75 @@ class FinancialController extends Controller
     use EnforcesStoreScope;
     use SyncsStoresFromBusinesses;
 
+    /**
+     * Asegura que un gasto con proveedor tenga un pedido asociado.
+     * Si el gasto ya proviene de un pedido (notes contiene order_id), no crea nada (evita duplicados).
+     */
+    private function ensureOrderForExpense(FinancialEntry $entry): void
+    {
+        if ($entry->type !== 'expense' || empty($entry->supplier_id)) {
+            return;
+        }
+
+        $notes = $this->decodeEntryNotes($entry->notes);
+        if (! empty($notes['order_id'])) {
+            return;
+        }
+
+        $amount = (float) ($entry->total_amount ?? $entry->expense_amount ?? $entry->amount ?? 0);
+        $orderAmount = round(abs($amount), 2);
+        if ($orderAmount <= 0) {
+            return;
+        }
+
+        DB::transaction(function () use ($entry, $orderAmount) {
+            // Releer con lock para evitar duplicados en concurrencia
+            $fresh = FinancialEntry::query()->lockForUpdate()->find($entry->id);
+            if (! $fresh || $fresh->type !== 'expense' || empty($fresh->supplier_id)) {
+                return;
+            }
+            $freshNotes = $this->decodeEntryNotes($fresh->notes);
+            if (! empty($freshNotes['order_id'])) {
+                return;
+            }
+
+            $concept = $fresh->expense_concept ?? $fresh->concept ?? 'Gasto';
+
+            $order = Order::create([
+                'company_id' => $fresh->company_id,
+                'date' => $fresh->date,
+                'store_id' => $fresh->store_id,
+                'supplier_id' => $fresh->supplier_id,
+                'concept' => $concept,
+                'amount' => $orderAmount,
+            ]);
+
+            // Guardar enlace en notes para que el módulo Pedidos lo reconozca y evitar duplicados futuros
+            $freshNotes['order_id'] = $order->id;
+            $freshNotes['order_created_from'] = 'expense';
+            $fresh->forceFill(['notes' => json_encode($freshNotes)])->save();
+        });
+    }
+
+    /**
+     * Decodifica notes a array. Si es texto plano, lo conserva en key 'text'.
+     */
+    private function decodeEntryNotes($notes): array
+    {
+        if ($notes === null || $notes === '') {
+            return [];
+        }
+        if (is_array($notes)) {
+            return $notes;
+        }
+        $decoded = @json_decode((string) $notes, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        return ['text' => (string) $notes];
+    }
+
     public function __construct()
     {
         $this->middleware('permission:financial.registros.view')->only(['index']);
@@ -565,6 +634,11 @@ class FinancialController extends Controller
                 }
             }
 
+            // Si es un gasto con proveedor y no proviene ya de un pedido, crear pedido automáticamente (evita duplicados)
+            if ($entry->type === 'expense' && ! empty($entry->supplier_id)) {
+                $this->ensureOrderForExpense($entry);
+            }
+
             // Lógica adicional según el tipo...
             if ($validated['type'] === 'daily_close') {
                 // Crear ingresos automáticamente para efectivo y datáfono
@@ -870,6 +944,11 @@ class FinancialController extends Controller
 
             $entry->update($dataToUpdate);
             $entry->refresh();
+
+            // Si es gasto y se asigna proveedor (y no existe pedido enlazado), crear pedido automáticamente
+            if ($entry->type === 'expense' && ! empty($entry->supplier_id)) {
+                $this->ensureOrderForExpense($entry);
+            }
 
             // Sincronizar ingresos automáticos y gastos del cierre si es un cierre diario
             if ($entry->type === 'daily_close') {

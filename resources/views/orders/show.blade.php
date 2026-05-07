@@ -203,19 +203,29 @@
                         $conceptLabels = ['pedido' => 'Pedido', 'royalty' => 'Royalty', 'rectificacion' => 'Rectificación', 'tara' => 'Tara'];
                         $paymentMethods = ['cash' => 'Efectivo', 'transfer' => 'Transferencia', 'card' => 'Tarjeta', 'bank' => 'Transferencia'];
                         $sortedHistory = collect($order->history)->sortByDesc(function($item) {
-                            return is_string($item['timestamp']) ? strtotime($item['timestamp']) : $item['timestamp'];
+                            $ts = $item['timestamp'] ?? ($item['at'] ?? null);
+                            if ($ts === null) return 0;
+                            // timestamp puede venir en ms (int) o como string fecha
+                            if (is_numeric($ts)) return (int) $ts;
+                            $parsed = strtotime((string) $ts);
+                            return $parsed ? ($parsed * 1000) : 0;
                         });
                     @endphp
                     @foreach($sortedHistory as $item)
                         <div class="rounded-lg border border-slate-200 bg-white p-3">
                             <div class="flex items-center gap-2">
                                 <span class="text-xs font-semibold text-slate-900">{{ $actionLabels[$item['action']] ?? $item['action'] }}</span>
-                                <span class="text-xs text-slate-500">por {{ $item['user_name'] ?? 'Usuario desconocido' }}</span>
+                                <span class="text-xs text-slate-500">por {{ $item['user_name'] ?? ($item['user'] ?? 'Sistema') }}</span>
                             </div>
                             <div class="mt-1 text-xs text-slate-500">
                                 @php
-                                    $timestamp = is_string($item['timestamp']) ? strtotime($item['timestamp']) : $item['timestamp'];
-                                    echo date('d/m/Y H:i', $timestamp / 1000);
+                                    $ts = $item['timestamp'] ?? ($item['at'] ?? null);
+                                    if ($ts === null) {
+                                        echo '—';
+                                    } else {
+                                        $ms = is_numeric($ts) ? (int) $ts : (strtotime((string) $ts) ? (strtotime((string) $ts) * 1000) : 0);
+                                        echo $ms > 0 ? date('d/m/Y H:i', $ms / 1000) : '—';
+                                    }
                                 @endphp
                             </div>
                             @if(isset($item['changes']) && is_array($item['changes']) && count($item['changes']) > 0)

@@ -1426,7 +1426,7 @@ class FinancialController extends Controller
         $this->syncStoresFromBusinesses();
         $this->rememberFinancialListingQuery($request, 'financial_list_query_expenses');
 
-        $query = FinancialEntry::with(['store', 'creator', 'invoice'])
+        $query = FinancialEntry::with(['store', 'creator', 'invoice', 'supplier'])
             ->where('type', 'expense');
 
         $enforcedStoreId = auth()->user()->getEnforcedStoreId();

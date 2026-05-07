@@ -162,6 +162,7 @@
                             </a>
                         </th>
                         <th class="px-3 py-2">Tienda</th>
+                        <th class="px-3 py-2">Proveedor</th>
                         <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 select-none">
                             <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'expense_concept', 'sort_dir' => request('sort_by') === 'expense_concept' ? (request('sort_dir') === 'desc' ? 'asc' : 'desc') : 'desc'])) }}" class="flex items-center gap-1">
                                 Concepto
@@ -238,6 +239,7 @@
                             </td>
                             <td class="px-3 py-2">{{ $entry->date->format('d/m/Y') }}</td>
                             <td class="px-3 py-2">{{ $entry->store->name }}</td>
+                            <td class="px-3 py-2">{{ $entry->supplier->name ?? '—' }}</td>
                             <td class="px-3 py-2">{{ $entry->expense_concept ?? $entry->concept ?? '—' }}</td>
                             <td class="px-3 py-2 expense-category-cell align-middle" data-entry-id="{{ $entry->id }}" data-current-value="{{ e($entry->expense_category ?? '') }}" data-current-label="{{ $entry->expense_category ? ucfirst(str_replace('_', ' ', $entry->expense_category)) : '—' }}">
                                 @if(auth()->user()->hasPermission('financial.expenses.edit') || auth()->user()->hasPermission('financial.registros.edit'))
@@ -388,7 +390,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="14" class="px-3 py-6 text-center text-slate-500">No hay registros</td>
+                            <td colspan="15" class="px-3 py-6 text-center text-slate-500">No hay registros</td>
                         </tr>
                     @endforelse
                 </tbody>

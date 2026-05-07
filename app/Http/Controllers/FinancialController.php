@@ -88,11 +88,69 @@ class FinancialController extends Controller
                 'amount' => $orderAmount,
             ]);
 
+            // Si el gasto tiene pagos (pagado o parcial), crear los mismos pagos en el pedido
+            $this->syncOrderPaymentsFromExpense($order, $fresh);
+
             // Guardar enlace en notes para que el módulo Pedidos lo reconozca y evitar duplicados futuros
             $freshNotes['order_id'] = $order->id;
             $freshNotes['order_created_from'] = 'expense';
             $fresh->forceFill(['notes' => json_encode($freshNotes)])->save();
         });
+    }
+
+    /**
+     * Copia pagos del gasto al pedido (si existen). Mapea banco → transfer.
+     */
+    private function syncOrderPaymentsFromExpense(Order $order, FinancialEntry $expense): void
+    {
+        if ($expense->type !== 'expense') {
+            return;
+        }
+
+        // Preferir detalle de pagos si existe la tabla expense_payments y/o la relación
+        $payments = collect();
+        try {
+            if (Schema::hasTable('expense_payments')) {
+                $payments = $expense->expensePayments()->get();
+            }
+        } catch (\Exception $e) {
+            $payments = collect();
+        }
+
+        $mapMethod = function (?string $m): string {
+            $m = strtolower((string) $m);
+            return match ($m) {
+                'cash' => 'cash',
+                'card', 'tarjeta', 'datafono' => 'card',
+                'bank', 'transfer' => 'transfer',
+                default => 'transfer',
+            };
+        };
+
+        if ($payments->isNotEmpty()) {
+            foreach ($payments as $p) {
+                $amt = round((float) ($p->amount ?? 0), 2);
+                if ($amt <= 0) continue;
+                $order->payments()->create([
+                    'date' => $p->date,
+                    'method' => $mapMethod($p->method ?? null),
+                    'amount' => $amt,
+                ]);
+            }
+            return;
+        }
+
+        // Fallback: usar paid_amount + método del gasto
+        $paid = round((float) ($expense->paid_amount ?? 0), 2);
+        if ($paid <= 0) {
+            return;
+        }
+
+        $order->payments()->create([
+            'date' => $expense->payment_date ?? $expense->date,
+            'method' => $mapMethod($expense->expense_payment_method ?? null),
+            'amount' => $paid,
+        ]);
     }
 
     /**

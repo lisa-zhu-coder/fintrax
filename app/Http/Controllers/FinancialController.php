@@ -154,6 +154,82 @@ class FinancialController extends Controller
     }
 
     /**
+     * Si el gasto tiene un pedido auto-creado (notes.order_created_from === 'expense'), lo elimina y limpia las notes.
+     * Importante: NO toca pedidos reales creados en el módulo Pedidos.
+     */
+    private function removeAutoOrderForExpense(FinancialEntry $expense): void
+    {
+        if ($expense->type !== 'expense') {
+            return;
+        }
+
+        DB::transaction(function () use ($expense) {
+            $fresh = FinancialEntry::query()->lockForUpdate()->find($expense->id);
+            if (! $fresh || $fresh->type !== 'expense') {
+                return;
+            }
+
+            $notes = $this->decodeEntryNotes($fresh->notes);
+            $orderId = $notes['order_id'] ?? null;
+            $createdFrom = $notes['order_created_from'] ?? null;
+
+            if ($orderId && $createdFrom === 'expense') {
+                Order::where('id', $orderId)->delete();
+                unset($notes['order_id'], $notes['order_created_from']);
+                $fresh->forceFill(['notes' => empty($notes) ? null : json_encode($notes)])->save();
+            }
+        });
+    }
+
+    /**
+     * Sincroniza el pedido auto-creado con el estado actual del gasto (importe, tienda, fecha, proveedor y pagos).
+     * Solo actúa si notes.order_created_from === 'expense'. Si no existe aún, lo crea.
+     */
+    private function syncAutoOrderForExpense(FinancialEntry $expense): void
+    {
+        if ($expense->type !== 'expense' || empty($expense->supplier_id)) {
+            return;
+        }
+
+        // Asegurar que exista pedido auto-creado (y notes.order_id)
+        $this->ensureOrderForExpense($expense);
+
+        DB::transaction(function () use ($expense) {
+            $fresh = FinancialEntry::query()->lockForUpdate()->find($expense->id);
+            if (! $fresh || $fresh->type !== 'expense' || empty($fresh->supplier_id)) {
+                return;
+            }
+
+            $notes = $this->decodeEntryNotes($fresh->notes);
+            $orderId = $notes['order_id'] ?? null;
+            $createdFrom = $notes['order_created_from'] ?? null;
+            if (! $orderId || $createdFrom !== 'expense') {
+                return;
+            }
+
+            $order = Order::find($orderId);
+            if (! $order) {
+                return;
+            }
+
+            $amount = (float) ($fresh->total_amount ?? $fresh->expense_amount ?? $fresh->amount ?? 0);
+            $orderAmount = round(abs($amount), 2);
+
+            $order->update([
+                'company_id' => $fresh->company_id,
+                'date' => $fresh->date,
+                'store_id' => $fresh->store_id,
+                'supplier_id' => $fresh->supplier_id,
+                'amount' => $orderAmount,
+            ]);
+
+            // Rehacer pagos para que reflejen el gasto (pagado/parcial/método)
+            $order->payments()->delete();
+            $this->syncOrderPaymentsFromExpense($order, $fresh);
+        });
+    }
+
+    /**
      * Decodifica notes a array. Si es texto plano, lo conserva en key 'text'.
      */
     private function decodeEntryNotes($notes): array
@@ -1014,8 +1090,14 @@ class FinancialController extends Controller
                 }
             }
 
+            $oldSupplierId = $entry->supplier_id;
             $entry->update($dataToUpdate);
             $entry->refresh();
+
+            // Si es gasto y se desasigna proveedor, eliminar pedido auto-creado y limpiar notes (evita que siga apareciendo en Pedidos)
+            if ($entry->type === 'expense' && $oldSupplierId && empty($entry->supplier_id)) {
+                $this->removeAutoOrderForExpense($entry);
+            }
 
             // Si es gasto y se asigna proveedor (y no existe pedido enlazado), crear pedido automáticamente
             if ($entry->type === 'expense' && ! empty($entry->supplier_id)) {
@@ -1048,6 +1130,11 @@ class FinancialController extends Controller
                     // La tabla aún no existe, continuar sin actualizar pagos
                     Log::warning('No se pudieron actualizar los pagos del gasto: '.$e->getMessage());
                 }
+            }
+
+            // Mantener sincronizado el pedido auto-creado desde este gasto (importe/proveedor/pagos)
+            if ($entry->type === 'expense' && ! empty($entry->supplier_id)) {
+                $this->syncAutoOrderForExpense($entry);
             }
 
             // Redirigir a la lista correspondiente al tipo de registro (mantenerse en la misma sección / filtros)
@@ -1169,6 +1256,9 @@ class FinancialController extends Controller
 
             // Eliminar pagos relacionados si es un gasto (evitar registros huérfanos en todas las vistas)
             if ($entry->type === 'expense') {
+                // Si el gasto tiene pedido auto-creado, eliminarlo también
+                $this->removeAutoOrderForExpense($entry);
+
                 try {
                     if (Schema::hasTable('expense_payments')) {
                         $entry->expensePayments()->delete();

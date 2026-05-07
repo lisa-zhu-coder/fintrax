@@ -312,16 +312,20 @@
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <label class="block">
                             <span class="text-xs font-semibold text-slate-700">Proveedor</span>
-                            <select name="supplier_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                            <select name="supplier_id" id="expenseSupplierId" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                                 <option value="">Ninguno</option>
                                 @foreach($suppliers ?? [] as $supplier)
-                                    <option value="{{ $supplier->id }}" {{ old('supplier_id') == $supplier->id ? 'selected' : '' }}>{{ $supplier->name }}</option>
+                                    <option value="{{ $supplier->id }}"
+                                        data-expense-category="{{ $supplier->expenseCategory->name ?? '' }}"
+                                        {{ old('supplier_id') == $supplier->id ? 'selected' : '' }}>
+                                        {{ $supplier->name }}
+                                    </option>
                                 @endforeach
                             </select>
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold text-slate-700">Categoría del gasto</span>
-                            <select name="expense_category" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                            <select name="expense_category" id="expenseCategorySelect" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                                 <option value="">Selecciona…</option>
                                 @foreach($expenseCategories ?? [] as $cat)
                                     <option value="{{ e($cat->name) }}" {{ old('expense_category') === $cat->name ? 'selected' : '' }}>{{ $cat->name }}</option>
@@ -927,6 +931,34 @@ function setupNumberFieldClearing() {
 
 // Inicializar limpieza de campos numéricos
 setupNumberFieldClearing();
+
+// Autoasignar categoría desde proveedor (solo si no se ha tocado manualmente)
+(function() {
+    const supplierSelect = document.getElementById('expenseSupplierId');
+    const categorySelect = document.getElementById('expenseCategorySelect');
+    if (!supplierSelect || !categorySelect) return;
+
+    let categoryTouched = false;
+    categorySelect.addEventListener('change', function() {
+        categoryTouched = true;
+    });
+
+    function applySupplierCategory(force = false) {
+        const opt = supplierSelect.options[supplierSelect.selectedIndex];
+        const cat = opt ? (opt.getAttribute('data-expense-category') || '') : '';
+        if (!cat) return;
+        if (!force && (categoryTouched || categorySelect.value)) return;
+        const exists = Array.from(categorySelect.options).some(o => o.value === cat);
+        if (exists) categorySelect.value = cat;
+    }
+
+    supplierSelect.addEventListener('change', function() {
+        applySupplierCategory(false);
+    });
+
+    // Al cargar, si ya hay proveedor seleccionado y categoría vacía (sin old), autoasignar
+    applySupplierCategory(false);
+})();
 
 // Manejo de división de gastos entre tiendas
 const expenseSplitStores = document.getElementById('expenseSplitStores');

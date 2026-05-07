@@ -620,7 +620,7 @@
                         <select name="supplier_id" id="createSupplierId" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                             <option value="">Ninguno</option>
                             @foreach($suppliers ?? [] as $supplier)
-                                <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                                <option value="{{ $supplier->id }}" data-expense-category="{{ $supplier->expenseCategory->name ?? '' }}">{{ $supplier->name }}</option>
                             @endforeach
                         </select>
                     </label>
@@ -1111,6 +1111,24 @@ function openCreateModal(movementId, description, amount, date, storeId, movemen
     document.getElementById('createModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
+
+// Autoasignar categoría desde proveedor en el modal (si no se ha tocado manualmente)
+(function() {
+    const supplierSelect = document.getElementById('createSupplierId');
+    const categorySelect = document.getElementById('createCategory');
+    if (!supplierSelect || !categorySelect) return;
+    let categoryTouched = false;
+    categorySelect.addEventListener('change', function() { categoryTouched = true; });
+    function apply() {
+        const opt = supplierSelect.options[supplierSelect.selectedIndex];
+        const cat = opt ? (opt.getAttribute('data-expense-category') || '') : '';
+        if (!cat) return;
+        if (categoryTouched || categorySelect.value) return;
+        const exists = Array.from(categorySelect.options).some(o => o.value === cat);
+        if (exists) categorySelect.value = cat;
+    }
+    supplierSelect.addEventListener('change', apply);
+})();
 
 function closeCreateModal() {
     window.bulkCreateQueue = null;

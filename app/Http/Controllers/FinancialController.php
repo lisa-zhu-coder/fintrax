@@ -505,7 +505,7 @@ class FinancialController extends Controller
         }
 
         $stores = $this->getAvailableStores();
-        $suppliers = Supplier::orderBy('name')->get();
+        $suppliers = Supplier::with('expenseCategory')->orderBy('name')->get();
         $dailyCloseSettings = $this->getDailyCloseSettings();
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
 
@@ -730,6 +730,13 @@ class FinancialController extends Controller
                 }
                 if (isset($validated['supplier_id']) && $validated['supplier_id']) {
                     $entryData['supplier_id'] = $validated['supplier_id'];
+                    // Auto-categoría desde proveedor (solo si no viene ya informada)
+                    if (empty($entryData['expense_category'])) {
+                        $supplier = Supplier::with('expenseCategory')->find($validated['supplier_id']);
+                        if ($supplier && $supplier->expenseCategory) {
+                            $entryData['expense_category'] = $supplier->expenseCategory->name;
+                        }
+                    }
                 }
 
                 // Calcular paid_amount desde los pagos
@@ -868,7 +875,7 @@ class FinancialController extends Controller
         $stores = $this->getAvailableStores();
         $dailyCloseSettings = $this->getDailyCloseSettings();
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
-        $suppliers = Supplier::orderBy('name')->get();
+        $suppliers = Supplier::with('expenseCategory')->orderBy('name')->get();
 
         return view('financial.edit', compact('entry', 'stores', 'dailyCloseSettings', 'expenseCategories', 'suppliers'));
     }
@@ -2875,7 +2882,7 @@ class FinancialController extends Controller
             ];
         }
 
-        $suppliers = Supplier::orderBy('name')->get();
+        $suppliers = Supplier::with('expenseCategory')->orderBy('name')->get();
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
 
         $firstDay = \Carbon\Carbon::create($year, $month, 1)->startOfDay();
@@ -3294,7 +3301,7 @@ class FinancialController extends Controller
 
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
         $loans = \App\Models\Loan::orderBy('name')->get();
-        $suppliers = Supplier::orderBy('name')->get();
+        $suppliers = Supplier::with('expenseCategory')->orderBy('name')->get();
 
         // Ingresos (datáfono/banco) con conciliación parcial: suma de movimientos < importe y sin gasto por diferencia creado
         $partialReconciliationIncomes = collect();
@@ -3553,6 +3560,13 @@ class FinancialController extends Controller
 
         try {
             $amount = $this->expenseAmountForConciliationExpense($bankMovement, (float) $validated['amount']);
+            $expenseCategory = $validated['expense_category'] ?? null;
+            if ((! $expenseCategory || $expenseCategory === '') && ! empty($validated['supplier_id'])) {
+                $supplier = Supplier::with('expenseCategory')->find($validated['supplier_id']);
+                if ($supplier && $supplier->expenseCategory) {
+                    $expenseCategory = $supplier->expenseCategory->name;
+                }
+            }
 
             // Crear FinancialEntry (expense)
             $financialEntry = FinancialEntry::create([
@@ -3567,7 +3581,7 @@ class FinancialController extends Controller
                 'total_amount' => $amount,
                 'status' => 'pagado',
                 'paid_amount' => $amount,
-                'expense_category' => $validated['expense_category'] ?? null,
+                'expense_category' => $expenseCategory,
                 'expense_source' => 'conciliacion_bancaria',
                 'expense_concept' => $validated['expense_concept'],
                 'concept' => $validated['expense_concept'],

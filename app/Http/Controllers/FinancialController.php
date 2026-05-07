@@ -3110,12 +3110,50 @@ class FinancialController extends Controller
 
                 return back()->with('error', 'El registro seleccionado no es un gasto.');
             }
-            // Marcar bankMovement como conciliado y guardar financial_entry_id
-            $bankMovement->update([
-                'is_conciliated' => true,
-                'status' => 'conciliado',
-                'financial_entry_id' => $validated['financial_entry_id'],
-            ]);
+            DB::transaction(function () use ($bankMovement, $entry, $validated) {
+                // Marcar bankMovement como conciliado y guardar financial_entry_id
+                $bankMovement->update([
+                    'is_conciliated' => true,
+                    'status' => 'conciliado',
+                    'financial_entry_id' => $validated['financial_entry_id'],
+                ]);
+
+                // Aplicar el pago al gasto (permite pago parcial)
+                $paymentAmount = round(abs((float) ($bankMovement->amount ?? 0)), 2);
+                if ($paymentAmount > 0) {
+                    // Registrar pago si existe la tabla de pagos
+                    if (Schema::hasTable('expense_payments')) {
+                        $entry->expensePayments()->create([
+                            'date' => $bankMovement->date,
+                            'method' => 'bank',
+                            'amount' => $paymentAmount,
+                        ]);
+                        $totalPaid = (float) $entry->expensePayments()->sum('amount');
+                    } else {
+                        $totalPaid = (float) ($entry->paid_amount ?? 0) + $paymentAmount;
+                    }
+
+                    $totalAmount = (float) ($entry->total_amount ?? $entry->expense_amount ?? $entry->amount ?? 0);
+                    $newStatus = ($totalPaid >= $totalAmount && $totalAmount > 0) ? 'pagado' : 'pendiente';
+                    $paymentDate = null;
+                    if ($newStatus === 'pagado') {
+                        // Fecha de pago: última fecha de pago registrada (o fecha del movimiento si no hay tabla)
+                        $paymentDate = Schema::hasTable('expense_payments')
+                            ? ($entry->expensePayments()->max('date') ?: $bankMovement->date)
+                            : $bankMovement->date;
+                    }
+
+                    $entry->forceFill([
+                        'expense_payment_method' => 'bank',
+                        'paid_amount' => $totalPaid,
+                        'status' => $newStatus,
+                        'payment_date' => $paymentDate,
+                    ])->save();
+                } else {
+                    // Aunque el importe sea 0, al enlazar un movimiento bancario el método queda como banco
+                    $entry->forceFill(['expense_payment_method' => 'bank'])->save();
+                }
+            });
 
             if ($request->wantsJson()) {
                 return response()->json(['success' => true]);

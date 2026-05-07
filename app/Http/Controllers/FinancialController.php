@@ -646,8 +646,9 @@ class FinancialController extends Controller
         $stores = $this->getAvailableStores();
         $dailyCloseSettings = $this->getDailyCloseSettings();
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
+        $suppliers = Supplier::orderBy('name')->get();
 
-        return view('financial.edit', compact('entry', 'stores', 'dailyCloseSettings', 'expenseCategories'));
+        return view('financial.edit', compact('entry', 'stores', 'dailyCloseSettings', 'expenseCategories', 'suppliers'));
     }
 
     public function update(Request $request, $id)
@@ -3052,6 +3053,7 @@ class FinancialController extends Controller
 
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
         $loans = \App\Models\Loan::orderBy('name')->get();
+        $suppliers = Supplier::orderBy('name')->get();
 
         // Ingresos (datáfono/banco) con conciliación parcial: suma de movimientos < importe y sin gasto por diferencia creado
         $partialReconciliationIncomes = collect();
@@ -3079,7 +3081,7 @@ class FinancialController extends Controller
             }
         }
 
-        return view('financial.bank-conciliation', compact('movements', 'bankAccounts', 'stores', 'relatedTransfers', 'movementToTransferMap', 'expenseCategories', 'loans', 'partialReconciliationIncomes'));
+        return view('financial.bank-conciliation', compact('movements', 'bankAccounts', 'stores', 'relatedTransfers', 'movementToTransferMap', 'expenseCategories', 'loans', 'suppliers', 'partialReconciliationIncomes'));
     }
 
     private function userCanAccessStore($storeId): bool
@@ -3302,6 +3304,7 @@ class FinancialController extends Controller
             'date' => 'required|date',
             'reporting_month' => 'required|date_format:Y-m',
             'store_id' => 'required|exists:stores,id',
+            'supplier_id' => 'nullable|exists:suppliers,id',
             'expense_category' => 'nullable|string|max:255',
             'expense_concept' => 'required|string|max:255',
             'amount' => 'required|numeric',

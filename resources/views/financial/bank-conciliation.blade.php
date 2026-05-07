@@ -614,6 +614,16 @@
                             @endif
                         </select>
                     </label>
+
+                    <label class="block">
+                        <span class="text-xs font-semibold text-slate-700">Proveedor</span>
+                        <select name="supplier_id" id="createSupplierId" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                            <option value="">Ninguno</option>
+                            @foreach($suppliers ?? [] as $supplier)
+                                <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
                     
                     <label class="block">
                         <span class="text-xs font-semibold text-slate-700">Categoría</span>
@@ -1086,6 +1096,8 @@ function openCreateModal(movementId, description, amount, date, storeId, movemen
     document.getElementById('createDate').value = date;
     document.getElementById('createReportingMonth').value = date ? date.substring(0, 7) : '';
     document.getElementById('createStoreId').value = storeId;
+    var supplierEl = document.getElementById('createSupplierId');
+    if (supplierEl) supplierEl.value = '';
     document.getElementById('createConcept').value = description;
     var parsed = parseFloat(amount);
     var absAmt = Math.abs(isNaN(parsed) ? 0 : parsed);

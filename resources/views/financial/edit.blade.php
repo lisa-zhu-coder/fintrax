@@ -344,6 +344,15 @@
                 <div class="rounded-xl border-2 border-rose-100 bg-rose-50/30 p-4 ring-1 ring-rose-100">
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <label class="block">
+                            <span class="text-xs font-semibold text-slate-700">Proveedor</span>
+                            <select name="supplier_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                                <option value="">Ninguno</option>
+                                @foreach($suppliers ?? [] as $supplier)
+                                    <option value="{{ $supplier->id }}" {{ (string) old('supplier_id', $entry->supplier_id) === (string) $supplier->id ? 'selected' : '' }}>{{ $supplier->name }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="block">
                             <span class="text-xs font-semibold text-slate-700">Categoría del gasto</span>
                             <select name="expense_category" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                                 <option value="">Selecciona…</option>

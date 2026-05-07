@@ -74,7 +74,8 @@ class FinancialController extends Controller
                 // Orders requiere: concept(enum), order_number y (en la UI) invoice_number opcional
                 'concept' => 'pedido',
                 'order_number' => 'AUTO-GASTO-'.$fresh->id,
-                'invoice_number' => null,
+                // En algunas BDs invoice_number NO es nullable (migración antigua). Usar string no vacío para evitar SQL error.
+                'invoice_number' => 'AUTO-GASTO-'.$fresh->id,
                 // Guardar descripción en history para no perder el concepto del gasto
                 'history' => [
                     [

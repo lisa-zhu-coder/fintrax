@@ -60,6 +60,7 @@ class DashboardController extends Controller
         $chartData = $this->prepareChartData($entries);
         $expensesByCategory = $this->getExpensesByCategory($selectedStore, $period, $user, $fromDate, $toDate, $month);
         $incomeByPaymentMethod = $this->getIncomeByPaymentMethod($selectedStore, $period, $user, $fromDate, $toDate, $month);
+        $expensesByPaymentMethod = $this->getExpensesByPaymentMethod($selectedStore, $period, $user, $fromDate, $toDate, $month);
         $ordersPaidVsPending = $this->getOrdersPaidVsPending($selectedStore, $user, $month);
         $overtimeByStore = $this->getOvertimeByStore($selectedStore, $user, $month);
         $cashWallets = CashWallet::orderBy('name')->get();
@@ -69,7 +70,7 @@ class DashboardController extends Controller
         $availableWidgetKeys = WidgetRegistry::getAvailableKeys($user);
         $availableMonths = $this->getAvailableMonths($selectedStore, $user);
 
-        return view('dashboard.index', compact('stores', 'selectedStore', 'period', 'fromDate', 'toDate', 'month', 'availableMonths', 'entries', 'summary', 'chartData', 'expensesByCategory', 'incomeByPaymentMethod', 'ordersPaidVsPending', 'overtimeByStore', 'cashWallets', 'expenseCategories', 'widgetLayout', 'availableWidgetKeys'));
+        return view('dashboard.index', compact('stores', 'selectedStore', 'period', 'fromDate', 'toDate', 'month', 'availableMonths', 'entries', 'summary', 'chartData', 'expensesByCategory', 'incomeByPaymentMethod', 'expensesByPaymentMethod', 'ordersPaidVsPending', 'overtimeByStore', 'cashWallets', 'expenseCategories', 'widgetLayout', 'availableWidgetKeys'));
     }
 
     private function getFilteredEntries($selectedStore, $period, $user, $fromDate = null, $toDate = null, $month = null)
@@ -348,6 +349,45 @@ class DashboardController extends Controller
             ->selectRaw("{$normalizedMethod} as method, SUM(COALESCE(income_amount, amount)) as total")
             ->groupByRaw($normalizedMethod)
             ->havingRaw('SUM(COALESCE(income_amount, amount)) > 0')
+            ->orderByDesc('total');
+
+        $enforcedStoreId = $user->getEnforcedStoreId();
+        if ($enforcedStoreId !== null) {
+            $query->where('store_id', $enforcedStoreId);
+        } elseif ($selectedStore !== 'all' && $user->canAccessStore((int) $selectedStore)) {
+            $query->where('store_id', $selectedStore);
+        } else {
+            $allowed = $user->getAllowedStoreIds();
+            if (! empty($allowed)) {
+                $query->whereIn('store_id', $allowed);
+            }
+        }
+
+        $monthToUse = (preg_match('/^\d{4}-\d{2}$/', $month ?? '')) ? $month : now()->format('Y-m');
+        $this->applyMonthFilter($query, $monthToUse);
+
+        return $query->get();
+    }
+
+    /**
+     * Gastos agregados por método de pago (query optimizada en BD).
+     * Respeta filtros de tienda y período del dashboard.
+     */
+    private function getExpensesByPaymentMethod($selectedStore, $period, $user, $fromDate = null, $toDate = null, $month = null)
+    {
+        $normalizedMethod = "CASE
+            WHEN expense_payment_method IN ('card','datafono','tarjeta') THEN 'Tarjeta'
+            WHEN expense_payment_method = 'cash' THEN 'Efectivo'
+            WHEN expense_payment_method = 'bank' THEN 'Banco'
+            WHEN expense_payment_method = 'transfer' THEN 'Transferencia'
+            ELSE 'Otros'
+        END";
+
+        $query = FinancialEntry::query()
+            ->where('type', 'expense')
+            ->selectRaw("{$normalizedMethod} as method, SUM(COALESCE(expense_amount, amount)) as total")
+            ->groupByRaw($normalizedMethod)
+            ->havingRaw('SUM(COALESCE(expense_amount, amount)) > 0')
             ->orderByDesc('total');
 
         $enforcedStoreId = $user->getEnforcedStoreId();

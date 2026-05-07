@@ -291,10 +291,20 @@
 
     <!-- Ingresos y Gastos: ingresos cuadro más pequeño (gráfica igual), gastos ocupa el resto sin hueco -->
     <div class="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-        @if($canViewIncome || auth()->user()->hasPermission('dashboard.main.view'))
-        <div id="dashboard-ingresos-metodo-pago" class="max-w-sm shrink-0 rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700 lg:mx-0 mx-auto">
-            <h2 class="mb-4 text-base font-semibold text-slate-900 dark:text-slate-100">Ingresos por método de pago</h2>
-            @include('dashboard.widgets.income')
+        @if(($canViewIncome || $canViewExpenses) || auth()->user()->hasPermission('dashboard.main.view'))
+        <div class="w-full max-w-sm shrink-0 space-y-4 lg:mx-0 mx-auto">
+            @if($canViewIncome || auth()->user()->hasPermission('dashboard.main.view'))
+            <div id="dashboard-ingresos-metodo-pago" class="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
+                <h2 class="mb-4 text-base font-semibold text-slate-900 dark:text-slate-100">Ingresos por método de pago</h2>
+                @include('dashboard.widgets.income')
+            </div>
+            @endif
+            @if($canViewExpenses || auth()->user()->hasPermission('dashboard.main.view'))
+            <div id="dashboard-gastos-metodo-pago" class="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-soft ring-1 ring-slate-100 dark:ring-slate-700">
+                <h2 class="mb-4 text-base font-semibold text-slate-900 dark:text-slate-100">Gastos por método de pago</h2>
+                @include('dashboard.widgets.expenses_payment_method')
+            </div>
+            @endif
         </div>
         @endif
         @if($canViewExpenses || auth()->user()->hasPermission('dashboard.main.view'))
@@ -449,6 +459,48 @@ document.addEventListener('DOMContentLoaded', function() {
             datasets: [{
                 data: @json($incomeTotals),
                 backgroundColor: ['#25AD9F', '#224D5F', '#45beb2', '#b0e4de', '#7dd4ca'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+                            return context.label + ': ' + new Intl.NumberFormat('es-ES', {
+                                style: 'currency',
+                                currency: 'EUR'
+                            }).format(context.parsed.y ?? context.parsed) + ' (' + pct + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+})();
+</script>
+@endif
+@if((auth()->user()->hasPermission('dashboard.expenses.view') || auth()->user()->hasPermission('dashboard.main.view')) && $expensesByPaymentMethod->isNotEmpty())
+@php
+    $expensesPmLabels = $expensesByPaymentMethod->map(fn ($r) => $r->method)->values()->toArray();
+    $expensesPmTotals = $expensesByPaymentMethod->map(fn ($r) => (float) $r->total)->values()->toArray();
+@endphp
+<script>
+(function() {
+    const ctx = document.querySelector('[data-chart="expenses_payment_method"]');
+    if (!ctx) return;
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: @json($expensesPmLabels),
+            datasets: [{
+                data: @json($expensesPmTotals),
+                backgroundColor: ['#ef4444', '#f97316', '#eab308', '#fb7185', '#fca5a5'],
                 borderWidth: 1
             }]
         },

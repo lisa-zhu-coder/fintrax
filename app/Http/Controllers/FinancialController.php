@@ -3559,6 +3559,14 @@ class FinancialController extends Controller
         ]);
 
         try {
+            // Normalizar selects vacíos: MySQL no acepta '' en columnas INT
+            if (array_key_exists('supplier_id', $validated) && (is_string($validated['supplier_id']) && trim($validated['supplier_id']) === '')) {
+                $validated['supplier_id'] = null;
+            }
+            if (array_key_exists('expense_category', $validated) && (is_string($validated['expense_category']) && trim($validated['expense_category']) === '')) {
+                $validated['expense_category'] = null;
+            }
+
             $amount = $this->expenseAmountForConciliationExpense($bankMovement, (float) $validated['amount']);
             $expenseCategory = $validated['expense_category'] ?? null;
             if ((! $expenseCategory || $expenseCategory === '') && ! empty($validated['supplier_id'])) {

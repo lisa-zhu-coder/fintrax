@@ -307,7 +307,67 @@
                 <span class="text-xs font-semibold text-slate-500">Fecha de creación</span>
                 <div class="mt-1 text-sm text-slate-900">{{ $entry->created_at->format('d/m/Y H:i') }}</div>
             </div>
+
+            <div>
+                <span class="text-xs font-semibold text-slate-500">Última modificación</span>
+                <div class="mt-1 text-sm text-slate-900">{{ $entry->updated_at?->format('d/m/Y H:i') ?? '—' }}</div>
+            </div>
+
+            <div>
+                <span class="text-xs font-semibold text-slate-500">Modificado por</span>
+                @php
+                    $lastHistory = is_array($entry->history) && count($entry->history) > 0 ? end($entry->history) : null;
+                    $lastUserName = is_array($lastHistory) ? ($lastHistory['user_name'] ?? null) : null;
+                @endphp
+                <div class="mt-1 text-sm text-slate-900">{{ $lastUserName ?: '—' }}</div>
+            </div>
         </div>
     </div>
+
+    @if(is_array($entry->history) && count($entry->history) > 0)
+    <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
+        <h2 class="mb-4 text-base font-semibold text-slate-900">Historial de cambios</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="text-xs uppercase text-slate-500 bg-slate-50">
+                    <tr>
+                        <th class="px-3 py-2 text-left">Fecha</th>
+                        <th class="px-3 py-2 text-left">Usuario</th>
+                        <th class="px-3 py-2 text-left">Cambios</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @foreach(array_reverse($entry->history) as $h)
+                        @php
+                            $at = isset($h['at']) ? \Carbon\Carbon::parse($h['at']) : null;
+                            $uname = $h['user_name'] ?? '—';
+                            $changes = is_array($h['changes'] ?? null) ? $h['changes'] : [];
+                        @endphp
+                        <tr>
+                            <td class="px-3 py-2 whitespace-nowrap text-slate-700">{{ $at ? $at->format('d/m/Y H:i') : '—' }}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-slate-700">{{ $uname }}</td>
+                            <td class="px-3 py-2 text-slate-700">
+                                @if(count($changes) === 0)
+                                    —
+                                @else
+                                    <div class="space-y-1">
+                                        @foreach($changes as $field => $diff)
+                                            <div>
+                                                <span class="font-semibold">{{ $field }}</span>:
+                                                <span class="text-slate-500">{{ is_array($diff['from'] ?? null) ? json_encode($diff['from']) : (string)($diff['from'] ?? '—') }}</span>
+                                                →
+                                                <span class="text-slate-900">{{ is_array($diff['to'] ?? null) ? json_encode($diff['to']) : (string)($diff['to'] ?? '—') }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
 </div>
 @endsection

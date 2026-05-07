@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use App\Models\ExpensePayment;
 
@@ -99,6 +100,35 @@ class FinancialEntry extends Model
             } elseif (empty($entry->total_amount)) {
                 $entry->total_amount = $entry->amount ?? 0;
             }
+        });
+
+        // Guardar historial de cambios (fecha + usuario + diffs)
+        static::updating(function (self $entry) {
+            $dirty = $entry->getDirty();
+            unset($dirty['updated_at'], $dirty['history']);
+
+            if (empty($dirty)) {
+                return;
+            }
+
+            $changes = [];
+            foreach (array_keys($dirty) as $field) {
+                $changes[$field] = [
+                    'from' => $entry->getOriginal($field),
+                    'to' => $entry->{$field},
+                ];
+            }
+
+            $user = Auth::user();
+            $history = is_array($entry->history) ? $entry->history : [];
+            $history[] = [
+                'at' => now()->toIso8601String(),
+                'user_id' => $user?->id,
+                'user_name' => $user?->name,
+                'changes' => $changes,
+            ];
+
+            $entry->history = $history;
         });
     }
 

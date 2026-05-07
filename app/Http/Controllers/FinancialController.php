@@ -14,6 +14,7 @@ use App\Models\CashWithdrawal;
 use App\Models\Company;
 use App\Models\ExpensePayment;
 use App\Models\FinancialEntry;
+use App\Models\Order;
 use App\Models\OrderPayment;
 use App\Models\Store;
 use App\Models\Supplier;

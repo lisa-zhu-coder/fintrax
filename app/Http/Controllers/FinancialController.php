@@ -71,7 +71,19 @@ class FinancialController extends Controller
                 'date' => $fresh->date,
                 'store_id' => $fresh->store_id,
                 'supplier_id' => $fresh->supplier_id,
-                'concept' => $concept,
+                // Orders requiere: concept(enum), order_number y (en la UI) invoice_number opcional
+                'concept' => 'pedido',
+                'order_number' => 'AUTO-GASTO-'.$fresh->id,
+                'invoice_number' => null,
+                // Guardar descripción en history para no perder el concepto del gasto
+                'history' => [
+                    [
+                        'at' => now()->toIso8601String(),
+                        'action' => 'created_from_expense',
+                        'expense_id' => $fresh->id,
+                        'expense_concept' => $concept,
+                    ],
+                ],
                 'amount' => $orderAmount,
             ]);
 

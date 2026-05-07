@@ -46,6 +46,13 @@
                 <div class="mt-1 text-sm font-semibold text-slate-900">{{ $entry->store->name }}</div>
             </div>
 
+            @if($entry->supplier_id)
+            <div>
+                <span class="text-xs font-semibold text-slate-500">Proveedor</span>
+                <div class="mt-1 text-sm font-semibold text-slate-900">{{ $entry->supplier->name ?? '—' }}</div>
+            </div>
+            @endif
+
             <div>
                 <span class="text-xs font-semibold text-slate-500">Tipo</span>
                 <div class="mt-1">

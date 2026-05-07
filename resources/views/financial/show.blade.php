@@ -316,7 +316,8 @@
             <div>
                 <span class="text-xs font-semibold text-slate-500">Modificado por</span>
                 @php
-                    $lastHistory = is_array($entry->history) && count($entry->history) > 0 ? end($entry->history) : null;
+                    $historyArr = is_array($entry->history) ? $entry->history : [];
+                    $lastHistory = count($historyArr) > 0 ? $historyArr[array_key_last($historyArr)] : null;
                     $lastUserName = is_array($lastHistory) ? ($lastHistory['user_name'] ?? null) : null;
                 @endphp
                 <div class="mt-1 text-sm text-slate-900">{{ $lastUserName ?: '—' }}</div>

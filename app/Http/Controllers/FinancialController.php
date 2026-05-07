@@ -1141,7 +1141,32 @@ class FinancialController extends Controller
             $query->where('income_category', $request->source);
         }
 
-        $entries = $query->orderBy('date', 'desc')->get();
+        // Ordenación
+        $sortBy = (string) $request->get('sort_by', 'date');
+        $sortDir = strtolower((string) $request->get('sort_dir', 'desc'));
+        $sortDir = in_array($sortDir, ['asc', 'desc'], true) ? $sortDir : 'desc';
+
+        $sortable = [
+            'date' => 'date',
+            'income_concept' => 'income_concept',
+            'amount' => '__amount__',
+        ];
+
+        if (! array_key_exists($sortBy, $sortable)) {
+            $sortBy = 'date';
+        }
+
+        if ($sortable[$sortBy] === '__amount__') {
+            // Ordenar por importe real del ingreso (fallback a amount legacy)
+            $query->orderByRaw('COALESCE(income_amount, amount) '.$sortDir);
+        } else {
+            $query->orderBy($sortable[$sortBy], $sortDir);
+        }
+
+        // Desempate estable
+        $query->orderBy('date', 'desc')->orderBy('id', 'desc');
+
+        $entries = $query->get();
         $stores = $this->getAvailableStores();
 
         return view('financial.income', compact('entries', 'stores', 'period'));
@@ -1209,7 +1234,34 @@ class FinancialController extends Controller
             });
         }
 
-        $entries = $query->orderBy('date', 'desc')->get();
+        // Ordenación
+        $sortBy = (string) $request->get('sort_by', 'date');
+        $sortDir = strtolower((string) $request->get('sort_dir', 'desc'));
+        $sortDir = in_array($sortDir, ['asc', 'desc'], true) ? $sortDir : 'desc';
+
+        $sortable = [
+            'date' => 'date',
+            'expense_concept' => 'expense_concept',
+            'expense_category' => 'expense_category',
+            'expense_payment_method' => 'expense_payment_method',
+            'amount' => '__amount__',
+        ];
+
+        if (! array_key_exists($sortBy, $sortable)) {
+            $sortBy = 'date';
+        }
+
+        if ($sortable[$sortBy] === '__amount__') {
+            // Ordenar por importe real del gasto (fallback a amount legacy)
+            $query->orderByRaw('COALESCE(expense_amount, amount) '.$sortDir);
+        } else {
+            $query->orderBy($sortable[$sortBy], $sortDir);
+        }
+
+        // Desempate estable
+        $query->orderBy('date', 'desc')->orderBy('id', 'desc');
+
+        $entries = $query->get();
         $stores = $this->getAvailableStores();
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
 

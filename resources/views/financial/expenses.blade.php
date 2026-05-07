@@ -152,7 +152,7 @@
                     <tr>
                         <th class="px-3 py-2">Mes correspondiente</th>
                         <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 select-none">
-                            <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'date', 'sort_dir' => request('sort_by') === 'date' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center gap-1">
+                            <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'date', 'sort_dir' => request('sort_by') === 'date' ? (request('sort_dir') === 'desc' ? 'asc' : 'desc') : 'desc'])) }}" class="flex items-center gap-1">
                                 Fecha
                                 @if(request('sort_by') === 'date')
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="{{ request('sort_dir') === 'asc' ? '' : 'rotate-180' }}">
@@ -163,7 +163,7 @@
                         </th>
                         <th class="px-3 py-2">Tienda</th>
                         <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 select-none">
-                            <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'expense_concept', 'sort_dir' => request('sort_by') === 'expense_concept' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center gap-1">
+                            <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'expense_concept', 'sort_dir' => request('sort_by') === 'expense_concept' ? (request('sort_dir') === 'desc' ? 'asc' : 'desc') : 'desc'])) }}" class="flex items-center gap-1">
                                 Concepto
                                 @if(request('sort_by') === 'expense_concept')
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="{{ request('sort_dir') === 'asc' ? '' : 'rotate-180' }}">
@@ -173,7 +173,7 @@
                             </a>
                         </th>
                         <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 select-none">
-                            <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'expense_category', 'sort_dir' => request('sort_by') === 'expense_category' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center gap-1">
+                            <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'expense_category', 'sort_dir' => request('sort_by') === 'expense_category' ? (request('sort_dir') === 'desc' ? 'asc' : 'desc') : 'desc'])) }}" class="flex items-center gap-1">
                                 Categoría
                                 @if(request('sort_by') === 'expense_category')
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="{{ request('sort_dir') === 'asc' ? '' : 'rotate-180' }}">
@@ -183,7 +183,7 @@
                             </a>
                         </th>
                         <th class="px-3 py-2 cursor-pointer hover:bg-slate-50 select-none">
-                            <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'expense_payment_method', 'sort_dir' => request('sort_by') === 'expense_payment_method' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center gap-1">
+                            <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'expense_payment_method', 'sort_dir' => request('sort_by') === 'expense_payment_method' ? (request('sort_dir') === 'desc' ? 'asc' : 'desc') : 'desc'])) }}" class="flex items-center gap-1">
                                 Modo de pago
                                 @if(request('sort_by') === 'expense_payment_method')
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="{{ request('sort_dir') === 'asc' ? '' : 'rotate-180' }}">
@@ -194,7 +194,7 @@
                         </th>
                         <th class="px-3 py-2">Procedencia</th>
                         <th class="px-3 py-2 text-right cursor-pointer hover:bg-slate-50 select-none">
-                            <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'amount', 'sort_dir' => request('sort_by') === 'amount' && request('sort_dir') === 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center justify-end gap-1">
+                            <a href="{{ route('financial.expenses', array_merge(request()->query(), ['sort_by' => 'amount', 'sort_dir' => request('sort_by') === 'amount' ? (request('sort_dir') === 'desc' ? 'asc' : 'desc') : 'desc'])) }}" class="flex items-center justify-end gap-1">
                                 Importe
                                 @if(request('sort_by') === 'amount')
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="{{ request('sort_dir') === 'asc' ? '' : 'rotate-180' }}">

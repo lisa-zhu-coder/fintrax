@@ -79,6 +79,16 @@
                         @endforeach
                     </select>
                 </label>
+
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Proveedor</span>
+                    <select name="supplier_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Todos</option>
+                        @foreach($suppliers ?? [] as $s)
+                            <option value="{{ $s->id }}" {{ (string) request('supplier_id') === (string) $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
+                        @endforeach
+                    </select>
+                </label>
                 
                 <label class="block">
                     <span class="text-xs font-semibold text-slate-700">Modo de pago</span>

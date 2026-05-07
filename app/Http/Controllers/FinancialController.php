@@ -1454,6 +1454,11 @@ class FinancialController extends Controller
             $query->where('expense_category', $request->category);
         }
 
+        // Filtro por proveedor
+        if ($request->filled('supplier_id')) {
+            $query->where('supplier_id', (int) $request->supplier_id);
+        }
+
         // Filtro por método de pago
         if ($request->filled('payment_method')) {
             if ($request->payment_method === 'cash') {
@@ -1513,8 +1518,9 @@ class FinancialController extends Controller
         $entries = $query->get();
         $stores = $this->getAvailableStores();
         $expenseCategories = \App\Models\ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
+        $suppliers = Supplier::orderBy('name')->get();
 
-        return view('financial.expenses', compact('entries', 'stores', 'period', 'expenseCategories'));
+        return view('financial.expenses', compact('entries', 'stores', 'period', 'expenseCategories', 'suppliers'));
     }
 
     public function dailyCloses(Request $request)

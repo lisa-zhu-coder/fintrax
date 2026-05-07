@@ -1098,6 +1098,12 @@ function openCreateModal(movementId, description, amount, date, storeId, movemen
     document.getElementById('createStoreId').value = storeId;
     var supplierEl = document.getElementById('createSupplierId');
     if (supplierEl) supplierEl.value = '';
+    // Resetear categoría para el siguiente elemento del lote
+    var categoryEl = document.getElementById('createCategory');
+    if (categoryEl) categoryEl.value = '';
+    if (typeof window._bcResetCreateExpenseCategoryAutofill === 'function') {
+        window._bcResetCreateExpenseCategoryAutofill();
+    }
     document.getElementById('createConcept').value = description;
     var parsed = parseFloat(amount);
     var absAmt = Math.abs(isNaN(parsed) ? 0 : parsed);
@@ -1119,6 +1125,9 @@ function openCreateModal(movementId, description, amount, date, storeId, movemen
     if (!supplierSelect || !categorySelect) return;
     let categoryTouched = false;
     categorySelect.addEventListener('change', function() { categoryTouched = true; });
+    window._bcResetCreateExpenseCategoryAutofill = function() {
+        categoryTouched = false;
+    };
     function apply() {
         const opt = supplierSelect.options[supplierSelect.selectedIndex];
         const cat = opt ? (opt.getAttribute('data-expense-category') || '') : '';

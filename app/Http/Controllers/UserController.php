@@ -120,6 +120,55 @@ class UserController extends Controller
             ->withErrors($errors);
     }
 
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return list<int>
+     */
+    private function resolveSubmittedStoreIds(array $validated, bool $isSuperAdmin): array
+    {
+        $storeIds = array_values(array_unique(array_map('intval', array_filter($validated['store_ids'] ?? []))));
+
+        if (empty($storeIds) && $isSuperAdmin && ! empty($validated['company_access'])) {
+            foreach ($validated['company_access'] as $row) {
+                if (! empty($row['store_id'])) {
+                    $storeIds[] = (int) $row['store_id'];
+                }
+            }
+            $storeIds = array_values(array_unique($storeIds));
+        }
+
+        return $storeIds;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function existingStoreIdsForUser(User $user): array
+    {
+        $storeIds = \Illuminate\Support\Facades\DB::table('user_store')
+            ->where('user_id', $user->id)
+            ->pluck('store_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if (empty($storeIds) && $user->store_id) {
+            $storeIds = [(int) $user->store_id];
+        }
+
+        if (empty($storeIds)) {
+            $storeIds = CompanyUser::where('user_id', $user->id)
+                ->whereNotNull('store_id')
+                ->pluck('store_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return array_values(array_unique($storeIds));
+    }
+
     public function store(Request $request)
     {
         $isSuperAdmin = auth()->user()->isSuperAdmin();
@@ -146,7 +195,7 @@ class UserController extends Controller
             return $this->redirectUsersIndexWithInput($request, ['role_id' => 'No tienes permiso para crear usuarios con rol Super Admin.']);
         }
 
-        $storeIds = array_values(array_unique(array_filter($validated['store_ids'] ?? [])));
+        $storeIds = $this->resolveSubmittedStoreIds($validated, $isSuperAdmin);
         if ($role && ! in_array($role->key, ['admin', 'super_admin']) && empty($storeIds)) {
             return $this->redirectUsersIndexWithInput($request, ['store_ids' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.']);
         }
@@ -285,7 +334,10 @@ class UserController extends Controller
             return $this->redirectUsersIndexWithInput($request, ['role_id' => 'No tienes permiso para cambiar el rol de un Super Admin.'], $user->id);
         }
 
-        $storeIds = array_values(array_unique(array_filter($validated['store_ids'] ?? [])));
+        $storeIds = $this->resolveSubmittedStoreIds($validated, $isSuperAdmin);
+        if (empty($storeIds)) {
+            $storeIds = $this->existingStoreIdsForUser($user);
+        }
         if ($newRole && ! in_array($newRole->key, ['admin', 'super_admin']) && empty($storeIds)) {
             return $this->redirectUsersIndexWithInput($request, ['store_ids' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.'], $user->id);
         }

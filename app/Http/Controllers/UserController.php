@@ -9,8 +9,9 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
@@ -88,6 +89,37 @@ class UserController extends Controller
         ], fn ($v) => $v !== null && $v !== '');
     }
 
+    /**
+     * Valida el formulario y redirige al listado si falla (evita /users/{id}, que devuelve JSON).
+     *
+     * @param  array<string, mixed>  $rules
+     * @return array<string, mixed>
+     */
+    private function validateUserForm(Request $request, array $rules): array
+    {
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            throw (new ValidationException($validator))
+                ->redirectTo(route('users.index', $this->usersIndexQuery($request)));
+        }
+
+        return $validator->validated();
+    }
+
+    private function redirectUsersIndexWithInput(Request $request, array $errors, ?int $editUserId = null)
+    {
+        return redirect()->route('users.index', $this->usersIndexQuery($request))
+            ->withInput(array_merge(
+                $request->except('password'),
+                [
+                    '_method' => $request->input('_method'),
+                    'edit_user_id' => $editUserId ?? $request->input('edit_user_id'),
+                ]
+            ))
+            ->withErrors($errors);
+    }
+
     public function store(Request $request)
     {
         $isSuperAdmin = auth()->user()->isSuperAdmin();
@@ -106,22 +138,22 @@ class UserController extends Controller
             $rules['company_access.*.role_id'] = 'required|exists:roles,id';
             $rules['company_access.*.store_id'] = 'nullable|exists:stores,id';
         }
-        $validated = $request->validate($rules, [
-            'store_ids.required' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.',
-        ]);
+        $validated = $this->validateUserForm($request, $rules);
 
         $role = Role::find($validated['role_id']);
 
         if ($role && $role->key === 'super_admin' && ! $isSuperAdmin) {
-            return redirect()->back()->withInput()->withErrors(['role_id' => 'No tienes permiso para crear usuarios con rol Super Admin.']);
+            return $this->redirectUsersIndexWithInput($request, ['role_id' => 'No tienes permiso para crear usuarios con rol Super Admin.']);
         }
 
         $storeIds = array_values(array_unique(array_filter($validated['store_ids'] ?? [])));
         if ($role && ! in_array($role->key, ['admin', 'super_admin']) && empty($storeIds)) {
-            return redirect()->back()->withInput()->withErrors(['store_ids' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.']);
+            return $this->redirectUsersIndexWithInput($request, ['store_ids' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.']);
         }
 
-        $validated['password'] = Hash::make($validated['password']);
+        // El modelo User usa cast 'hashed'; no aplicar Hash::make aquí
+        $plainPassword = $validated['password'];
+        unset($validated['password']);
         $validated['store_id'] = ! empty($storeIds) ? (int) $storeIds[0] : null;
 
         if ($role && $role->key === 'super_admin') {
@@ -139,7 +171,7 @@ class UserController extends Controller
 
         try {
             $validated['is_active'] = true;
-            $user = User::create($validated);
+            $user = User::create(array_merge($validated, ['password' => $plainPassword]));
             if ($isSuperAdmin && ! empty($validated['company_access']) && $role && $role->key !== 'super_admin') {
                 $sync = [];
                 $cuStoreIds = [];
@@ -238,27 +270,24 @@ class UserController extends Controller
             $rules['company_access.*.role_id'] = 'required|exists:roles,id';
             $rules['company_access.*.store_id'] = 'nullable|exists:stores,id';
         }
-        $validated = $request->validate($rules);
+        $validated = $this->validateUserForm($request, $rules);
 
-        if (! empty($validated['password'])) {
-            $validated['password'] = Hash::make($validated['password']);
-        } else {
-            unset($validated['password']);
-        }
+        $newPassword = $request->filled('password') ? $request->input('password') : null;
+        unset($validated['password']);
 
         $newRole = Role::find($validated['role_id']);
 
         if ($newRole && $newRole->key === 'super_admin' && ! $isSuperAdmin) {
-            return redirect()->back()->withInput()->withErrors(['role_id' => 'No tienes permiso para asignar el rol Super Admin.']);
+            return $this->redirectUsersIndexWithInput($request, ['role_id' => 'No tienes permiso para asignar el rol Super Admin.'], $user->id);
         }
 
         if ($user->isSuperAdmin() && $newRole && $newRole->key !== 'super_admin' && ! $isSuperAdmin) {
-            return redirect()->back()->withInput()->withErrors(['role_id' => 'No tienes permiso para cambiar el rol de un Super Admin.']);
+            return $this->redirectUsersIndexWithInput($request, ['role_id' => 'No tienes permiso para cambiar el rol de un Super Admin.'], $user->id);
         }
 
         $storeIds = array_values(array_unique(array_filter($validated['store_ids'] ?? [])));
         if ($newRole && ! in_array($newRole->key, ['admin', 'super_admin']) && empty($storeIds)) {
-            return redirect()->back()->withInput()->withErrors(['store_ids' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.']);
+            return $this->redirectUsersIndexWithInput($request, ['store_ids' => 'Los usuarios que no son administradores deben tener al menos una tienda asignada.'], $user->id);
         }
 
         $validated['store_id'] = ! empty($storeIds) ? (int) $storeIds[0] : null;
@@ -274,6 +303,9 @@ class UserController extends Controller
 
         try {
             $user->update($validated);
+            if ($newPassword !== null) {
+                $user->forceFill(['password' => $newPassword])->save();
+            }
             if ($isSuperAdmin && $user->isSuperAdmin() === false && isset($validated['company_access'])) {
                 $sync = [];
                 $cuStoreIds = [];

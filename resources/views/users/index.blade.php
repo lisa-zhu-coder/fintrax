@@ -112,6 +112,7 @@
             <input type="hidden" name="redirect_inactive" value="1">
             @endif
             <input type="hidden" name="_method" id="formMethod" value="POST">
+            <input type="hidden" name="edit_user_id" id="edit_user_id" value="{{ old('edit_user_id') }}">
             
             <div class="flex items-start justify-between gap-4 mb-4">
                 <div>
@@ -314,6 +315,11 @@ function initCompanyAccessSection() {
 
 document.addEventListener('DOMContentLoaded', function() {
     initCompanyAccessSection();
+    @if($errors->any() && old('_method') === 'PUT' && old('edit_user_id'))
+    openUserModal({{ (int) old('edit_user_id') }});
+    @elseif($errors->any() && old('_method') !== 'PUT')
+    openUserModal();
+    @endif
     const form = document.getElementById('userForm');
     if (form) {
         form.addEventListener('submit', function() {
@@ -355,13 +361,16 @@ function openUserModal(userId = null) {
         var tb = document.getElementById('toggleUserPassword');
         if (tb) { tb.setAttribute('title', 'Mostrar contraseña'); tb.setAttribute('aria-label', 'Mostrar contraseña'); }
     }
+    const editUserIdEl = document.getElementById('edit_user_id');
     if (userId) {
         title.textContent = 'Editar usuario';
         passwordLabel.textContent = 'Nueva contraseña';
         passwordInput.removeAttribute('required');
+        passwordInput.value = '';
         passwordHint.classList.remove('hidden');
         form.action = `/users/${userId}`;
         formMethod.value = 'PUT';
+        if (editUserIdEl) editUserIdEl.value = String(userId);
         
         fetch(`{{ url('users') }}/${userId}`, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
@@ -406,6 +415,7 @@ function openUserModal(userId = null) {
         passwordHint.classList.add('hidden');
         form.action = '{{ route("users.store") }}';
         formMethod.value = 'POST';
+        if (editUserIdEl) editUserIdEl.value = '';
         form.reset();
         const container = document.getElementById('companyAccessContainer');
         if (container) {

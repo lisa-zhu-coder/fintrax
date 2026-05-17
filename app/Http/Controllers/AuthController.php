@@ -177,7 +177,7 @@ class AuthController extends Controller
                     'username' => 'admin',
                     'name' => 'Administrador',
                     'email' => 'admin@miramira.com',
-                    'password' => Hash::make('admin123'),
+                    'password' => 'admin123',
                     'role_id' => $adminRole->id,
                     'store_id' => null,
                 ]);

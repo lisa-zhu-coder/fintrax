@@ -235,6 +235,11 @@ class PayrollController extends Controller
                     $errors[] = 'No se pudo guardar el PDF en el servidor (fila ' . ($index + 1) . ').';
                     continue;
                 }
+                $pdfBinary = Storage::disk('local')->get($finalPath) ?: '';
+                if ($pdfBinary === '') {
+                    $errors[] = 'El PDF quedó vacío tras guardarlo (fila ' . ($index + 1) . ').';
+                    continue;
+                }
                 $date = isset($item['date']) ? \Carbon\Carbon::parse($item['date']) : now();
                 $payroll = $employee->payrolls()->create([
                     'file_name' => $customFileName,
@@ -242,7 +247,7 @@ class PayrollController extends Controller
                     'month' => $item['month'],
                     'year' => $item['year'],
                     'file_path' => $finalPath,
-                    'base64_content' => null,
+                    'base64_content' => base64_encode($pdfBinary),
                     'matched_by' => 'manual',
                 ]);
                 $payrollsByIndex[$index] = $payroll;
@@ -469,12 +474,11 @@ class PayrollController extends Controller
 
     public function view(Payroll $payroll)
     {
-        $payroll->loadMissing('employee.stores');
         $this->authorizePayrollView($payroll);
 
         $pdfContent = $this->resolvePayrollPdfContent($payroll);
         if ($pdfContent === '') {
-            abort(404, 'No se encontró el archivo PDF de esta nómina. Puede que se haya perdido del servidor; vuelve a subirla.');
+            abort(404, 'No se encontró el archivo PDF de esta nómina. Elimínala y vuelve a subirla.');
         }
 
         $this->ensurePayrollFileOnDisk($payroll, $pdfContent);
@@ -487,9 +491,13 @@ class PayrollController extends Controller
     private function authorizePayrollView(Payroll $payroll): void
     {
         $user = Auth::user();
-        $employee = $payroll->employee;
+        $employee = Employee::withoutGlobalScopes()
+            ->withTrashed()
+            ->with('stores')
+            ->find($payroll->employee_id);
+
         if (! $employee) {
-            abort(404);
+            abort(404, 'Empleado no encontrado para esta nómina.');
         }
 
         if ($user->isSuperAdmin() || $user->isAdmin()) {
@@ -497,7 +505,8 @@ class PayrollController extends Controller
         }
 
         $companyId = session('company_id') ?? $user->company_id;
-        if ((int) $employee->company_id !== (int) $companyId) {
+        if ($employee->company_id !== null && $companyId !== null
+            && (int) $employee->company_id !== (int) $companyId) {
             abort(404);
         }
 
@@ -561,7 +570,9 @@ class PayrollController extends Controller
             }
         }
 
-        return $this->decodePayrollBase64($payroll->base64_content);
+        return $this->decodePayrollBase64(
+            Payroll::withoutGlobalScopes()->whereKey($payroll->id)->value('base64_content')
+        );
     }
 
     private function decodePayrollBase64(?string $base64): string

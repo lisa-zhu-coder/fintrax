@@ -158,6 +158,46 @@ class User extends Authenticatable
         return false;
     }
 
+    /** Acceso al área de envío/gestión de nóminas (menú RR.HH.). */
+    public function canAccessPayrollArea(): bool
+    {
+        return $this->hasAnyPermission([
+            'hr.payroll.view',
+            'hr.payroll.upload',
+            'hr.payroll.send',
+            'hr.payroll.delete',
+            'hr.employees.configure',
+        ]);
+    }
+
+    /** Ver la sección de nóminas en la ficha de un empleado. */
+    public function canViewPayrollSection(?Employee $employee = null): bool
+    {
+        if ($this->canAccessPayrollArea()) {
+            return true;
+        }
+
+        return $employee
+            && $this->hasPermission('hr.employees.view_own')
+            && (int) $employee->user_id === (int) $this->id;
+    }
+
+    /** Abrir el PDF de una nómina. */
+    public function canViewPayrollPdf(?Employee $employee = null): bool
+    {
+        if ($this->isSuperAdmin() || $this->isAdmin()) {
+            return true;
+        }
+
+        if ($this->hasAnyPermission(['hr.payroll.view', 'hr.payroll.upload', 'hr.payroll.delete', 'hr.employees.configure'])) {
+            return true;
+        }
+
+        return $employee
+            && $this->hasPermission('hr.employees.view_own')
+            && (int) $employee->user_id === (int) $this->id;
+    }
+
     /**
      * Super Admin: acceso total a todas las empresas. No pertenece a ninguna empresa fija.
      * Puede crear empresas, ver todas las empresas y acceder a cualquier empresa.

@@ -245,10 +245,7 @@
             </div>
             @endif
 
-            @if(auth()->user()->hasPermission('hr.payroll.view')
-                || auth()->user()->hasPermission('hr.payroll.upload')
-                || auth()->user()->hasPermission('hr.payroll.delete')
-                || auth()->user()->hasPermission('hr.employees.configure'))
+            @if(auth()->user()->canViewPayrollSection($employee))
             <!-- Nóminas -->
             <div class="rounded-xl border-2 border-indigo-100 bg-indigo-50/30 p-4 ring-1 ring-indigo-100">
                 <div class="mb-4 flex items-center justify-between">
@@ -282,7 +279,7 @@
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
-                                @if(auth()->user()->hasPermission('hr.payroll.view'))
+                                @if(auth()->user()->canViewPayrollPdf($employee))
                                 <a href="{{ route('payrolls.view', $payroll) }}" target="_blank" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">Ver</a>
                                 @endif
                                 @if(auth()->user()->hasPermission('hr.payroll.delete'))

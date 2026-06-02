@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\Storage;
 
 class PruneBrokenPayrolls extends Command
 {
-    protected $signature = 'payrolls:prune-broken {--dry-run : No borra, solo muestra qué eliminaría}';
+    protected $signature = 'payrolls:prune-broken
+                            {--dry-run : No borra, solo muestra qué eliminaría}
+                            {--force : Borra sin pedir confirmación}';
 
     protected $description = 'Elimina nóminas irrecuperables (sin PDF en disco y sin base64).';
 
@@ -16,6 +18,7 @@ class PruneBrokenPayrolls extends Command
     {
         $disk = Storage::disk('local');
         $dryRun = (bool) $this->option('dry-run');
+        $force = (bool) $this->option('force');
 
         $brokenIds = [];
         Payroll::withTrashed()->orderBy('id')->chunk(200, function ($payrolls) use ($disk, &$brokenIds) {
@@ -44,10 +47,12 @@ class PruneBrokenPayrolls extends Command
             return self::SUCCESS;
         }
 
-        if (! $this->confirm('¿Seguro que quieres eliminarlas? Esta acción no se puede deshacer.')) {
-            $this->info('Cancelado.');
+        if (! $force) {
+            if (! $this->confirm('¿Seguro que quieres eliminarlas? Esta acción no se puede deshacer.')) {
+                $this->info('Cancelado.');
 
-            return self::SUCCESS;
+                return self::SUCCESS;
+            }
         }
 
         $deleted = 0;

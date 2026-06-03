@@ -174,11 +174,16 @@ class DeclaredSalesFromDailyClosesService
         if ($businessOption !== null) {
             $business = \App\Models\CompanyBusiness::withoutGlobalScopes()
                 ->when(is_numeric($businessOption), fn ($q) => $q->where('id', (int) $businessOption))
-                ->when(! is_numeric($businessOption), fn ($q) => $q->where('slug', $businessOption))
+                ->when(! is_numeric($businessOption), function ($q) use ($businessOption) {
+                    $q->where('slug', $businessOption)
+                        ->orWhereRaw('LOWER(slug) = ?', [mb_strtolower($businessOption)]);
+                })
                 ->first();
 
             if (! $business) {
-                throw new \InvalidArgumentException("Negocio no encontrado: {$businessOption}");
+                throw new \InvalidArgumentException(
+                    "Negocio no encontrado: «{$businessOption}». Ejecuta: php artisan declared-sales:regenerate --list"
+                );
             }
 
             $store = Store::withoutGlobalScopes()->where('slug', $business->slug)->first();

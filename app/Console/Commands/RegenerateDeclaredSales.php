@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\CompanyBusiness;
 use App\Services\DeclaredSalesFromDailyClosesService;
 use App\Support\StoreVatRates;
 use Illuminate\Console\Command;
@@ -12,6 +13,7 @@ class RegenerateDeclaredSales extends Command
                             {--store= : ID o slug de la tienda}
                             {--business= : ID o slug del negocio (company_businesses)}
                             {--month= : Solo un mes Y-m (ej. 2025-03)}
+                            {--list : Muestra negocios disponibles (id, slug, nombre, IVA)}
                             {--dry-run : Lista meses y IVA sin guardar cambios}
                             {--force : Ejecutar sin pedir confirmación}';
 
@@ -19,6 +21,19 @@ class RegenerateDeclaredSales extends Command
 
     public function handle(DeclaredSalesFromDailyClosesService $service): int
     {
+        if ($this->option('list')) {
+            $this->listBusinesses();
+
+            return self::SUCCESS;
+        }
+
+        if ($this->option('business') === null && $this->option('store') === null) {
+            $this->error('Indica --business= o --store= (id o slug real). Usa --list para ver los negocios.');
+            $this->listBusinesses();
+
+            return self::FAILURE;
+        }
+
         try {
             $stores = $service->resolveStores(
                 $this->option('store'),
@@ -26,6 +41,9 @@ class RegenerateDeclaredSales extends Command
             );
         } catch (\InvalidArgumentException $e) {
             $this->error($e->getMessage());
+            $this->newLine();
+            $this->warn('Negocios en la base de datos:');
+            $this->listBusinesses();
 
             return self::FAILURE;
         }
@@ -77,5 +95,32 @@ class RegenerateDeclaredSales extends Command
         ));
 
         return self::SUCCESS;
+    }
+
+    private function listBusinesses(): void
+    {
+        $businesses = CompanyBusiness::withoutGlobalScopes()
+            ->orderBy('company_id')
+            ->orderBy('name')
+            ->get(['id', 'company_id', 'name', 'slug', 'vat_rate']);
+
+        if ($businesses->isEmpty()) {
+            $this->warn('No hay negocios en company_businesses.');
+
+            return;
+        }
+
+        $this->table(
+            ['ID', 'Empresa', 'Slug (usar en --business=)', 'Nombre', 'IVA %'],
+            $businesses->map(fn ($b) => [
+                $b->id,
+                $b->company_id,
+                $b->slug,
+                $b->name,
+                $b->vat_rate ?? '21',
+            ])->all()
+        );
+
+        $this->line('Ejemplo: php artisan declared-sales:regenerate --business=' . $businesses->first()->slug . ' --dry-run');
     }
 }

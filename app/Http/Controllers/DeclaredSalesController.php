@@ -10,6 +10,8 @@ use App\Models\FinancialEntry;
 use App\Models\Store;
 use App\Models\StoreCashReduction;
 use App\Services\DeclaredSalesRegistroPdf;
+use App\Support\StoreVatRates;
+use App\Support\VatCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -151,11 +153,12 @@ class DeclaredSalesController extends Controller
         $callback = function () use ($dailyRows) {
             $stream = fopen('php://output', 'w');
             fprintf($stream, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8 para Excel
-            fputcsv($stream, ['Fecha', 'Tienda', 'TPV (€)', 'Efectivo (€)', 'Total con IVA (€)', 'Total sin IVA (€)'], ';');
+            fputcsv($stream, ['Fecha', 'Tienda', 'IVA (%)', 'TPV (€)', 'Efectivo (€)', 'Total con IVA (€)', 'Total sin IVA (€)'], ';');
             foreach ($dailyRows as $row) {
                 fputcsv($stream, [
                     $row['date']->locale('es')->translatedFormat('l, d \d\e F \d\e Y'),
                     $row['store_name'],
+                    number_format($row['vat_rate'] ?? 21, 2, ',', ''),
                     number_format($row['bank_amount'], 2, ',', ''),
                     number_format($row['cash_amount'], 2, ',', ''),
                     number_format($row['total_with_vat'], 2, ',', ''),
@@ -195,6 +198,7 @@ class DeclaredSalesController extends Controller
         }
         $endDate = $monthStart->copy()->endOfMonth();
         $stores = Store::whereIn('id', $storeIds)->get()->keyBy('id');
+        $vatRatesByStore = StoreVatRates::mapForStores($stores);
         $cashReductions = StoreCashReduction::forCurrentCompany()->whereIn('store_id', $storeIds)->get()->keyBy('store_id');
 
         $dailyCloses = FinancialEntry::where('type', 'daily_close')
@@ -219,13 +223,14 @@ class DeclaredSalesController extends Controller
                 $close = $byDateStore[$key] ?? null;
                 $cashReduction = $cashReductions->get($storeId);
                 $cashReductionPercent = $cashReduction ? (float) $cashReduction->cash_reduction_percent : 0;
+                $vatRate = $vatRatesByStore[$storeId] ?? VatCalculator::DEFAULT_RATE;
 
                 if ($close) {
                     $bankAmount = (float) ($close->tpv ?? 0);
                     $cashAmountRaw = $close->calculateComputedCashSales();
                     $efectivoReducido = $cashAmountRaw * (1 - ($cashReductionPercent / 100));
                     $totalWithVat = $bankAmount + $efectivoReducido;
-                    $totalWithoutVat = $totalWithVat / 1.21;
+                    $totalWithoutVat = VatCalculator::amountWithoutVat($totalWithVat, $vatRate);
                 } else {
                     $bankAmount = $efectivoReducido = $totalWithVat = $totalWithoutVat = 0.0;
                 }
@@ -234,6 +239,7 @@ class DeclaredSalesController extends Controller
                     'date' => $current->copy(),
                     'store_id' => $storeId,
                     'store_name' => $stores->get($storeId)->name ?? '—',
+                    'vat_rate' => $vatRate,
                     'bank_amount' => round($bankAmount, 2),
                     'cash_amount' => round($efectivoReducido, 2),
                     'cash_reduction_percent' => $cashReductionPercent,
@@ -259,6 +265,7 @@ class DeclaredSalesController extends Controller
                 $byStore[$id] = [
                     'store_id' => $id,
                     'store_name' => $row['store_name'],
+                    'vat_rate' => $row['vat_rate'] ?? VatCalculator::DEFAULT_RATE,
                     'total_bank_amount' => 0,
                     'total_cash_amount' => 0,
                     'total_with_vat' => 0,
@@ -345,12 +352,11 @@ class DeclaredSalesController extends Controller
                 // efectivo_reducido = cash_amount * (1 - cash_reduction_percent / 100)
                 $efectivoReducido = $cashAmount * (1 - ($cashReductionPercent / 100));
 
-                // Calcular totales con y sin IVA
+                $vatRate = StoreVatRates::forStoreId((int) $storeId, $closes->first()?->store?->slug);
+
                 // total_with_vat = bank_amount + efectivo_reducido
                 $totalWithVat = $bankAmount + $efectivoReducido;
-
-                // total_without_vat = total_with_vat / 1.21
-                $totalWithoutVat = $totalWithVat / 1.21;
+                $totalWithoutVat = VatCalculator::amountWithoutVat($totalWithVat, $vatRate);
 
                 // Usar el primer día del mes como fecha representativa
                 $representativeDate = $startDate->copy();
@@ -368,6 +374,7 @@ class DeclaredSalesController extends Controller
                         'bank_amount' => round($bankAmount, 2),
                         'cash_amount' => round($cashAmount, 2),
                         'cash_reduction_percent' => $cashReductionPercent,
+                        'vat_rate' => $vatRate,
                         'total_with_vat' => round($totalWithVat, 2),
                         'total_without_vat' => round($totalWithoutVat, 2),
                     ]);
@@ -379,6 +386,7 @@ class DeclaredSalesController extends Controller
                         'bank_amount' => round($bankAmount, 2),
                         'cash_amount' => round($cashAmount, 2),
                         'cash_reduction_percent' => $cashReductionPercent,
+                        'vat_rate' => $vatRate,
                         'total_with_vat' => round($totalWithVat, 2),
                         'total_without_vat' => round($totalWithoutVat, 2),
                     ]);
@@ -454,6 +462,7 @@ class DeclaredSalesController extends Controller
                 $summary[$storeId] = [
                     'store_id' => $storeId,
                     'store_name' => $storeName,
+                    'vat_rate' => $sale->vat_rate ?? VatCalculator::DEFAULT_RATE,
                     'total_bank_amount' => 0,
                     'total_cash_amount' => 0,
                     'total_with_vat' => 0,

@@ -13,6 +13,7 @@ class DeclaredSale extends Model
         'bank_amount',
         'cash_amount',
         'cash_reduction_percent',
+        'vat_rate',
         'total_with_vat',
         'total_without_vat',
     ];
@@ -22,6 +23,7 @@ class DeclaredSale extends Model
         'bank_amount' => 'decimal:2',
         'cash_amount' => 'decimal:2',
         'cash_reduction_percent' => 'decimal:2',
+        'vat_rate' => 'decimal:2',
         'total_with_vat' => 'decimal:2',
         'total_without_vat' => 'decimal:2',
     ];

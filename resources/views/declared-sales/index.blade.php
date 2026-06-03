@@ -104,6 +104,7 @@
                 <thead class="text-xs uppercase text-slate-500">
                     <tr>
                         <th class="px-3 py-2">Tienda</th>
+                        <th class="px-3 py-2 text-right">IVA</th>
                         <th class="px-3 py-2 text-right">Banco</th>
                         <th class="px-3 py-2 text-right">Efectivo</th>
                         <th class="px-3 py-2 text-right">Sin IVA</th>
@@ -114,6 +115,7 @@
                     @foreach($monthlySummary as $summary)
                         <tr class="hover:bg-slate-50">
                             <td class="px-3 py-2 font-semibold">{{ $summary['store_name'] }}</td>
+                            <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($summary['vat_rate'] ?? 21, 0, ',', '.') }}%</td>
                             <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($summary['total_bank_amount'], 2, ',', '.') }} €</td>
                             <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($summary['total_cash_amount'], 2, ',', '.') }} €</td>
                             <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($summary['total_without_vat'], 2, ',', '.') }} €</td>
@@ -141,6 +143,7 @@
                     <tr>
                         <th class="px-3 py-2">Fecha</th>
                         <th class="px-3 py-2">Tienda</th>
+                        <th class="px-3 py-2 text-right">IVA</th>
                         <th class="px-3 py-2 text-right">Banco</th>
                         <th class="px-3 py-2 text-right">Efectivo</th>
                         <th class="px-3 py-2 text-right">Total sin IVA</th>
@@ -156,6 +159,7 @@
                                     <div class="text-xs text-slate-500">{{ $row['date']->translatedFormat('l') }}</div>
                                 </td>
                                 <td class="px-3 py-2 font-semibold">{{ $row['store_name'] }}</td>
+                                <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($row['vat_rate'] ?? 21, 0, ',', '.') }}%</td>
                                 <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($row['bank_amount'], 2, ',', '.') }} €</td>
                                 <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($row['cash_amount'], 2, ',', '.') }} €</td>
                                 <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($row['total_without_vat'], 2, ',', '.') }} €</td>
@@ -163,7 +167,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-3 py-6 text-center text-slate-500">No hay datos para el mes seleccionado.</td>
+                                <td colspan="7" class="px-3 py-6 text-center text-slate-500">No hay datos para el mes seleccionado.</td>
                             </tr>
                         @endforelse
                     @else
@@ -174,6 +178,7 @@
                                     <div class="text-xs text-slate-500">{{ $sale->date->format('F Y') }}</div>
                                 </td>
                                 <td class="px-3 py-2 font-semibold">{{ $sale->store ? $sale->store->name : 'Sin tienda' }}</td>
+                                <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($sale->vat_rate ?? 21, 0, ',', '.') }}%</td>
                                 <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($sale->bank_amount, 2, ',', '.') }} €</td>
                                 <td class="px-3 py-2 text-right whitespace-nowrap">{{ number_format($sale->cash_amount, 2, ',', '.') }} €</td>
                                 <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($sale->total_without_vat, 2, ',', '.') }} €</td>
@@ -181,7 +186,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-3 py-6 text-center text-slate-500">
+                                <td colspan="7" class="px-3 py-6 text-center text-slate-500">
                                     No hay ventas declaradas para el período seleccionado.
                                     @if(auth()->user()->hasPermission('declared_sales.main.create'))
                                         <div class="mt-2">

@@ -123,6 +123,7 @@ class CompanyController extends Controller
             'postal_code' => 'nullable|string|max:10',
             'city' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
+            'vat_rate' => 'required|numeric|min:0|max:100',
         ]);
 
         // Generar slug automáticamente desde el nombre
@@ -174,6 +175,7 @@ class CompanyController extends Controller
             'postal_code' => 'nullable|string|max:10',
             'city' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
+            'vat_rate' => 'required|numeric|min:0|max:100',
         ]);
 
         $oldSlug = $business->slug;

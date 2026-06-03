@@ -21,5 +21,20 @@ class CompanyBusiness extends Model
         'postal_code',
         'city',
         'email',
+        'vat_rate',
     ];
+
+    protected $casts = [
+        'vat_rate' => 'decimal:2',
+    ];
+
+    public static function vatRateOptions(): array
+    {
+        return [
+            '21' => '21% — General',
+            '10' => '10% — Reducido',
+            '4' => '4% — Superreducido',
+            '0' => '0% — Exento',
+        ];
+    }
 }

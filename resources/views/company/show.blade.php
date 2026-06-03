@@ -171,6 +171,8 @@
                     <span class="text-xs font-semibold text-slate-700">Correo electrónico</span>
                     <input type="email" name="email" value="{{ old('email') }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                 </label>
+
+                @include('company.partials.vat-rate-select', ['value' => old('vat_rate', 21)])
             </div>
             
             <div class="mt-4 flex items-center justify-end gap-2">
@@ -219,6 +221,10 @@
                     @if($business->email)
                     <div class="text-sm text-slate-600">{{ $business->email }}</div>
                     @endif
+                    <div class="text-sm text-slate-600">
+                        <span class="font-semibold text-slate-700">IVA:</span>
+                        {{ number_format($business->vat_rate ?? 21, 0, ',', '.') }}%
+                    </div>
                 </div>
 
                 {{-- Formulario de edición (oculto por defecto) --}}
@@ -248,6 +254,8 @@
                             <span class="text-xs font-semibold text-slate-700">Correo electrónico</span>
                             <input type="email" name="email" value="{{ $business->email }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                         </label>
+
+                        @include('company.partials.vat-rate-select', ['value' => $business->vat_rate ?? 21])
                     </div>
                     <div class="flex items-center justify-end gap-2">
                         <a href="{{ route('stores.edit', $business) }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cuentas bancarias</a>

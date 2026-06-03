@@ -9,12 +9,12 @@ use App\Models\DeclaredSale;
 use App\Models\FinancialEntry;
 use App\Models\Store;
 use App\Models\StoreCashReduction;
+use App\Services\DeclaredSalesFromDailyClosesService;
 use App\Services\DeclaredSalesRegistroPdf;
 use App\Support\StoreVatRates;
 use App\Support\VatCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class DeclaredSalesController extends Controller
@@ -294,7 +294,7 @@ class DeclaredSalesController extends Controller
      * Calcular totales con y sin IVA
      * Crear o actualizar registros de declared_sales
      */
-    public function generateFromDailyCloses(Request $request)
+    public function generateFromDailyCloses(Request $request, DeclaredSalesFromDailyClosesService $generator)
     {
         $validated = $request->validate([
             'month' => 'required|date_format:Y-m',
@@ -302,107 +302,28 @@ class DeclaredSalesController extends Controller
         ]);
 
         $month = Carbon::parse($validated['month'])->startOfMonth();
-        $startDate = $month->copy()->startOfMonth();
-        $endDate = $month->copy()->endOfMonth();
 
-        // Obtener cierres diarios (solo tiendas permitidas para el usuario)
         $enforcedStoreId = auth()->user()->getEnforcedStoreId();
         $storeIdParam = isset($validated['store_id']) ? (int) $validated['store_id'] : null;
         if ($enforcedStoreId !== null) {
             $storeIdParam = $enforcedStoreId;
         }
-        $query = FinancialEntry::where('type', 'daily_close')
-            ->whereBetween('date', [$startDate, $endDate]);
-        if ($storeIdParam !== null) {
-            $query->where('store_id', $storeIdParam);
+
+        $storeIds = $storeIdParam !== null ? [$storeIdParam] : null;
+
+        try {
+            $result = $generator->regenerateMonth($validated['month'], $storeIds);
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error al generar ventas declaradas: ' . $e->getMessage());
         }
 
-        $dailyCloses = $query->with('store')->get();
-
-        if ($dailyCloses->isEmpty()) {
+        if ($result['updated'] === 0 && $result['created'] === 0) {
             return redirect()->back()->with('error', 'No se encontraron cierres diarios para el período seleccionado.');
         }
 
-        // Obtener reducciones de efectivo por tienda (solo de la empresa actual)
-        $cashReductions = StoreCashReduction::forCurrentCompany()->get()->keyBy('store_id');
-
-        // Agrupar por tienda y mes para crear/actualizar registros
-        $groupedByStore = $dailyCloses->groupBy('store_id');
-
-        DB::beginTransaction();
-        try {
-            foreach ($groupedByStore as $storeId => $closes) {
-                // Obtener reducción de efectivo para esta tienda
-                $cashReduction = $cashReductions->get($storeId);
-                $cashReductionPercent = $cashReduction ? (float) $cashReduction->cash_reduction_percent : 0;
-
-                // Calcular totales
-                $bankAmount = 0;
-                $cashAmount = 0;
-
-                foreach ($closes as $close) {
-                    // bank_amount: suma de ingresos bancarios del cierre diario (TPV)
-                    $bankAmount += (float) ($close->tpv ?? 0);
-
-                    // cash_amount: suma de efectivo del cierre diario (SIN reducción aún)
-                    $cashAmount += $close->calculateComputedCashSales();
-                }
-
-                // Aplicar reducción de efectivo
-                // efectivo_reducido = cash_amount * (1 - cash_reduction_percent / 100)
-                $efectivoReducido = $cashAmount * (1 - ($cashReductionPercent / 100));
-
-                $vatRate = StoreVatRates::forStoreId((int) $storeId, $closes->first()?->store?->slug);
-
-                // total_with_vat = bank_amount + efectivo_reducido
-                $totalWithVat = $bankAmount + $efectivoReducido;
-                $totalWithoutVat = VatCalculator::amountWithoutVat($totalWithVat, $vatRate);
-
-                // Usar el primer día del mes como fecha representativa
-                $representativeDate = $startDate->copy();
-
-                // Buscar si ya existe un registro para este mes y tienda
-                $declaredSale = DeclaredSale::where('store_id', $storeId)
-                    ->whereYear('date', $representativeDate->year)
-                    ->whereMonth('date', $representativeDate->month)
-                    ->first();
-
-                if ($declaredSale) {
-                    // Actualizar registro existente
-                    $declaredSale->update([
-                        'date' => $representativeDate,
-                        'bank_amount' => round($bankAmount, 2),
-                        'cash_amount' => round($cashAmount, 2),
-                        'cash_reduction_percent' => $cashReductionPercent,
-                        'vat_rate' => $vatRate,
-                        'total_with_vat' => round($totalWithVat, 2),
-                        'total_without_vat' => round($totalWithoutVat, 2),
-                    ]);
-                } else {
-                    // Crear nuevo registro
-                    DeclaredSale::create([
-                        'date' => $representativeDate,
-                        'store_id' => $storeId,
-                        'bank_amount' => round($bankAmount, 2),
-                        'cash_amount' => round($cashAmount, 2),
-                        'cash_reduction_percent' => $cashReductionPercent,
-                        'vat_rate' => $vatRate,
-                        'total_with_vat' => round($totalWithVat, 2),
-                        'total_without_vat' => round($totalWithoutVat, 2),
-                    ]);
-                }
-            }
-
-            DB::commit();
-
-            $message = 'Ventas declaradas generadas correctamente para ' . $month->format('F Y');
-            return redirect()->route('declared-sales.index', ['month' => $validated['month']])
-                ->with('success', $message);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()->with('error', 'Error al generar ventas declaradas: ' . $e->getMessage());
-        }
+        $message = 'Ventas declaradas generadas correctamente para ' . $month->format('F Y');
+        return redirect()->route('declared-sales.index', ['month' => $validated['month']])
+            ->with('success', $message);
     }
 
     /**

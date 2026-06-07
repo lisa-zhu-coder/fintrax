@@ -66,11 +66,26 @@ class Order extends Model
 
     public function getPendingAmountAttribute(): float
     {
-        return max(0, $this->amount - $this->total_paid);
+        $amount = (float) $this->amount;
+        $paid = (float) $this->total_paid;
+        $pending = round($amount - $paid, 2);
+
+        if ($amount >= 0) {
+            return max(0, $pending);
+        }
+
+        return min(0, $pending);
     }
 
     public function getStatusAttribute(): string
     {
-        return $this->pending_amount > 0 ? 'pendiente' : 'pagado';
+        $amount = (float) $this->amount;
+        $paid = (float) $this->total_paid;
+
+        if ($amount >= 0) {
+            return $paid >= $amount ? 'pagado' : 'pendiente';
+        }
+
+        return $paid <= $amount ? 'pagado' : 'pendiente';
     }
 }

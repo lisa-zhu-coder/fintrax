@@ -190,8 +190,8 @@
                             </td>
                             <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($order->amount, 2, ',', '.') }} €</td>
                             <td class="px-3 py-2 text-right font-semibold text-emerald-700 whitespace-nowrap">{{ number_format($order->total_paid, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-semibold {{ ($order->amount - $order->total_paid) > 0 ? 'text-amber-700' : 'text-emerald-700' }} whitespace-nowrap">
-                                {{ number_format(max(0, $order->amount - $order->total_paid), 2, ',', '.') }} €
+                            <td class="px-3 py-2 text-right font-semibold {{ $order->pending_amount != 0 ? 'text-amber-700' : 'text-emerald-700' }} whitespace-nowrap">
+                                {{ number_format($order->pending_amount, 2, ',', '.') }} €
                             </td>
                             <td class="px-3 py-2 text-slate-600">
                                 @php

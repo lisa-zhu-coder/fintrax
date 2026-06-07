@@ -24,9 +24,8 @@ class ExpenseOrderSyncService
             return;
         }
 
-        $amount = (float) ($entry->total_amount ?? $entry->expense_amount ?? $entry->amount ?? 0);
-        $orderAmount = round(abs($amount), 2);
-        if ($orderAmount <= 0) {
+        $orderAmount = $this->resolveOrderAmountFromExpense($entry);
+        if ($orderAmount == 0.0) {
             return;
         }
 
@@ -96,9 +95,10 @@ class ExpenseOrderSyncService
         };
 
         if ($payments->isNotEmpty()) {
+            $orderAmount = (float) $order->amount;
             foreach ($payments as $p) {
-                $amt = round((float) ($p->amount ?? 0), 2);
-                if ($amt <= 0) {
+                $amt = $this->signedPaymentAmount((float) ($p->amount ?? 0), $orderAmount);
+                if ($amt == 0.0) {
                     continue;
                 }
                 $order->payments()->create([
@@ -111,8 +111,9 @@ class ExpenseOrderSyncService
             return;
         }
 
-        $paid = round((float) ($expense->paid_amount ?? 0), 2);
-        if ($paid <= 0) {
+        $orderAmount = (float) $order->amount;
+        $paid = $this->signedPaymentAmount((float) ($expense->paid_amount ?? 0), $orderAmount);
+        if ($paid == 0.0) {
             return;
         }
 
@@ -173,8 +174,7 @@ class ExpenseOrderSyncService
                 return;
             }
 
-            $amount = (float) ($fresh->total_amount ?? $fresh->expense_amount ?? $fresh->amount ?? 0);
-            $orderAmount = round(abs($amount), 2);
+            $orderAmount = $this->resolveOrderAmountFromExpense($fresh);
 
             $order->update([
                 'company_id' => $fresh->company_id,
@@ -268,5 +268,28 @@ class ExpenseOrderSyncService
         }
 
         return ['text' => (string) $notes];
+    }
+
+    private function resolveOrderAmountFromExpense(FinancialEntry $entry): float
+    {
+        $amount = (float) ($entry->total_amount ?? $entry->expense_amount ?? $entry->amount ?? 0);
+
+        return round($amount, 2);
+    }
+
+    private function signedPaymentAmount(float $paymentAmount, float $orderAmount): float
+    {
+        $amt = round($paymentAmount, 2);
+        if ($amt == 0.0) {
+            return 0.0;
+        }
+        if ($orderAmount < 0 && $amt > 0) {
+            return -$amt;
+        }
+        if ($orderAmount > 0 && $amt < 0) {
+            return abs($amt);
+        }
+
+        return $amt;
     }
 }

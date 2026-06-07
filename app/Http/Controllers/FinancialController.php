@@ -16,6 +16,7 @@ use App\Models\ExpensePayment;
 use App\Models\FinancialEntry;
 use App\Models\Order;
 use App\Models\OrderPayment;
+use App\Services\ExpenseOrderSyncService;
 use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\Transfer;
@@ -32,220 +33,49 @@ class FinancialController extends Controller
     use EnforcesStoreScope;
     use SyncsStoresFromBusinesses;
 
+    private function expenseOrderSync(): ExpenseOrderSyncService
+    {
+        return app(ExpenseOrderSyncService::class);
+    }
+
     /**
      * Asegura que un gasto con proveedor tenga un pedido asociado.
-     * Si el gasto ya proviene de un pedido (notes contiene order_id), no crea nada (evita duplicados).
      */
     private function ensureOrderForExpense(FinancialEntry $entry): void
     {
-        if ($entry->type !== 'expense' || empty($entry->supplier_id)) {
-            return;
-        }
-
-        $notes = $this->decodeEntryNotes($entry->notes);
-        if (! empty($notes['order_id'])) {
-            return;
-        }
-
-        $amount = (float) ($entry->total_amount ?? $entry->expense_amount ?? $entry->amount ?? 0);
-        $orderAmount = round(abs($amount), 2);
-        if ($orderAmount <= 0) {
-            return;
-        }
-
-        DB::transaction(function () use ($entry, $orderAmount) {
-            // Releer con lock para evitar duplicados en concurrencia
-            $fresh = FinancialEntry::query()->lockForUpdate()->find($entry->id);
-            if (! $fresh || $fresh->type !== 'expense' || empty($fresh->supplier_id)) {
-                return;
-            }
-            $freshNotes = $this->decodeEntryNotes($fresh->notes);
-            if (! empty($freshNotes['order_id'])) {
-                return;
-            }
-
-            $concept = $fresh->expense_concept ?? $fresh->concept ?? 'Gasto';
-
-            $order = Order::create([
-                'company_id' => $fresh->company_id,
-                'date' => $fresh->date,
-                'store_id' => $fresh->store_id,
-                'supplier_id' => $fresh->supplier_id,
-                // Orders requiere: concept(enum), order_number y (en la UI) invoice_number opcional
-                'concept' => 'pedido',
-                'order_number' => 'AUTO-GASTO-'.$fresh->id,
-                // En algunas BDs invoice_number NO es nullable (migración antigua). Usar string no vacío para evitar SQL error.
-                'invoice_number' => 'AUTO-GASTO-'.$fresh->id,
-                // Guardar descripción en history para no perder el concepto del gasto
-                'history' => [
-                    [
-                        'at' => now()->toIso8601String(),
-                        'action' => 'created_from_expense',
-                        'expense_id' => $fresh->id,
-                        'expense_concept' => $concept,
-                    ],
-                ],
-                'amount' => $orderAmount,
-            ]);
-
-            // Si el gasto tiene pagos (pagado o parcial), crear los mismos pagos en el pedido
-            $this->syncOrderPaymentsFromExpense($order, $fresh);
-
-            // Guardar enlace en notes para que el módulo Pedidos lo reconozca y evitar duplicados futuros
-            $freshNotes['order_id'] = $order->id;
-            $freshNotes['order_created_from'] = 'expense';
-            $fresh->forceFill(['notes' => json_encode($freshNotes)])->save();
-        });
+        $this->expenseOrderSync()->ensureOrderForExpense($entry);
     }
 
     /**
-     * Copia pagos del gasto al pedido (si existen). Mapea banco → transfer.
+     * Copia pagos del gasto al pedido (si existen).
      */
     private function syncOrderPaymentsFromExpense(Order $order, FinancialEntry $expense): void
     {
-        if ($expense->type !== 'expense') {
-            return;
-        }
-
-        // Preferir detalle de pagos si existe la tabla expense_payments y/o la relación
-        $payments = collect();
-        try {
-            if (Schema::hasTable('expense_payments')) {
-                $payments = $expense->expensePayments()->get();
-            }
-        } catch (\Exception $e) {
-            $payments = collect();
-        }
-
-        $mapMethod = function (?string $m): string {
-            $m = strtolower((string) $m);
-            return match ($m) {
-                'cash' => 'cash',
-                'card', 'tarjeta', 'datafono' => 'card',
-                'bank', 'transfer' => 'transfer',
-                default => 'transfer',
-            };
-        };
-
-        if ($payments->isNotEmpty()) {
-            foreach ($payments as $p) {
-                $amt = round((float) ($p->amount ?? 0), 2);
-                if ($amt <= 0) continue;
-                $order->payments()->create([
-                    'date' => $p->date,
-                    'method' => $mapMethod($p->method ?? null),
-                    'amount' => $amt,
-                ]);
-            }
-            return;
-        }
-
-        // Fallback: usar paid_amount + método del gasto
-        $paid = round((float) ($expense->paid_amount ?? 0), 2);
-        if ($paid <= 0) {
-            return;
-        }
-
-        $order->payments()->create([
-            'date' => $expense->payment_date ?? $expense->date,
-            'method' => $mapMethod($expense->expense_payment_method ?? null),
-            'amount' => $paid,
-        ]);
+        $this->expenseOrderSync()->syncOrderPaymentsFromExpense($order, $expense);
     }
 
     /**
-     * Si el gasto tiene un pedido auto-creado (notes.order_created_from === 'expense'), lo elimina y limpia las notes.
-     * Importante: NO toca pedidos reales creados en el módulo Pedidos.
+     * Elimina el pedido auto-creado desde un gasto.
      */
     private function removeAutoOrderForExpense(FinancialEntry $expense): void
     {
-        if ($expense->type !== 'expense') {
-            return;
-        }
-
-        DB::transaction(function () use ($expense) {
-            $fresh = FinancialEntry::query()->lockForUpdate()->find($expense->id);
-            if (! $fresh || $fresh->type !== 'expense') {
-                return;
-            }
-
-            $notes = $this->decodeEntryNotes($fresh->notes);
-            $orderId = $notes['order_id'] ?? null;
-            $createdFrom = $notes['order_created_from'] ?? null;
-
-            if ($orderId && $createdFrom === 'expense') {
-                Order::where('id', $orderId)->delete();
-                unset($notes['order_id'], $notes['order_created_from']);
-                $fresh->forceFill(['notes' => empty($notes) ? null : json_encode($notes)])->save();
-            }
-        });
+        $this->expenseOrderSync()->removeAutoOrderForExpense($expense);
     }
 
     /**
-     * Sincroniza el pedido auto-creado con el estado actual del gasto (importe, tienda, fecha, proveedor y pagos).
-     * Solo actúa si notes.order_created_from === 'expense'. Si no existe aún, lo crea.
+     * Sincroniza el pedido auto-creado con el gasto.
      */
     private function syncAutoOrderForExpense(FinancialEntry $expense): void
     {
-        if ($expense->type !== 'expense' || empty($expense->supplier_id)) {
-            return;
-        }
-
-        // Asegurar que exista pedido auto-creado (y notes.order_id)
-        $this->ensureOrderForExpense($expense);
-
-        DB::transaction(function () use ($expense) {
-            $fresh = FinancialEntry::query()->lockForUpdate()->find($expense->id);
-            if (! $fresh || $fresh->type !== 'expense' || empty($fresh->supplier_id)) {
-                return;
-            }
-
-            $notes = $this->decodeEntryNotes($fresh->notes);
-            $orderId = $notes['order_id'] ?? null;
-            $createdFrom = $notes['order_created_from'] ?? null;
-            if (! $orderId || $createdFrom !== 'expense') {
-                return;
-            }
-
-            $order = Order::find($orderId);
-            if (! $order) {
-                return;
-            }
-
-            $amount = (float) ($fresh->total_amount ?? $fresh->expense_amount ?? $fresh->amount ?? 0);
-            $orderAmount = round(abs($amount), 2);
-
-            $order->update([
-                'company_id' => $fresh->company_id,
-                'date' => $fresh->date,
-                'store_id' => $fresh->store_id,
-                'supplier_id' => $fresh->supplier_id,
-                'amount' => $orderAmount,
-            ]);
-
-            // Rehacer pagos para que reflejen el gasto (pagado/parcial/método)
-            $order->payments()->delete();
-            $this->syncOrderPaymentsFromExpense($order, $fresh);
-        });
+        $this->expenseOrderSync()->syncAutoOrderForExpense($expense);
     }
 
     /**
-     * Decodifica notes a array. Si es texto plano, lo conserva en key 'text'.
+     * Decodifica notes a array.
      */
     private function decodeEntryNotes($notes): array
     {
-        if ($notes === null || $notes === '') {
-            return [];
-        }
-        if (is_array($notes)) {
-            return $notes;
-        }
-        $decoded = @json_decode((string) $notes, true);
-        if (is_array($decoded)) {
-            return $decoded;
-        }
-
-        return ['text' => (string) $notes];
+        return $this->expenseOrderSync()->decodeEntryNotes($notes);
     }
 
     public function __construct()
@@ -2927,10 +2757,11 @@ class FinancialController extends Controller
         ]);
 
         $amount = (float) $request->expense_amount;
-        FinancialEntry::create([
+        $entry = FinancialEntry::create([
             'date' => $request->date,
             'reporting_month' => $reportingMonth,
             'store_id' => $storeId,
+            'supplier_id' => ! empty($request->supplier_id) ? $request->supplier_id : null,
             'type' => 'expense',
             'expense_category' => $request->expense_category,
             'expense_source' => 'control_efectivo',
@@ -2945,6 +2776,10 @@ class FinancialController extends Controller
             'notes' => $notes,
             'created_by' => Auth::id(),
         ]);
+
+        if (! empty($entry->supplier_id)) {
+            $this->syncAutoOrderForExpense($entry);
+        }
 
         return redirect()->route('financial.cash-control-month', [
             'store' => $storeId,
@@ -3613,6 +3448,10 @@ class FinancialController extends Controller
                 'financial_entry_id' => $financialEntry->id,
             ]);
 
+            if (! empty($financialEntry->supplier_id)) {
+                $this->syncAutoOrderForExpense($financialEntry);
+            }
+
             if ($request->wantsJson()) {
                 return response()->json(['success' => true]);
             }
@@ -4101,6 +3940,10 @@ class FinancialController extends Controller
                     'financial_entry_id' => $financialEntry->id,
                 ]);
 
+                if ($financialEntry->type === 'expense' && ! empty($financialEntry->supplier_id)) {
+                    $this->syncAutoOrderForExpense($financialEntry);
+                }
+
                 return redirect()->route('financial.bank-conciliation')
                     ->with('success', 'Registro financiero creado y movimiento conciliado correctamente.');
             }
@@ -4253,6 +4096,7 @@ class FinancialController extends Controller
             $financialEntry = FinancialEntry::create([
                 'date' => $bankMovement->date,
                 'store_id' => $validated['store_id'],
+                'supplier_id' => ! empty($validated['supplier_id']) ? $validated['supplier_id'] : null,
                 'type' => 'expense',
                 'expense_payment_method' => 'bank',
                 'expense_amount' => $amount,
@@ -4276,6 +4120,10 @@ class FinancialController extends Controller
                 'is_conciliated' => true,
                 'financial_entry_id' => $financialEntry->id,
             ]);
+
+            if (! empty($financialEntry->supplier_id)) {
+                $this->syncAutoOrderForExpense($financialEntry);
+            }
 
             return redirect()->route('financial.bank-conciliation')
                 ->with('success', 'Gasto creado y movimiento conciliado correctamente.');

@@ -11,6 +11,7 @@ use App\Models\CashWithdrawal;
 use App\Models\ExpenseCategory;
 use App\Models\FinancialEntry;
 use App\Models\OrderPayment;
+use App\Services\ExpenseOrderSyncService;
 use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\Transfer;
@@ -391,6 +392,10 @@ class CashWalletController extends Controller
                 'financial_entry_id' => $financialEntry->id,
                 'amount' => $validated['amount'],
             ]);
+
+            if (! empty($financialEntry->supplier_id)) {
+                app(ExpenseOrderSyncService::class)->syncAutoOrderForExpense($financialEntry);
+            }
 
             return redirect()->route('cash-wallets.show', $cashWallet)
                 ->with('success', 'Gasto registrado correctamente desde la cartera.');

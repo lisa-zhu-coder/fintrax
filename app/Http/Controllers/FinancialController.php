@@ -1068,6 +1068,53 @@ class FinancialController extends Controller
         ]);
     }
 
+    /**
+     * Actualiza solo el proveedor (edición inline en la tabla de gastos).
+     */
+    public function updateExpenseSupplier(Request $request, $entry)
+    {
+        $entry = FinancialEntry::findOrFail($entry);
+        if ($entry->type !== 'expense') {
+            abort(404);
+        }
+        if (! auth()->user()->hasPermission('financial.expenses.edit') && ! auth()->user()->hasPermission('financial.registros.edit')) {
+            abort(403, 'No tienes permiso para editar gastos.');
+        }
+        if (($entry->expense_source ?? '') === 'pedido') {
+            abort(403, 'El proveedor de gastos generados desde pedidos debe editarse en Pedidos.');
+        }
+        $this->authorizeStoreAccess($entry->store_id);
+
+        $validated = $request->validate([
+            'supplier_id' => 'nullable|exists:suppliers,id',
+        ]);
+
+        $newSupplierId = $validated['supplier_id'] ?? null;
+        if ($newSupplierId === '' || $newSupplierId === 0) {
+            $newSupplierId = null;
+        }
+
+        $oldSupplierId = $entry->supplier_id;
+        $entry->update(['supplier_id' => $newSupplierId]);
+        $entry->refresh();
+
+        if ($oldSupplierId && empty($entry->supplier_id)) {
+            $this->removeAutoOrderForExpense($entry);
+        }
+        if (! empty($entry->supplier_id)) {
+            $this->syncAutoOrderForExpense($entry);
+        }
+
+        $entry->load('supplier');
+        $label = $entry->supplier?->name ?? '—';
+
+        return response()->json([
+            'success' => true,
+            'supplier_id' => $entry->supplier_id,
+            'label' => $label,
+        ]);
+    }
+
     public function destroy($id)
     {
         try {

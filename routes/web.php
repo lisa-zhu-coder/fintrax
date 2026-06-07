@@ -204,6 +204,7 @@ Route::middleware(['auth', 'active.user', 'company'])->group(function () {
     Route::post('/financial/cash-deposits', [FinancialController::class, 'storeCashDeposit'])->name('financial.cash-deposits.store');
     Route::patch('/financial/{entry}/category', [FinancialController::class, 'updateExpenseCategory'])->name('financial.update-expense-category');
     Route::patch('/financial/{entry}/reporting-month', [FinancialController::class, 'updateReportingMonth'])->name('financial.update-reporting-month');
+    Route::patch('/financial/{entry}/supplier', [FinancialController::class, 'updateExpenseSupplier'])->name('financial.update-expense-supplier');
 
     Route::resource('financial', FinancialController::class);
 

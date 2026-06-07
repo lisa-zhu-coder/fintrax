@@ -249,7 +249,23 @@
                             </td>
                             <td class="px-3 py-2">{{ $entry->date->format('d/m/Y') }}</td>
                             <td class="px-3 py-2">{{ $entry->store->name }}</td>
-                            <td class="px-3 py-2">{{ $entry->supplier->name ?? '—' }}</td>
+                            <td class="px-3 py-2 expense-supplier-cell align-middle" data-entry-id="{{ $entry->id }}" data-current-value="{{ $entry->supplier_id ?? '' }}" data-current-label="{{ $entry->supplier->name ?? '—' }}" data-readonly="{{ ($entry->expense_source ?? '') === 'pedido' ? '1' : '0' }}">
+                                @if(($entry->expense_source ?? '') === 'pedido')
+                                    <span class="text-slate-600">{{ $entry->supplier->name ?? '—' }}</span>
+                                @elseif(auth()->user()->hasPermission('financial.expenses.edit') || auth()->user()->hasPermission('financial.registros.edit'))
+                                    <span class="expense-supplier-view inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700 cursor-pointer hover:ring-2 hover:ring-brand-300 hover:ring-offset-1 min-w-[2rem]" title="Clic para cambiar proveedor">
+                                        {{ $entry->supplier->name ?? '—' }}
+                                    </span>
+                                    <select class="expense-supplier-edit hidden w-full max-w-[200px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none ring-brand-200 focus:ring-2" data-entry-id="{{ $entry->id }}">
+                                        <option value="">— Sin proveedor</option>
+                                        @foreach($suppliers ?? [] as $s)
+                                            <option value="{{ $s->id }}" {{ (string) ($entry->supplier_id ?? '') === (string) $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
+                                        @endforeach
+                                    </select>
+                                @else
+                                    <span class="text-slate-600">{{ $entry->supplier->name ?? '—' }}</span>
+                                @endif
+                            </td>
                             <td class="px-3 py-2">{{ $entry->expense_concept ?? $entry->concept ?? '—' }}</td>
                             <td class="px-3 py-2 expense-category-cell align-middle" data-entry-id="{{ $entry->id }}" data-current-value="{{ e($entry->expense_category ?? '') }}" data-current-label="{{ $entry->expense_category ? ucfirst(str_replace('_', ' ', $entry->expense_category)) : '—' }}">
                                 @if(auth()->user()->hasPermission('financial.expenses.edit') || auth()->user()->hasPermission('financial.registros.edit'))
@@ -516,6 +532,62 @@
                 })
                 .catch(function() {
                     alert('No se pudo actualizar la categoría.');
+                    closeEdit();
+                });
+            });
+
+            selectEl.addEventListener('blur', function() {
+                setTimeout(closeEdit, 150);
+            });
+        });
+
+        // Edición inline de proveedor al hacer clic
+        document.querySelectorAll('.expense-supplier-cell').forEach(function(cell) {
+            if (cell.getAttribute('data-readonly') === '1') return;
+            const viewSpan = cell.querySelector('.expense-supplier-view');
+            const selectEl = cell.querySelector('.expense-supplier-edit');
+            if (!viewSpan || !selectEl) return;
+
+            viewSpan.addEventListener('click', function(e) {
+                e.stopPropagation();
+                viewSpan.classList.add('hidden');
+                selectEl.classList.remove('hidden');
+                selectEl.focus();
+            });
+
+            function closeEdit() {
+                selectEl.classList.add('hidden');
+                viewSpan.classList.remove('hidden');
+            }
+
+            selectEl.addEventListener('change', function() {
+                const entryId = selectEl.getAttribute('data-entry-id');
+                const value = selectEl.value;
+                const displayLabel = value
+                    ? (selectEl.options[selectEl.selectedIndex]?.text || '—')
+                    : '—';
+
+                fetch(updateCategoryUrl + '/' + entryId + '/supplier', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken || ''
+                    },
+                    body: JSON.stringify({ supplier_id: value || null })
+                })
+                .then(function(r) {
+                    if (!r.ok) throw new Error('Error al guardar');
+                    return r.json();
+                })
+                .then(function(data) {
+                    viewSpan.textContent = data.label || displayLabel;
+                    cell.setAttribute('data-current-value', data.supplier_id || '');
+                    cell.setAttribute('data-current-label', data.label || '—');
+                    closeEdit();
+                })
+                .catch(function() {
+                    alert('No se pudo actualizar el proveedor.');
                     closeEdit();
                 });
             });

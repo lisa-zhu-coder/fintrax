@@ -3,6 +3,16 @@
 @section('title', 'Pedidos')
 
 @section('content')
+@php
+    $ordersSortUrl = function (string $column, string $defaultDir = 'asc') {
+        return route('orders.index', array_merge(request()->query(), [
+            'sort_by' => $column,
+            'sort_dir' => request('sort_by') === $column
+                ? (request('sort_dir') === 'desc' ? 'asc' : 'desc')
+                : $defaultDir,
+        ]));
+    };
+@endphp
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <div class="flex items-center justify-between">
@@ -36,12 +46,12 @@
             <table class="min-w-full text-left text-sm">
                 <thead class="text-xs uppercase text-slate-500 bg-slate-50">
                     <tr>
-                        <th class="px-3 py-3">Proveedor</th>
-                        <th class="px-3 py-3">Tipo</th>
-                        <th class="px-3 py-3 text-right">Pedidos</th>
-                        <th class="px-3 py-3 text-right">Importe total</th>
-                        <th class="px-3 py-3 text-right">Importe pagado</th>
-                        <th class="px-3 py-3 text-right">Importe pendiente</th>
+                        @include('partials.sortable-th', ['label' => 'Proveedor', 'column' => 'supplier', 'defaultDir' => 'asc', 'url' => $ordersSortUrl('supplier', 'asc')])
+                        @include('partials.sortable-th', ['label' => 'Tipo', 'column' => 'type', 'defaultDir' => 'asc', 'url' => $ordersSortUrl('type', 'asc')])
+                        @include('partials.sortable-th', ['label' => 'Pedidos', 'column' => 'total_orders', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $ordersSortUrl('total_orders', 'desc')])
+                        @include('partials.sortable-th', ['label' => 'Importe total', 'column' => 'total_amount', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $ordersSortUrl('total_amount', 'desc')])
+                        @include('partials.sortable-th', ['label' => 'Importe pagado', 'column' => 'total_paid', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $ordersSortUrl('total_paid', 'desc')])
+                        @include('partials.sortable-th', ['label' => 'Importe pendiente', 'column' => 'total_pending', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $ordersSortUrl('total_pending', 'desc')])
                         <th class="px-3 py-3"></th>
                     </tr>
                 </thead>

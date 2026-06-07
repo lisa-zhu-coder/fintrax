@@ -63,6 +63,17 @@ class OrderController extends Controller
             ->values()
             ->all();
 
+        [$sortBy, $sortDir] = $this->resolveSortParams($request, [
+            'supplier' => 'asc',
+            'type' => 'asc',
+            'total_orders' => 'desc',
+            'total_amount' => 'desc',
+            'total_paid' => 'desc',
+            'total_pending' => 'desc',
+        ], 'supplier', 'asc');
+
+        $suppliersWithStats = $this->sortSuppliersWithStats($suppliersWithStats, $sortBy, $sortDir);
+
         return view('orders.index', compact('suppliersWithStats'));
     }
 
@@ -123,7 +134,30 @@ class OrderController extends Controller
         }
         $this->applyPeriodFilter($query, $period, $request);
 
-        $orders = $query->orderBy('date', 'desc')->get();
+        [$sortBy, $sortDir] = $this->resolveSortParams($request, [
+            'status' => 'asc',
+            'date' => 'desc',
+            'store' => 'asc',
+            'invoice_number' => 'asc',
+            'order_number' => 'asc',
+            'concept' => 'asc',
+            'amount' => 'desc',
+            'total_paid' => 'desc',
+            'pending' => 'desc',
+        ], 'date', 'desc');
+
+        $orders = $this->sortOrderCollection($query->get(), $sortBy, $sortDir);
+
+        [$storeSortBy, $storeSortDir] = $this->resolveSortParams($request, [
+            'store_name' => 'asc',
+            'store_total_orders' => 'desc',
+            'store_total_amount' => 'desc',
+            'store_total_paid' => 'desc',
+            'store_total_pending' => 'desc',
+        ], 'store_name', 'asc', 'store_sort_by', 'store_sort_dir');
+
+        $summaryByStore = $this->sortSummaryByStore($summaryByStore, $storeSortBy, $storeSortDir);
+
         $stores = $this->storesForCurrentUser();
 
         $filters = [
@@ -586,6 +620,105 @@ class OrderController extends Controller
         });
 
         return $summaryBySupplier;
+    }
+
+    /**
+     * @param  array<string, string>  $columnsWithDefaultDir
+     * @return array{0: string, 1: string}
+     */
+    private function resolveSortParams(
+        Request $request,
+        array $columnsWithDefaultDir,
+        string $fallbackColumn,
+        string $fallbackDir,
+        string $sortByKey = 'sort_by',
+        string $sortDirKey = 'sort_dir'
+    ): array {
+        $sortBy = (string) $request->get($sortByKey, $fallbackColumn);
+        if (! array_key_exists($sortBy, $columnsWithDefaultDir)) {
+            $sortBy = $fallbackColumn;
+        }
+
+        $defaultDir = $columnsWithDefaultDir[$sortBy] ?? $fallbackDir;
+        $sortDir = strtolower((string) $request->get($sortDirKey, $defaultDir));
+        if (! in_array($sortDir, ['asc', 'desc'], true)) {
+            $sortDir = $defaultDir;
+        }
+
+        return [$sortBy, $sortDir];
+    }
+
+    private function sortSuppliersWithStats(array $rows, string $sortBy, string $sortDir): array
+    {
+        $mult = $sortDir === 'desc' ? -1 : 1;
+
+        usort($rows, function ($a, $b) use ($sortBy, $mult) {
+            $cmp = match ($sortBy) {
+                'supplier' => strcasecmp($a['supplier']->name ?? '', $b['supplier']->name ?? ''),
+                'type' => strcasecmp(
+                    Supplier::TYPES[$a['supplier']->type ?? ''] ?? ($a['supplier']->type ?? ''),
+                    Supplier::TYPES[$b['supplier']->type ?? ''] ?? ($b['supplier']->type ?? '')
+                ),
+                'total_orders' => $a['total_orders'] <=> $b['total_orders'],
+                'total_amount' => (float) $a['total_amount'] <=> (float) $b['total_amount'],
+                'total_paid' => (float) $a['total_paid'] <=> (float) $b['total_paid'],
+                'total_pending' => (float) $a['total_pending'] <=> (float) $b['total_pending'],
+                default => 0,
+            };
+
+            return $mult * $cmp;
+        });
+
+        return $rows;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Order>|\Illuminate\Database\Eloquent\Collection<int, Order>  $orders
+     */
+    private function sortOrderCollection($orders, string $sortBy, string $sortDir)
+    {
+        $mult = $sortDir === 'desc' ? -1 : 1;
+
+        return $orders->sort(function ($a, $b) use ($sortBy, $mult) {
+            $cmp = match ($sortBy) {
+                'status' => strcmp($a->status, $b->status),
+                'date' => $a->date <=> $b->date,
+                'store' => strcasecmp($a->store?->name ?? '', $b->store?->name ?? ''),
+                'invoice_number' => strcasecmp((string) ($a->invoice_number ?? ''), (string) ($b->invoice_number ?? '')),
+                'order_number' => strcasecmp((string) ($a->order_number ?? ''), (string) ($b->order_number ?? '')),
+                'concept' => strcasecmp((string) ($a->concept ?? ''), (string) ($b->concept ?? '')),
+                'amount' => (float) $a->amount <=> (float) $b->amount,
+                'total_paid' => (float) $a->total_paid <=> (float) $b->total_paid,
+                'pending' => (float) $a->pending_amount <=> (float) $b->pending_amount,
+                default => $a->date <=> $b->date,
+            };
+
+            if ($cmp === 0) {
+                return $b->id <=> $a->id;
+            }
+
+            return $mult * $cmp;
+        })->values();
+    }
+
+    private function sortSummaryByStore(array $rows, string $sortBy, string $sortDir): array
+    {
+        $mult = $sortDir === 'desc' ? -1 : 1;
+
+        usort($rows, function ($a, $b) use ($sortBy, $mult) {
+            $cmp = match ($sortBy) {
+                'store_name' => strcmp($a['store_name'] ?? '', $b['store_name'] ?? ''),
+                'store_total_orders' => ($a['total_orders'] ?? 0) <=> ($b['total_orders'] ?? 0),
+                'store_total_amount' => (float) ($a['total_amount'] ?? 0) <=> (float) ($b['total_amount'] ?? 0),
+                'store_total_paid' => (float) ($a['total_paid'] ?? 0) <=> (float) ($b['total_paid'] ?? 0),
+                'store_total_pending' => (float) ($a['total_pending'] ?? 0) <=> (float) ($b['total_pending'] ?? 0),
+                default => strcmp($a['store_name'] ?? '', $b['store_name'] ?? ''),
+            };
+
+            return $mult * $cmp;
+        });
+
+        return $rows;
     }
 
     private function calculateSummary($orders)

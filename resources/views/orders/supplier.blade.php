@@ -3,6 +3,24 @@
 @section('title', 'Pedidos - ' . $supplier->name)
 
 @section('content')
+@php
+    $supplierOrdersSortUrl = function (string $column, string $defaultDir = 'asc') use ($supplier) {
+        return route('orders.supplier', array_merge(['supplier' => $supplier], request()->query(), [
+            'sort_by' => $column,
+            'sort_dir' => request('sort_by') === $column
+                ? (request('sort_dir') === 'desc' ? 'asc' : 'desc')
+                : $defaultDir,
+        ]));
+    };
+    $storeSummarySortUrl = function (string $column, string $defaultDir = 'asc') use ($supplier) {
+        return route('orders.supplier', array_merge(['supplier' => $supplier], request()->query(), [
+            'store_sort_by' => $column,
+            'store_sort_dir' => request('store_sort_by') === $column
+                ? (request('store_sort_dir') === 'desc' ? 'asc' : 'desc')
+                : $defaultDir,
+        ]));
+    };
+@endphp
 <div class="flex flex-col">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <div class="flex items-center justify-between">
@@ -39,11 +57,11 @@
             <table class="min-w-full text-left text-sm">
                 <thead class="text-xs uppercase text-slate-500">
                     <tr>
-                        <th class="px-3 py-2">Tienda</th>
-                        <th class="px-3 py-2 text-right">Pedidos</th>
-                        <th class="px-3 py-2 text-right">Total</th>
-                        <th class="px-3 py-2 text-right">Pagado</th>
-                        <th class="px-3 py-2 text-right">Pendiente</th>
+                        @include('partials.sortable-th', ['label' => 'Tienda', 'column' => 'store_name', 'defaultDir' => 'asc', 'url' => $storeSummarySortUrl('store_name', 'asc'), 'class' => 'py-2', 'sortByKey' => 'store_sort_by', 'sortDirKey' => 'store_sort_dir'])
+                        @include('partials.sortable-th', ['label' => 'Pedidos', 'column' => 'store_total_orders', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $storeSummarySortUrl('store_total_orders', 'desc'), 'class' => 'py-2', 'sortByKey' => 'store_sort_by', 'sortDirKey' => 'store_sort_dir'])
+                        @include('partials.sortable-th', ['label' => 'Total', 'column' => 'store_total_amount', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $storeSummarySortUrl('store_total_amount', 'desc'), 'class' => 'py-2', 'sortByKey' => 'store_sort_by', 'sortDirKey' => 'store_sort_dir'])
+                        @include('partials.sortable-th', ['label' => 'Pagado', 'column' => 'store_total_paid', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $storeSummarySortUrl('store_total_paid', 'desc'), 'class' => 'py-2', 'sortByKey' => 'store_sort_by', 'sortDirKey' => 'store_sort_dir'])
+                        @include('partials.sortable-th', ['label' => 'Pendiente', 'column' => 'store_total_pending', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $storeSummarySortUrl('store_total_pending', 'desc'), 'class' => 'py-2', 'sortByKey' => 'store_sort_by', 'sortDirKey' => 'store_sort_dir'])
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -68,6 +86,18 @@
     <div class="mt-10 rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <h2 class="mb-3 text-base font-semibold">Filtros</h2>
         <form id="supplier-orders-filter-form" method="GET" action="{{ route('orders.supplier', $supplier) }}" class="space-y-4">
+            @if(request('sort_by'))
+                <input type="hidden" name="sort_by" value="{{ request('sort_by') }}">
+            @endif
+            @if(request('sort_dir'))
+                <input type="hidden" name="sort_dir" value="{{ request('sort_dir') }}">
+            @endif
+            @if(request('store_sort_by'))
+                <input type="hidden" name="store_sort_by" value="{{ request('store_sort_by') }}">
+            @endif
+            @if(request('store_sort_dir'))
+                <input type="hidden" name="store_sort_dir" value="{{ request('store_sort_dir') }}">
+            @endif
             <div class="flex flex-wrap items-end gap-4">
                 <label class="block min-w-[200px]">
                     <span class="text-xs font-semibold text-slate-700">Buscar</span>
@@ -128,15 +158,15 @@
             <table class="min-w-full text-left text-sm">
                 <thead class="text-xs uppercase text-slate-500">
                     <tr>
-                        <th class="px-3 py-2">Estado</th>
-                        <th class="px-3 py-2">Fecha</th>
-                        <th class="px-3 py-2">Tienda</th>
-                        <th class="px-3 py-2">Nº Factura</th>
-                        <th class="px-3 py-2">Nº Pedido</th>
-                        <th class="px-3 py-2">Concepto</th>
-                        <th class="px-3 py-2 text-right">Importe</th>
-                        <th class="px-3 py-2 text-right">Pagado</th>
-                        <th class="px-3 py-2 text-right">Pendiente</th>
+                        @include('partials.sortable-th', ['label' => 'Estado', 'column' => 'status', 'defaultDir' => 'asc', 'url' => $supplierOrdersSortUrl('status', 'asc'), 'class' => 'py-2'])
+                        @include('partials.sortable-th', ['label' => 'Fecha', 'column' => 'date', 'defaultDir' => 'desc', 'url' => $supplierOrdersSortUrl('date', 'desc'), 'class' => 'py-2'])
+                        @include('partials.sortable-th', ['label' => 'Tienda', 'column' => 'store', 'defaultDir' => 'asc', 'url' => $supplierOrdersSortUrl('store', 'asc'), 'class' => 'py-2'])
+                        @include('partials.sortable-th', ['label' => 'Nº Factura', 'column' => 'invoice_number', 'defaultDir' => 'asc', 'url' => $supplierOrdersSortUrl('invoice_number', 'asc'), 'class' => 'py-2'])
+                        @include('partials.sortable-th', ['label' => 'Nº Pedido', 'column' => 'order_number', 'defaultDir' => 'asc', 'url' => $supplierOrdersSortUrl('order_number', 'asc'), 'class' => 'py-2'])
+                        @include('partials.sortable-th', ['label' => 'Concepto', 'column' => 'concept', 'defaultDir' => 'asc', 'url' => $supplierOrdersSortUrl('concept', 'asc'), 'class' => 'py-2'])
+                        @include('partials.sortable-th', ['label' => 'Importe', 'column' => 'amount', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $supplierOrdersSortUrl('amount', 'desc'), 'class' => 'py-2'])
+                        @include('partials.sortable-th', ['label' => 'Pagado', 'column' => 'total_paid', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $supplierOrdersSortUrl('total_paid', 'desc'), 'class' => 'py-2'])
+                        @include('partials.sortable-th', ['label' => 'Pendiente', 'column' => 'pending', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $supplierOrdersSortUrl('pending', 'desc'), 'class' => 'py-2'])
                         <th class="px-3 py-2">Formas de pago</th>
                         <th class="px-3 py-2 text-center">Acciones</th>
                     </tr>

@@ -94,8 +94,12 @@ class ExpenseOrderSyncService
             };
         };
 
+        $orderAmount = (float) $order->amount;
+        $paymentMethod = $mapMethod($expense->expense_payment_method ?? null);
+        $paymentDate = $expense->payment_date ?? $expense->date;
+        $created = 0;
+
         if ($payments->isNotEmpty()) {
-            $orderAmount = (float) $order->amount;
             foreach ($payments as $p) {
                 $amt = $this->signedPaymentAmount((float) ($p->amount ?? 0), $orderAmount);
                 if ($amt == 0.0) {
@@ -106,22 +110,32 @@ class ExpenseOrderSyncService
                     'method' => $mapMethod($p->method ?? null),
                     'amount' => $amt,
                 ]);
+                $created++;
             }
-
-            return;
+            if ($created > 0) {
+                return;
+            }
         }
 
-        $orderAmount = (float) $order->amount;
         $paid = $this->signedPaymentAmount((float) ($expense->paid_amount ?? 0), $orderAmount);
-        if ($paid == 0.0) {
+        if ($paid != 0.0) {
+            $order->payments()->create([
+                'date' => $paymentDate,
+                'method' => $paymentMethod,
+                'amount' => $paid,
+            ]);
+
             return;
         }
 
-        $order->payments()->create([
-            'date' => $expense->payment_date ?? $expense->date,
-            'method' => $mapMethod($expense->expense_payment_method ?? null),
-            'amount' => $paid,
-        ]);
+        // Gasto marcado como pagado (p. ej. conciliación bancaria) pero sin paid_amount en BD
+        if ($this->expenseIsFullyPaid($expense, $orderAmount)) {
+            $order->payments()->create([
+                'date' => $paymentDate,
+                'method' => $paymentMethod,
+                'amount' => $orderAmount,
+            ]);
+        }
     }
 
     public function removeAutoOrderForExpense(FinancialEntry $expense): void
@@ -291,5 +305,21 @@ class ExpenseOrderSyncService
         }
 
         return $amt;
+    }
+
+    private function expenseIsFullyPaid(FinancialEntry $expense, float $orderAmount): bool
+    {
+        if (($expense->status ?? '') === 'pagado') {
+            return abs($orderAmount) >= 0.005;
+        }
+
+        $total = (float) ($expense->total_amount ?? $expense->expense_amount ?? $expense->amount ?? 0);
+        $paid = (float) ($expense->paid_amount ?? 0);
+
+        if (abs($total) < 0.005) {
+            return true;
+        }
+
+        return abs($paid) >= abs($total) - 0.009;
     }
 }

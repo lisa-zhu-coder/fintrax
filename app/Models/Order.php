@@ -70,11 +70,15 @@ class Order extends Model
         $paid = (float) $this->total_paid;
         $pending = round($amount - $paid, 2);
 
-        if ($amount >= 0) {
-            return max(0, $pending);
+        if (abs($amount) < 0.005) {
+            return 0.0;
         }
 
-        return min(0, $pending);
+        if ($amount >= 0) {
+            return $pending > 0.009 ? $pending : 0.0;
+        }
+
+        return $pending < -0.009 ? $pending : 0.0;
     }
 
     public function getStatusAttribute(): string
@@ -82,10 +86,14 @@ class Order extends Model
         $amount = (float) $this->amount;
         $paid = (float) $this->total_paid;
 
-        if ($amount >= 0) {
-            return $paid >= $amount ? 'pagado' : 'pendiente';
+        if (abs($amount) < 0.005) {
+            return 'pagado';
         }
 
-        return $paid <= $amount ? 'pagado' : 'pendiente';
+        if ($amount >= 0) {
+            return $paid >= $amount - 0.009 ? 'pagado' : 'pendiente';
+        }
+
+        return $paid <= $amount + 0.009 ? 'pagado' : 'pendiente';
     }
 }

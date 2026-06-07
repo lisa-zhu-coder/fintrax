@@ -114,9 +114,27 @@ class OrderController extends Controller
         if ($request->filled('status') && in_array($request->status, ['pendiente', 'pagado'], true)) {
             $subSelect = 'SELECT COALESCE(SUM(amount), 0) FROM order_payments WHERE order_payments.order_id = orders.id AND order_payments.deleted_at IS NULL';
             if ($request->status === 'pendiente') {
-                $query->whereRaw("orders.amount > ({$subSelect})");
+                $query->where(function ($q) use ($subSelect) {
+                    $q->where(function ($q2) use ($subSelect) {
+                        $q2->where('orders.amount', '>', 0)
+                            ->whereRaw("orders.amount > ({$subSelect}) + 0.009");
+                    })->orWhere(function ($q2) use ($subSelect) {
+                        $q2->where('orders.amount', '<', 0)
+                            ->whereRaw("orders.amount < ({$subSelect}) - 0.009");
+                    });
+                });
             } else {
-                $query->whereRaw("orders.amount <= ({$subSelect})");
+                $query->where(function ($q) use ($subSelect) {
+                    $q->whereRaw('ABS(orders.amount) < 0.009')
+                        ->orWhere(function ($q2) use ($subSelect) {
+                            $q2->where('orders.amount', '>=', 0)
+                                ->whereRaw("({$subSelect}) >= orders.amount - 0.009");
+                        })
+                        ->orWhere(function ($q2) use ($subSelect) {
+                            $q2->where('orders.amount', '<', 0)
+                                ->whereRaw("({$subSelect}) <= orders.amount + 0.009");
+                        });
+                });
             }
         }
 

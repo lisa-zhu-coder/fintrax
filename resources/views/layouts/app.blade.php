@@ -354,6 +354,22 @@
                 margin: 0;
             }
         }
+        /* Submenú nivel 2: línea agrupadora para hijos nivel 3+ */
+        .sidebar-submenu-group {
+            margin-left: 0.5rem;
+            padding-left: 0.75rem;
+            border-left: 2px solid rgb(148 163 184 / 0.45);
+        }
+        .dark .sidebar-submenu-group {
+            border-left-color: rgb(100 116 139 / 0.55);
+        }
+        @media (min-width: 768px) {
+            #sidebar.sidebar-collapsed .sidebar-submenu-group {
+                border-left: none;
+                margin-left: 0;
+                padding-left: 0 !important;
+            }
+        }
         /* Sidebar responsive móvil */
         @media (max-width: 767px) {
             .sidebar-mobile {
@@ -513,56 +529,28 @@
                                     <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
                             </button>
-                            <div id="flowControlMenuItems" class="sidebar-submenu hidden mt-1 space-y-1 pl-4">
+                            <div id="flowControlMenuItems" class="sidebar-submenu sidebar-submenu-group hidden mt-1 space-y-1">
                                 @if(auth()->user()->hasAnyPermission(['treasury.cash_control.view', 'treasury.cash_wallets.view']))
-                                <div>
-                                    <button type="button" id="cashControlMenuToggle" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors">
-                                        <div class="flex items-center gap-3">
-                                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg>
-                                            <span class="sidebar-label">Control de efectivo</span>
-                                        </div>
-                                        <svg id="cashControlMenuIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="transition-transform duration-200 text-slate-400 shrink-0">
-                                            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </button>
-                                    <div id="cashControlMenuItems" class="hidden mt-1 space-y-1 pl-4">
-                                        @if(auth()->user()->hasPermission('treasury.cash_control.view'))
-                                        <a href="{{ route('financial.cash-control') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('financial.cash-control') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
-                                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                                            <span class="sidebar-submenu-text">Control de efectivo</span></a>
-                                        @endif
-                                        @if(auth()->user()->hasPermission('treasury.cash_wallets.view'))
-                                        <a href="{{ route('cash-wallets.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('cash-wallets.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
-                                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V8H6a2 2 0 01-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg>
-                                            <span class="sidebar-submenu-text">Carteras / monederos</span></a>
-                                        @endif
-                                    </div>
-                                </div>
+                                @php
+                                    $cashMenuUrl = auth()->user()->hasPermission('treasury.cash_control.view')
+                                        ? route('financial.cash-control')
+                                        : route('cash-wallets.index');
+                                    $cashMenuActive = request()->routeIs('financial.cash-control*', 'financial.cash-withdrawals.*', 'cash-wallets.*');
+                                @endphp
+                                <a href="{{ $cashMenuUrl }}" title="Control de efectivo" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ $cashMenuActive ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
+                                    <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg>
+                                    <span class="sidebar-submenu-text">Control de efectivo</span></a>
                                 @endif
                                 @if(auth()->user()->hasAnyPermission(['treasury.bank_control.view', 'treasury.bank_conciliation.view']))
-                                <div>
-                                    <button type="button" id="bankControlMenuToggle" title="Control de banco" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors">
-                                        <div class="flex items-center gap-3">
-                                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M5 6l7-3 7 3"/><path d="M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg>
-                                            <span class="sidebar-label">Control de banco</span>
-                                        </div>
-                                        <svg id="bankControlMenuIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="transition-transform duration-200 text-slate-400 shrink-0">
-                                            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </button>
-                                    <div id="bankControlMenuItems" class="sidebar-submenu hidden mt-1 space-y-1 pl-4">
-                                        @if(auth()->user()->hasPermission('treasury.bank_control.view'))
-                                        <a href="{{ route('financial.bank-control') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('financial.bank-control') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
-                                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v13M17 8v13M7 8v13M2 8v13M7 8h10a2 2 0 012 2v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a2 2 0 012-2z"/></svg>
-                                            <span class="sidebar-submenu-text">Control de banco</span></a>
-                                        @endif
-                                        @if(auth()->user()->hasPermission('treasury.bank_conciliation.view'))
-                                        <a href="{{ route('financial.bank-conciliation') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('financial.bank-conciliation') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
-                                            <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
-                                            <span class="sidebar-submenu-text">Conciliación bancaria</span></a>
-                                        @endif
-                                    </div>
-                                </div>
+                                @php
+                                    $bankMenuUrl = auth()->user()->hasPermission('treasury.bank_control.view')
+                                        ? route('financial.bank-control')
+                                        : route('financial.bank-conciliation');
+                                    $bankMenuActive = request()->routeIs('financial.bank-control', 'financial.bank-conciliation', 'financial.bank-import*', 'financial.bank-movements.*');
+                                @endphp
+                                <a href="{{ $bankMenuUrl }}" title="Control de banco" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ $bankMenuActive ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
+                                    <svg class="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M5 6l7-3 7 3"/><path d="M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg>
+                                    <span class="sidebar-submenu-text">Control de banco</span></a>
                                 @endif
                                 @if(auth()->user()->hasPermission('treasury.transfers.view'))
                                 <a href="{{ route('transfers.index') }}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ request()->routeIs('transfers.*') ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50' }}">
@@ -1161,40 +1149,6 @@
                     const isHidden = flowMenu.classList.contains('hidden');
                     if (isHidden) { flowMenu.classList.remove('hidden'); if (flowIcon) flowIcon.style.transform = 'rotate(180deg)'; }
                     else { flowMenu.classList.add('hidden'); if (flowIcon) flowIcon.style.transform = 'rotate(0deg)'; }
-                });
-            }
-
-            // Toggle Control de efectivo
-            const cashCtrlToggle = document.getElementById('cashControlMenuToggle');
-            const cashCtrlMenu = document.getElementById('cashControlMenuItems');
-            const cashCtrlIcon = document.getElementById('cashControlMenuIcon');
-            if (cashCtrlToggle && cashCtrlMenu) {
-                const path = window.location.pathname;
-                if (path.includes('/financial/cash-control') || path.includes('/cash-wallets')) {
-                    cashCtrlMenu.classList.remove('hidden');
-                    if (cashCtrlIcon) cashCtrlIcon.style.transform = 'rotate(180deg)';
-                }
-                cashCtrlToggle.addEventListener('click', function() {
-                    const isHidden = cashCtrlMenu.classList.contains('hidden');
-                    if (isHidden) { cashCtrlMenu.classList.remove('hidden'); if (cashCtrlIcon) cashCtrlIcon.style.transform = 'rotate(180deg)'; }
-                    else { cashCtrlMenu.classList.add('hidden'); if (cashCtrlIcon) cashCtrlIcon.style.transform = 'rotate(0deg)'; }
-                });
-            }
-
-            // Toggle Control de banco
-            const bankCtrlToggle = document.getElementById('bankControlMenuToggle');
-            const bankCtrlMenu = document.getElementById('bankControlMenuItems');
-            const bankCtrlIcon = document.getElementById('bankControlMenuIcon');
-            if (bankCtrlToggle && bankCtrlMenu) {
-                const path = window.location.pathname;
-                if (path.includes('/financial/bank-control') || path.includes('/financial/conciliation')) {
-                    bankCtrlMenu.classList.remove('hidden');
-                    if (bankCtrlIcon) bankCtrlIcon.style.transform = 'rotate(180deg)';
-                }
-                bankCtrlToggle.addEventListener('click', function() {
-                    const isHidden = bankCtrlMenu.classList.contains('hidden');
-                    if (isHidden) { bankCtrlMenu.classList.remove('hidden'); if (bankCtrlIcon) bankCtrlIcon.style.transform = 'rotate(180deg)'; }
-                    else { bankCtrlMenu.classList.add('hidden'); if (bankCtrlIcon) bankCtrlIcon.style.transform = 'rotate(0deg)'; }
                 });
             }
 

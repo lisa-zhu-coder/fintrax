@@ -5,6 +5,7 @@
 @section('content')
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+        @include('partials.treasury-section-tabs', ['group' => 'cash'])
         <div class="flex items-center justify-between">
             <div>
                 <div class="flex items-center gap-2 mb-1">

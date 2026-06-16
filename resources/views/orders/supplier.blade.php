@@ -4,6 +4,8 @@
 
 @section('content')
 @php
+    use App\Support\OrderTableSettings;
+
     $supplierOrdersSortUrl = function (string $column, string $defaultDir = 'asc') use ($supplier) {
         return route('orders.supplier', array_merge(['supplier' => $supplier], request()->query(), [
             'sort_by' => $column,
@@ -20,6 +22,8 @@
                 : $defaultDir,
         ]));
     };
+    $supplierStoreSummaryColumns = OrderTableSettings::visibleColumns('supplier_store_summary');
+    $supplierOrdersColumns = OrderTableSettings::visibleColumns('supplier_orders');
 @endphp
 <div class="flex flex-col">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
@@ -57,23 +61,23 @@
             <table class="min-w-full text-left text-sm">
                 <thead class="text-xs uppercase text-slate-500">
                     <tr>
-                        @include('partials.sortable-th', ['label' => 'Tienda', 'column' => 'store_name', 'defaultDir' => 'asc', 'url' => $storeSummarySortUrl('store_name', 'asc'), 'class' => 'py-2', 'sortByKey' => 'store_sort_by', 'sortDirKey' => 'store_sort_dir'])
-                        @include('partials.sortable-th', ['label' => 'Pedidos', 'column' => 'store_total_orders', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $storeSummarySortUrl('store_total_orders', 'desc'), 'class' => 'py-2', 'sortByKey' => 'store_sort_by', 'sortDirKey' => 'store_sort_dir'])
-                        @include('partials.sortable-th', ['label' => 'Total', 'column' => 'store_total_amount', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $storeSummarySortUrl('store_total_amount', 'desc'), 'class' => 'py-2', 'sortByKey' => 'store_sort_by', 'sortDirKey' => 'store_sort_dir'])
-                        @include('partials.sortable-th', ['label' => 'Pagado', 'column' => 'store_total_paid', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $storeSummarySortUrl('store_total_paid', 'desc'), 'class' => 'py-2', 'sortByKey' => 'store_sort_by', 'sortDirKey' => 'store_sort_dir'])
-                        @include('partials.sortable-th', ['label' => 'Pendiente', 'column' => 'store_total_pending', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $storeSummarySortUrl('store_total_pending', 'desc'), 'class' => 'py-2', 'sortByKey' => 'store_sort_by', 'sortDirKey' => 'store_sort_dir'])
+                        @foreach($supplierStoreSummaryColumns as $column)
+                            @include('partials.orders.table-header', [
+                                'column' => $column,
+                                'sortUrlCallback' => $storeSummarySortUrl,
+                                'sortByKey' => 'store_sort_by',
+                                'sortDirKey' => 'store_sort_dir',
+                                'defaultDir' => str_contains($column['sort_key'] ?? '', 'store_name') ? 'asc' : 'desc',
+                            ])
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @foreach($summaryByStore as $storeSummary)
                         <tr class="hover:bg-slate-50">
-                            <td class="px-3 py-2 font-semibold">{{ $storeSummary['store_name'] }}</td>
-                            <td class="px-3 py-2 text-right">{{ $storeSummary['total_orders'] }}</td>
-                            <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($storeSummary['total_amount'], 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right text-emerald-700 whitespace-nowrap">{{ number_format($storeSummary['total_paid'], 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-semibold {{ $storeSummary['total_pending'] > 0 ? 'text-amber-700' : 'text-emerald-700' }} whitespace-nowrap">
-                                {{ number_format($storeSummary['total_pending'], 2, ',', '.') }} €
-                            </td>
+                            @foreach($supplierStoreSummaryColumns as $column)
+                                @include('partials.orders.supplier-store-summary-cell', ['column' => $column, 'storeSummary' => $storeSummary])
+                            @endforeach
                         </tr>
                     @endforeach
                 </tbody>
@@ -158,95 +162,32 @@
             <table class="min-w-full text-left text-sm">
                 <thead class="text-xs uppercase text-slate-500">
                     <tr>
-                        @include('partials.sortable-th', ['label' => 'Estado', 'column' => 'status', 'defaultDir' => 'asc', 'url' => $supplierOrdersSortUrl('status', 'asc'), 'class' => 'py-2'])
-                        @include('partials.sortable-th', ['label' => 'Fecha', 'column' => 'date', 'defaultDir' => 'desc', 'url' => $supplierOrdersSortUrl('date', 'desc'), 'class' => 'py-2'])
-                        @include('partials.sortable-th', ['label' => 'Tienda', 'column' => 'store', 'defaultDir' => 'asc', 'url' => $supplierOrdersSortUrl('store', 'asc'), 'class' => 'py-2'])
-                        @include('partials.sortable-th', ['label' => 'Nº Factura', 'column' => 'invoice_number', 'defaultDir' => 'asc', 'url' => $supplierOrdersSortUrl('invoice_number', 'asc'), 'class' => 'py-2'])
-                        @include('partials.sortable-th', ['label' => 'Nº Pedido', 'column' => 'order_number', 'defaultDir' => 'asc', 'url' => $supplierOrdersSortUrl('order_number', 'asc'), 'class' => 'py-2'])
-                        @include('partials.sortable-th', ['label' => 'Concepto', 'column' => 'concept', 'defaultDir' => 'asc', 'url' => $supplierOrdersSortUrl('concept', 'asc'), 'class' => 'py-2'])
-                        @include('partials.sortable-th', ['label' => 'Importe', 'column' => 'amount', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $supplierOrdersSortUrl('amount', 'desc'), 'class' => 'py-2'])
-                        @include('partials.sortable-th', ['label' => 'Pagado', 'column' => 'total_paid', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $supplierOrdersSortUrl('total_paid', 'desc'), 'class' => 'py-2'])
-                        @include('partials.sortable-th', ['label' => 'Pendiente', 'column' => 'pending', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $supplierOrdersSortUrl('pending', 'desc'), 'class' => 'py-2'])
-                        <th class="px-3 py-2">Formas de pago</th>
-                        <th class="px-3 py-2 text-center">Acciones</th>
+                        @foreach($supplierOrdersColumns as $column)
+                            @include('partials.orders.table-header', [
+                                'column' => $column,
+                                'sortUrlCallback' => $supplierOrdersSortUrl,
+                                'defaultDir' => match($column['sort_key'] ?? '') {
+                                    'date', 'amount', 'total_paid', 'pending' => 'desc',
+                                    default => 'asc',
+                                },
+                            ])
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse($orders as $order)
                         <tr class="hover:bg-slate-50">
-                            <td class="px-3 py-2">
-                                <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold {{ $order->status === 'pagado' ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : 'bg-amber-50 text-amber-700 ring-amber-100' }} ring-1">
-                                    {{ ucfirst($order->status) }}
-                                </span>
-                            </td>
-                            <td class="px-3 py-2">{{ $order->date->format('d/m/Y') }}</td>
-                            <td class="px-3 py-2">{{ $order->store->name }}</td>
-                            <td class="px-3 py-2">{{ $order->invoice_number ?? '—' }}</td>
-                            <td class="px-3 py-2">{{ $order->order_number }}</td>
-                            <td class="px-3 py-2">
-                                <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold bg-brand-50 text-brand-700 ring-1 ring-brand-100">
-                                    {{ ucfirst($order->concept) }}
-                                </span>
-                            </td>
-                            <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ number_format($order->amount, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-semibold text-emerald-700 whitespace-nowrap">{{ number_format($order->total_paid, 2, ',', '.') }} €</td>
-                            <td class="px-3 py-2 text-right font-semibold {{ $order->pending_amount != 0 ? 'text-amber-700' : 'text-emerald-700' }} whitespace-nowrap">
-                                {{ number_format($order->pending_amount, 2, ',', '.') }} €
-                            </td>
-                            <td class="px-3 py-2 text-slate-600">
-                                @php
-                                    $methods = $order->payments->pluck('method')->unique()->map(function ($m) {
-                                        return match($m) {
-                                            'cash' => 'Efectivo',
-                                            'transfer' => 'Transferencia',
-                                            'card' => 'Tarjeta',
-                                            'bank' => 'Transferencia',
-                                            default => ucfirst($m ?? '—'),
-                                        };
-                                    })->unique()->values()->implode(', ');
-                                @endphp
-                                {{ $methods ?: '—' }}
-                            </td>
-                            <td class="px-3 py-2">
-                                <div class="flex items-center justify-center gap-1">
-                                    @php $invoice = $order->invoice(); @endphp
-                                    @if($invoice)
-                                        @php $mimeType = \Illuminate\Support\Facades\Storage::disk('local')->exists($invoice->file_path) ? \Illuminate\Support\Facades\Storage::disk('local')->mimeType($invoice->file_path) : 'application/octet-stream'; @endphp
-                                        <a href="#" data-invoice-preview data-invoice-id="{{ $invoice->id }}"
-                                           data-invoice-title="Previsualizar Factura"
-                                           data-invoice-subtitle="{{ $invoice->supplier_name ?: 'Sin proveedor' }} - {{ $invoice->invoice_number ?: 'Sin número' }}"
-                                           data-invoice-serve="{{ route('invoices.serve', $invoice->id) }}"
-                                           data-invoice-download="{{ route('invoices.download', $invoice->id) }}"
-                                           data-invoice-mime="{{ $mimeType }}"
-                                           class="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-brand-600" title="Ver factura">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                        </a>
-                                    @else
-                                        <span class="inline-flex w-8 justify-center text-slate-300">—</span>
-                                    @endif
-                                    <a href="{{ route('orders.show', $order) }}" class="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-brand-600" title="Ver">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                    </a>
-                                    @if(auth()->user()->hasPermission('orders.main.edit'))
-                                    <a href="{{ route('orders.edit', $order) }}" class="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-brand-50 hover:text-brand-600" title="Editar">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke-linecap="round" stroke-linejoin="round"/><path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                    </a>
-                                    @endif
-                                    @if(auth()->user()->hasPermission('orders.main.delete'))
-                                    <form method="POST" action="{{ route('orders.destroy', $order) }}" class="inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600" title="Eliminar">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke-linecap="round" stroke-linejoin="round"/><path d="m10 11 6 6m0-6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                        </button>
-                                    </form>
-                                    @endif
-                                </div>
-                            </td>
+                            @foreach($supplierOrdersColumns as $column)
+                                @include('partials.orders.supplier-orders-cell', [
+                                    'column' => $column,
+                                    'order' => $order,
+                                    'originStoresById' => $originStoresById,
+                                ])
+                            @endforeach
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="11" class="px-3 py-6 text-center text-slate-500">No hay pedidos para este proveedor</td>
+                            <td colspan="{{ count($supplierOrdersColumns) }}" class="px-3 py-6 text-center text-slate-500">No hay pedidos para este proveedor</td>
                         </tr>
                     @endforelse
                 </tbody>

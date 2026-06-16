@@ -33,6 +33,7 @@ class Company extends Model
         'daily_close_pos_cash_label',
         'daily_close_pos_card_label',
         'daily_close_vouchers_enabled',
+        'orders_table_settings',
         // Configuración correo RRHH (nóminas/documentos)
         'rrhh_mail_from_address',
         'rrhh_mail_from_name',
@@ -47,6 +48,7 @@ class Company extends Model
         'rings_inventory_enabled' => 'boolean',
         'clients_module_enabled' => 'boolean',
         'daily_close_vouchers_enabled' => 'boolean',
+        'orders_table_settings' => 'array',
     ];
 
     /**

@@ -96,4 +96,34 @@ class Order extends Model
 
         return $paid <= $amount + 0.009 ? 'pagado' : 'pendiente';
     }
+
+    public function splitTypeLabel(): string
+    {
+        $stores = $this->store_split['stores'] ?? null;
+
+        return is_array($stores) && count($stores) > 1 ? 'Conjunto' : 'Individual';
+    }
+
+    public function originStoreId(): ?int
+    {
+        $split = $this->store_split;
+
+        if (is_array($split) && ! empty($split['origin_store_id'])) {
+            return (int) $split['origin_store_id'];
+        }
+
+        if (! is_array($split) || empty($split['stores']) || count($split['stores']) <= 1) {
+            return $this->store_id;
+        }
+
+        $payment = $this->relationLoaded('payments')
+            ? $this->payments->first(fn (OrderPayment $payment) => $payment->cash_store_id)
+            : null;
+
+        if ($payment?->cash_store_id) {
+            return (int) $payment->cash_store_id;
+        }
+
+        return $this->store_id;
+    }
 }

@@ -25,7 +25,7 @@ class SettingsNavigation
             'dashboard' => ['label' => 'Ajuste dashboard', 'module' => null, 'hub_only' => true],
             'finance' => ['label' => 'Ajuste finanzas', 'module' => null],
             'invoices' => ['label' => 'Ajuste facturas', 'module' => null, 'hub_only' => true],
-            'orders' => ['label' => 'Ajuste pedidos', 'module' => null, 'hub_only' => true],
+            'orders' => ['label' => 'Ajuste pedidos', 'module' => null],
             'inventory' => ['label' => 'Ajuste inventarios', 'module' => null],
             'hr' => ['label' => 'Ajuste RR.HH.', 'module' => null],
             'clients' => ['label' => 'Ajuste clientes', 'module' => 'clients', 'hub_only' => true],
@@ -96,6 +96,14 @@ class SettingsNavigation
                     'routes' => ['email-templates-settings.*'],
                     'label' => 'Plantillas de email RRHH',
                     'permission' => 'settings.payroll_templates.manage',
+                ],
+            ],
+            'orders' => [
+                [
+                    'route' => 'order-table-settings.index',
+                    'routes' => ['order-table-settings.*'],
+                    'label' => 'Columnas de tablas',
+                    'permission' => 'orders.main.edit',
                 ],
             ],
         ];

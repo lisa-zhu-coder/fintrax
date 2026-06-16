@@ -233,6 +233,10 @@ Route::middleware(['auth', 'active.user', 'company'])->group(function () {
     // Ajustes - hubs de módulos (dashboard, facturas, pedidos, clientes…)
     Route::get('/settings/hub/{group}', [\App\Http\Controllers\SettingsHubController::class, 'show'])->name('settings-hub.show');
 
+    // Ajustes - columnas de tablas de pedidos
+    Route::get('/settings/orders/table-columns', [\App\Http\Controllers\OrderTableSettingsController::class, 'index'])->name('order-table-settings.index');
+    Route::put('/settings/orders/table-columns', [\App\Http\Controllers\OrderTableSettingsController::class, 'update'])->name('order-table-settings.update');
+
     // Configuración - Reducción de Efectivo por Tienda
     Route::get('/settings/cash-reductions', [StoreCashReductionController::class, 'index'])->name('store-cash-reductions.index');
     Route::put('/settings/cash-reductions', [StoreCashReductionController::class, 'update'])->name('store-cash-reductions.update');

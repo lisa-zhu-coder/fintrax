@@ -166,6 +166,9 @@ class OrderController extends Controller
 
         $orders = $this->sortOrderCollection($query->get(), $sortBy, $sortDir);
 
+        $originStoreIds = $orders->map(fn (Order $order) => $order->originStoreId())->unique()->filter()->values();
+        $originStoresById = Store::whereIn('id', $originStoreIds)->pluck('name', 'id');
+
         [$storeSortBy, $storeSortDir] = $this->resolveSortParams($request, [
             'store_name' => 'asc',
             'store_total_orders' => 'desc',
@@ -188,7 +191,7 @@ class OrderController extends Controller
             'status' => $request->get('status'),
         ];
 
-        return view('orders.supplier', compact('supplier', 'orders', 'summary', 'summaryByStore', 'stores', 'filters'));
+        return view('orders.supplier', compact('supplier', 'orders', 'summary', 'summaryByStore', 'stores', 'filters', 'originStoresById'));
     }
 
     public function create()
@@ -236,6 +239,7 @@ class OrderController extends Controller
         if (!empty($splitStores)) {
             $splitAmounts = $request->order_split_amounts ?? [];
             $totalAmount = (float) $validated['amount'];
+            $payingStoreId = (int) $validated['store_id'];
             
             // Si no hay cantidades específicas, dividir por partes iguales
             if (empty($splitAmounts)) {
@@ -256,7 +260,8 @@ class OrderController extends Controller
                     $orderData['store_split'] = [
                         'stores' => $splitStores,
                         'amounts' => $splitAmounts,
-                        'total' => $totalAmount
+                        'total' => $totalAmount,
+                        'origin_store_id' => $payingStoreId,
                     ];
                     
                     $order = Order::create($orderData);
@@ -266,7 +271,7 @@ class OrderController extends Controller
                         foreach ($request->payments as $payment) {
                             $paymentAmount = (float) ($payment['amount'] ?? 0);
                             $proportionalAmount = ($paymentAmount / $totalAmount) * $storeAmount;
-                            $order->payments()->create($this->paymentDataForOrder($payment, round($proportionalAmount, 2), $storeId));
+                            $order->payments()->create($this->paymentDataForOrder($payment, round($proportionalAmount, 2), $payingStoreId));
                         }
                     }
                     
@@ -363,6 +368,7 @@ class OrderController extends Controller
         if (!empty($splitStores)) {
             $splitAmounts = $request->order_split_amounts ?? [];
             $totalAmount = (float) $validated['amount'];
+            $payingStoreId = (int) $validated['store_id'];
             
             // Si no hay cantidades específicas, dividir por partes iguales
             if (empty($splitAmounts)) {
@@ -391,7 +397,8 @@ class OrderController extends Controller
             $validated['store_split'] = [
                 'stores' => $splitStores,
                 'amounts' => $splitAmounts,
-                'total' => $totalAmount
+                'total' => $totalAmount,
+                'origin_store_id' => $payingStoreId,
             ];
             
             $order->update($validated);
@@ -402,7 +409,7 @@ class OrderController extends Controller
                 foreach ($request->payments as $payment) {
                     $paymentAmount = (float) ($payment['amount'] ?? 0);
                     $proportionalAmount = ($paymentAmount / $totalAmount) * $firstAmount;
-                    $order->payments()->create($this->paymentDataForOrder($payment, round($proportionalAmount, 2), $firstStoreId));
+                    $order->payments()->create($this->paymentDataForOrder($payment, round($proportionalAmount, 2), $payingStoreId));
                 }
             }
             
@@ -426,7 +433,7 @@ class OrderController extends Controller
                         foreach ($request->payments as $payment) {
                             $paymentAmount = (float) ($payment['amount'] ?? 0);
                             $proportionalAmount = ($paymentAmount / $totalAmount) * $storeAmount;
-                            $newOrder->payments()->create($this->paymentDataForOrder($payment, round($proportionalAmount, 2), $storeId));
+                            $newOrder->payments()->create($this->paymentDataForOrder($payment, round($proportionalAmount, 2), $payingStoreId));
                         }
                     }
                     

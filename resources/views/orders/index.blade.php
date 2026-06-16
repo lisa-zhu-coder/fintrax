@@ -4,6 +4,8 @@
 
 @section('content')
 @php
+    use App\Support\OrderTableSettings;
+
     $ordersSortUrl = function (string $column, string $defaultDir = 'asc') {
         return route('orders.index', array_merge(request()->query(), [
             'sort_by' => $column,
@@ -12,6 +14,7 @@
                 : $defaultDir,
         ]));
     };
+    $suppliersListColumns = OrderTableSettings::visibleColumns('suppliers_list');
 @endphp
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
@@ -46,50 +49,25 @@
             <table class="min-w-full text-left text-sm">
                 <thead class="text-xs uppercase text-slate-500 bg-slate-50">
                     <tr>
-                        @include('partials.sortable-th', ['label' => 'Proveedor', 'column' => 'supplier', 'defaultDir' => 'asc', 'url' => $ordersSortUrl('supplier', 'asc')])
-                        @include('partials.sortable-th', ['label' => 'Tipo', 'column' => 'type', 'defaultDir' => 'asc', 'url' => $ordersSortUrl('type', 'asc')])
-                        @include('partials.sortable-th', ['label' => 'Pedidos', 'column' => 'total_orders', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $ordersSortUrl('total_orders', 'desc')])
-                        @include('partials.sortable-th', ['label' => 'Importe total', 'column' => 'total_amount', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $ordersSortUrl('total_amount', 'desc')])
-                        @include('partials.sortable-th', ['label' => 'Importe pagado', 'column' => 'total_paid', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $ordersSortUrl('total_paid', 'desc')])
-                        @include('partials.sortable-th', ['label' => 'Importe pendiente', 'column' => 'total_pending', 'defaultDir' => 'desc', 'align' => 'right', 'url' => $ordersSortUrl('total_pending', 'desc')])
-                        <th class="px-3 py-3"></th>
+                        @foreach($suppliersListColumns as $column)
+                            @include('partials.orders.table-header', [
+                                'column' => $column,
+                                'sortUrlCallback' => $ordersSortUrl,
+                                'defaultDir' => in_array($column['sort_key'] ?? '', ['total_orders', 'total_amount', 'total_paid', 'total_pending'], true) ? 'desc' : 'asc',
+                            ])
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse($suppliersWithStats as $row)
                         <tr class="hover:bg-slate-50">
-                            <td class="px-3 py-3">
-                                <a href="{{ route('orders.supplier', $row['supplier']) }}" class="font-semibold text-brand-700 hover:text-brand-800 hover:underline">
-                                    {{ $row['supplier']->name }}
-                                </a>
-                            </td>
-                            <td class="px-3 py-3">
-                                @if($row['supplier']->type)
-                                    <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700">
-                                        {{ \App\Models\Supplier::TYPES[$row['supplier']->type] ?? ucfirst(str_replace('_', ' ', $row['supplier']->type)) }}
-                                    </span>
-                                @else
-                                    <span class="text-slate-400">—</span>
-                                @endif
-                            </td>
-                            <td class="px-3 py-3 text-right">{{ $row['total_orders'] }}</td>
-                            <td class="px-3 py-3 text-right font-semibold whitespace-nowrap">{{ number_format($row['total_amount'], 2, ',', '.') }} €</td>
-                            <td class="px-3 py-3 text-right text-emerald-700 whitespace-nowrap">{{ number_format($row['total_paid'], 2, ',', '.') }} €</td>
-                            <td class="px-3 py-3 text-right font-semibold {{ $row['total_pending'] > 0 ? 'text-amber-700' : 'text-emerald-700' }} whitespace-nowrap">
-                                {{ number_format($row['total_pending'], 2, ',', '.') }} €
-                            </td>
-                            <td class="px-3 py-3">
-                                <a href="{{ route('orders.supplier', $row['supplier']) }}" class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                                    Ver pedidos
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </a>
-                            </td>
+                            @foreach($suppliersListColumns as $column)
+                                @include('partials.orders.suppliers-list-cell', ['column' => $column, 'row' => $row])
+                            @endforeach
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-3 py-8 text-center text-slate-500">
+                            <td colspan="{{ count($suppliersListColumns) }}" class="px-3 py-8 text-center text-slate-500">
                                 No hay proveedores con pedidos. Crea un proveedor en Administración → Proveedores y añade pedidos desde aquí.
                             </td>
                         </tr>

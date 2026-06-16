@@ -167,6 +167,49 @@ class OrderTableSettings
     }
 
     /**
+     * Filtros disponibles según columnas visibles en pedidos del proveedor.
+     *
+     * @return list<string> Claves: search, period, store_id, split_type, origin_store_id, payment_method, status, concept
+     */
+    public static function supplierOrdersFilterKeys(?Company $company = null): array
+    {
+        $visibleKeys = collect(self::visibleColumns('supplier_orders', $company))->pluck('key')->all();
+        $filters = [];
+
+        if (in_array('invoice_number', $visibleKeys, true) || in_array('order_number', $visibleKeys, true)) {
+            $filters[] = 'search';
+        }
+        if (in_array('date', $visibleKeys, true)) {
+            $filters[] = 'period';
+        }
+        if (in_array('store', $visibleKeys, true)) {
+            $filters[] = 'store_id';
+        }
+        if (in_array('split_type', $visibleKeys, true)) {
+            $filters[] = 'split_type';
+        }
+        if (in_array('origin_store', $visibleKeys, true)) {
+            $filters[] = 'origin_store_id';
+        }
+        if (in_array('payment_methods', $visibleKeys, true)) {
+            $filters[] = 'payment_method';
+        }
+        if (in_array('status', $visibleKeys, true)) {
+            $filters[] = 'status';
+        }
+        if (in_array('concept', $visibleKeys, true)) {
+            $filters[] = 'concept';
+        }
+
+        return $filters;
+    }
+
+    public static function supplierOrdersColumnLabel(string $columnKey): string
+    {
+        return self::tableDefinitions()['supplier_orders']['columns'][$columnKey]['label'] ?? $columnKey;
+    }
+
+    /**
      * @param  array<string, mixed>  $input
      * @return array<string, list<array{key: string, visible: bool}>>
      */

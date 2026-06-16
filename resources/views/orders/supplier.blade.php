@@ -24,6 +24,7 @@
     };
     $supplierStoreSummaryColumns = OrderTableSettings::visibleColumns('supplier_store_summary');
     $supplierOrdersColumns = OrderTableSettings::visibleColumns('supplier_orders');
+    $supplierOrdersFilters = $allowedFilters ?? OrderTableSettings::supplierOrdersFilterKeys();
 @endphp
 <div class="flex flex-col">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
@@ -87,6 +88,7 @@
     @endif
 
     <!-- Filtros (encima del listado de pedidos) -->
+    @if(!empty($supplierOrdersFilters))
     <div class="mt-10 rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <h2 class="mb-3 text-base font-semibold">Filtros</h2>
         <form id="supplier-orders-filter-form" method="GET" action="{{ route('orders.supplier', $supplier) }}" class="space-y-4">
@@ -103,11 +105,29 @@
                 <input type="hidden" name="store_sort_dir" value="{{ request('store_sort_dir') }}">
             @endif
             <div class="flex flex-wrap items-end gap-4">
+                @if(in_array('search', $supplierOrdersFilters, true))
                 <label class="block min-w-[200px]">
                     <span class="text-xs font-semibold text-slate-700">Buscar</span>
                     <input type="text" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Nº factura o Nº pedido" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                 </label>
-                <div class="min-w-[140px]">@include('partials.store-filter-select', ['name' => 'store_id', 'stores' => $stores, 'selected' => $filters['store_id'] ?? '', 'label' => 'Tienda', 'showAllOption' => true])</div>
+                @endif
+                @if(in_array('store_id', $supplierOrdersFilters, true))
+                <div class="min-w-[140px]">@include('partials.store-filter-select', ['name' => 'store_id', 'stores' => $stores, 'selected' => $filters['store_id'] ?? '', 'label' => OrderTableSettings::supplierOrdersColumnLabel('store'), 'showAllOption' => true])</div>
+                @endif
+                @if(in_array('split_type', $supplierOrdersFilters, true))
+                <label class="block min-w-[140px]">
+                    <span class="text-xs font-semibold text-slate-700">{{ OrderTableSettings::supplierOrdersColumnLabel('split_type') }}</span>
+                    <select name="split_type" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Todos</option>
+                        <option value="conjunto" {{ ($filters['split_type'] ?? '') === 'conjunto' ? 'selected' : '' }}>Conjunto</option>
+                        <option value="individual" {{ ($filters['split_type'] ?? '') === 'individual' ? 'selected' : '' }}>Individual</option>
+                    </select>
+                </label>
+                @endif
+                @if(in_array('origin_store_id', $supplierOrdersFilters, true))
+                <div class="min-w-[160px]">@include('partials.store-filter-select', ['name' => 'origin_store_id', 'stores' => $stores, 'selected' => $filters['origin_store_id'] ?? '', 'label' => OrderTableSettings::supplierOrdersColumnLabel('origin_store'), 'showAllOption' => true])</div>
+                @endif
+                @if(in_array('period', $supplierOrdersFilters, true))
                 <label class="block min-w-[180px]">
                     <span class="text-xs font-semibold text-slate-700">Período</span>
                     <select name="period" id="periodSelect" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
@@ -130,8 +150,22 @@
                         <input type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4"/>
                     </label>
                 </div>
+                @endif
+                @if(in_array('concept', $supplierOrdersFilters, true))
                 <label class="block min-w-[160px]">
-                    <span class="text-xs font-semibold text-slate-700">Forma de pago</span>
+                    <span class="text-xs font-semibold text-slate-700">{{ OrderTableSettings::supplierOrdersColumnLabel('concept') }}</span>
+                    <select name="concept" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
+                        <option value="">Todos</option>
+                        <option value="pedido" {{ ($filters['concept'] ?? '') === 'pedido' ? 'selected' : '' }}>Pedido</option>
+                        <option value="royalty" {{ ($filters['concept'] ?? '') === 'royalty' ? 'selected' : '' }}>Royalty</option>
+                        <option value="rectificacion" {{ ($filters['concept'] ?? '') === 'rectificacion' ? 'selected' : '' }}>Rectificación</option>
+                        <option value="tara" {{ ($filters['concept'] ?? '') === 'tara' ? 'selected' : '' }}>Tara</option>
+                    </select>
+                </label>
+                @endif
+                @if(in_array('payment_method', $supplierOrdersFilters, true))
+                <label class="block min-w-[160px]">
+                    <span class="text-xs font-semibold text-slate-700">{{ OrderTableSettings::supplierOrdersColumnLabel('payment_methods') }}</span>
                     <select name="payment_method" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                         <option value="">Todas</option>
                         <option value="cash" {{ ($filters['payment_method'] ?? '') === 'cash' ? 'selected' : '' }}>Efectivo</option>
@@ -139,14 +173,17 @@
                         <option value="card" {{ ($filters['payment_method'] ?? '') === 'card' ? 'selected' : '' }}>Tarjeta</option>
                     </select>
                 </label>
+                @endif
+                @if(in_array('status', $supplierOrdersFilters, true))
                 <label class="block min-w-[140px]">
-                    <span class="text-xs font-semibold text-slate-700">Estado</span>
+                    <span class="text-xs font-semibold text-slate-700">{{ OrderTableSettings::supplierOrdersColumnLabel('status') }}</span>
                     <select name="status" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">
                         <option value="">Todos</option>
                         <option value="pendiente" {{ ($filters['status'] ?? '') === 'pendiente' ? 'selected' : '' }}>Pendiente</option>
                         <option value="pagado" {{ ($filters['status'] ?? '') === 'pagado' ? 'selected' : '' }}>Pagado</option>
                     </select>
                 </label>
+                @endif
                 <div class="flex items-center gap-2">
                     <button type="submit" form="supplier-orders-filter-form" id="supplier-orders-filter-btn" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Filtrar</button>
                     <a href="{{ route('orders.supplier', $supplier) }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Limpiar</a>
@@ -154,6 +191,7 @@
             </div>
         </form>
     </div>
+    @endif
 
     <!-- Listado de pedidos -->
     <div class="mt-10 rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">

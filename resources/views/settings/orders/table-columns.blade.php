@@ -12,10 +12,6 @@
         </div>
     </header>
 
-    @if(session('success'))
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{{ session('success') }}</div>
-    @endif
-
     <form method="POST" action="{{ route('order-table-settings.update') }}" class="space-y-6" id="order-table-settings-form">
         @csrf
         @method('PUT')

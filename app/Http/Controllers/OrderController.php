@@ -99,7 +99,9 @@ class OrderController extends Controller
         $query = Order::with(['store', 'supplier', 'payments'])
             ->where('supplier_id', $supplier->id);
 
-        if ($request->filled('store_id')) {
+        $allowedFilters = \App\Support\OrderTableSettings::supplierOrdersFilterKeys();
+
+        if (in_array('store_id', $allowedFilters, true) && $request->filled('store_id')) {
             $storeId = (int) $request->store_id;
             $this->authorizeStoreAccess($storeId);
             $query->where('store_id', $storeId);
@@ -107,11 +109,11 @@ class OrderController extends Controller
             $this->scopeStoreForCurrentUser($query);
         }
 
-        if ($request->filled('payment_method') && in_array($request->payment_method, ['cash', 'transfer', 'card'], true)) {
+        if (in_array('payment_method', $allowedFilters, true) && $request->filled('payment_method') && in_array($request->payment_method, ['cash', 'transfer', 'card'], true)) {
             $query->whereHas('payments', fn ($q) => $q->where('method', $request->payment_method));
         }
 
-        if ($request->filled('status') && in_array($request->status, ['pendiente', 'pagado'], true)) {
+        if (in_array('status', $allowedFilters, true) && $request->filled('status') && in_array($request->status, ['pendiente', 'pagado'], true)) {
             $subSelect = 'SELECT COALESCE(SUM(amount), 0) FROM order_payments WHERE order_payments.order_id = orders.id AND order_payments.deleted_at IS NULL';
             if ($request->status === 'pendiente') {
                 $query->where(function ($q) use ($subSelect) {
@@ -138,7 +140,11 @@ class OrderController extends Controller
             }
         }
 
-        if ($request->filled('search')) {
+        if (in_array('concept', $allowedFilters, true) && $request->filled('concept') && in_array($request->concept, ['pedido', 'royalty', 'rectificacion', 'tara'], true)) {
+            $query->where('concept', $request->concept);
+        }
+
+        if (in_array('search', $allowedFilters, true) && $request->filled('search')) {
             $term = '%' . trim($request->search) . '%';
             $query->where(function ($q) use ($term) {
                 $q->where('invoice_number', 'like', $term)
@@ -146,11 +152,31 @@ class OrderController extends Controller
             });
         }
 
-        $period = $request->get('period', 'this_year');
-        if ($request->filled('date_from') && $request->filled('date_to')) {
-            $period = 'custom';
+        if (in_array('period', $allowedFilters, true)) {
+            $period = $request->get('period', 'this_year');
+            if ($request->filled('date_from') && $request->filled('date_to')) {
+                $period = 'custom';
+            }
+            $this->applyPeriodFilter($query, $period, $request);
         }
-        $this->applyPeriodFilter($query, $period, $request);
+
+        $orders = $query->get();
+
+        if (in_array('split_type', $allowedFilters, true) && $request->filled('split_type') && in_array($request->split_type, ['conjunto', 'individual'], true)) {
+            $orders = $orders->filter(function (Order $order) use ($request) {
+                $label = $order->splitTypeLabel();
+
+                return $request->split_type === 'conjunto'
+                    ? $label === 'Conjunto'
+                    : $label === 'Individual';
+            })->values();
+        }
+
+        if (in_array('origin_store_id', $allowedFilters, true) && $request->filled('origin_store_id')) {
+            $originStoreId = (int) $request->origin_store_id;
+            $this->authorizeStoreAccess($originStoreId);
+            $orders = $orders->filter(fn (Order $order) => $order->originStoreId() === $originStoreId)->values();
+        }
 
         [$sortBy, $sortDir] = $this->resolveSortParams($request, [
             'status' => 'asc',
@@ -164,7 +190,7 @@ class OrderController extends Controller
             'pending' => 'desc',
         ], 'date', 'desc');
 
-        $orders = $this->sortOrderCollection($query->get(), $sortBy, $sortDir);
+        $orders = $this->sortOrderCollection($orders, $sortBy, $sortDir);
 
         $originStoreIds = $orders->map(fn (Order $order) => $order->originStoreId())->unique()->filter()->values();
         $originStoresById = Store::whereIn('id', $originStoreIds)->pluck('name', 'id');
@@ -182,16 +208,21 @@ class OrderController extends Controller
         $stores = $this->storesForCurrentUser();
 
         $filters = [
-            'store_id' => $request->get('store_id'),
-            'date_from' => $request->get('date_from'),
-            'date_to' => $request->get('date_to'),
-            'payment_method' => $request->get('payment_method'),
-            'period' => $request->filled('date_from') && $request->filled('date_to') ? 'custom' : $request->get('period', 'this_year'),
-            'search' => $request->get('search'),
-            'status' => $request->get('status'),
+            'store_id' => in_array('store_id', $allowedFilters, true) ? $request->get('store_id') : null,
+            'date_from' => in_array('period', $allowedFilters, true) ? $request->get('date_from') : null,
+            'date_to' => in_array('period', $allowedFilters, true) ? $request->get('date_to') : null,
+            'payment_method' => in_array('payment_method', $allowedFilters, true) ? $request->get('payment_method') : null,
+            'period' => in_array('period', $allowedFilters, true)
+                ? ($request->filled('date_from') && $request->filled('date_to') ? 'custom' : $request->get('period', 'this_year'))
+                : null,
+            'search' => in_array('search', $allowedFilters, true) ? $request->get('search') : null,
+            'status' => in_array('status', $allowedFilters, true) ? $request->get('status') : null,
+            'split_type' => in_array('split_type', $allowedFilters, true) ? $request->get('split_type') : null,
+            'origin_store_id' => in_array('origin_store_id', $allowedFilters, true) ? $request->get('origin_store_id') : null,
+            'concept' => in_array('concept', $allowedFilters, true) ? $request->get('concept') : null,
         ];
 
-        return view('orders.supplier', compact('supplier', 'orders', 'summary', 'summaryByStore', 'stores', 'filters', 'originStoresById'));
+        return view('orders.supplier', compact('supplier', 'orders', 'summary', 'summaryByStore', 'stores', 'filters', 'originStoresById', 'allowedFilters'));
     }
 
     public function create()

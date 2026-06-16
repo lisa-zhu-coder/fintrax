@@ -71,42 +71,44 @@
 
     {{-- Cuadro de precios por empleada y tipo --}}
     @if($types->isNotEmpty())
-    <div class="rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-100 overflow-x-auto">
-        <form method="POST" action="{{ route('overtime-settings.update') }}" class="space-y-4">
+    <div class="rounded-2xl bg-white shadow-soft ring-1 ring-slate-100">
+        <form method="POST" action="{{ route('overtime-settings.update') }}" class="p-6 space-y-4">
             @csrf
             @method('PUT')
-            <h2 class="text-sm font-semibold text-slate-800 mb-3">Precio por hora (€) por empleada y tipo</h2>
-            <table class="min-w-full text-sm">
-                <thead class="text-xs uppercase text-slate-500 bg-slate-50">
-                    <tr>
-                        <th class="px-3 py-2 text-left">Empleada</th>
-                        @foreach($types as $type)
-                        <th class="px-3 py-2 text-right">{{ $type->name }} (€)</th>
-                        @endforeach
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @foreach($employees as $emp)
-                        @php
-                            $empSettings = $settings->get($emp->id) ?? collect();
-                            $empSettingsByType = $empSettings->keyBy('overtime_type_id');
-                        @endphp
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-3 py-2 font-medium text-slate-800">{{ $emp->full_name }}</td>
+            <h2 class="text-sm font-semibold text-slate-800">Precio por hora (€) por empleada y tipo</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[32rem] table-fixed text-sm border-collapse">
+                    <thead class="text-xs uppercase text-slate-500 bg-slate-50">
+                        <tr>
+                            <th class="px-3 py-2 text-left font-semibold">Empleada</th>
                             @foreach($types as $type)
-                            <td class="px-3 py-2">
-                                @php $s = $empSettingsByType->get($type->id); @endphp
-                                <input type="number" name="employee_{{ $emp->id }}_type_{{ $type->id }}" value="{{ old('employee_' . $emp->id . '_type_' . $type->id, $s ? $s->price_per_hour : 0) }}" step="0.01" min="0" class="w-24 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm"/>
-                            </td>
+                            <th class="w-36 px-3 py-2 text-right font-semibold whitespace-nowrap">{{ $type->name }} (€)</th>
                             @endforeach
                         </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach($employees as $emp)
+                            @php
+                                $empSettings = $settings->get($emp->id) ?? collect();
+                                $empSettingsByType = $empSettings->keyBy('overtime_type_id');
+                            @endphp
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-3 py-2 font-medium text-slate-800 whitespace-nowrap">{{ $emp->full_name }}</td>
+                                @foreach($types as $type)
+                                <td class="w-36 px-3 py-2 text-right">
+                                    @php $s = $empSettingsByType->get($type->id); @endphp
+                                    <input type="number" name="employee_{{ $emp->id }}_type_{{ $type->id }}" value="{{ old('employee_' . $emp->id . '_type_' . $type->id, $s ? $s->price_per_hour : 0) }}" step="0.01" min="0" class="w-full max-w-[8.5rem] rounded-lg border border-slate-200 px-2 py-1 text-right text-sm"/>
+                                </td>
+                                @endforeach
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
             @if($employees->isEmpty())
                 <p class="text-slate-500 py-4">No hay empleadas. Añade empleadas en el módulo Empleados.</p>
             @else
-                <button type="submit" class="mt-4 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar precios</button>
+                <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar precios</button>
             @endif
         </form>
     </div>

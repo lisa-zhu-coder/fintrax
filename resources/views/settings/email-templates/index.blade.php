@@ -8,9 +8,6 @@
         @include('partials.settings-section-tabs', ['group' => 'hr'])
         <div class="flex items-center justify-between">
             <div>
-                <nav class="mb-1 text-xs text-slate-500">
-                    <span class="text-slate-700">Ajustes</span><span class="mx-1">/</span><span>Plantillas de email RRHH</span>
-                </nav>
                 <h1 class="text-lg font-semibold">Plantillas de email RRHH</h1>
                 <p class="text-sm text-slate-500">Plantillas para el envío de nóminas y documentos a empleados. Variables: &#123;&#123;nombre&#125;&#125;, &#123;&#123;mes&#125;&#125;, &#123;&#123;empresa&#125;&#125;.</p>
             </div>

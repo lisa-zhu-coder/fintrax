@@ -6,7 +6,6 @@
 <div class="mx-auto max-w-2xl space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         @include('partials.settings-section-tabs', ['group' => 'hr'])
-        <nav class="mb-1 text-xs text-slate-500"><a href="{{ route('email-templates-settings.index') }}" class="text-brand-600 hover:underline">Plantillas de email RRHH</a><span class="mx-1">/</span><span>Editar</span></nav>
         <h1 class="text-lg font-semibold">Editar plantilla: {{ $template->name }}</h1>
     </header>
 

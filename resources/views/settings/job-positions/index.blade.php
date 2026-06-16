@@ -7,11 +7,6 @@
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         @include('partials.settings-section-tabs', ['group' => 'hr'])
         <div>
-            <nav class="text-xs text-slate-500 mb-1">
-                <span class="text-slate-700">Ajustes</span>
-                <span class="mx-1">/</span>
-                <span>Puestos de empleado</span>
-            </nav>
             <h1 class="text-lg font-semibold">Puestos de empleado</h1>
             <p class="text-sm text-slate-500">Define los puestos que podrán elegirse al crear o editar fichas de empleados (dependiente, encargado, etc.).</p>
         </div>

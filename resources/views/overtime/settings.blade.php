@@ -8,11 +8,6 @@
         @include('partials.settings-section-tabs', ['group' => 'hr'])
         <div class="flex items-center justify-between">
             <div>
-                <nav class="text-xs text-slate-500 mb-1">
-                    <span class="text-slate-500">Ajustes</span>
-                    <span class="mx-1">/</span>
-                    <span class="text-slate-700">Ajustes de horas extras</span>
-                </nav>
                 <h1 class="text-lg font-semibold">Ajustes de horas extras</h1>
                 <p class="text-sm text-slate-500">Define los tipos de horas extras de tu empresa y el precio por hora de cada tipo para cada empleada.</p>
             </div>

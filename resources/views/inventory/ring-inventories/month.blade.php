@@ -67,7 +67,7 @@
                             $isCierre = $row->shift === 'cierre';
                             $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin();
                         @endphp
-                        <tr class="ring-row {{ $isCierre ? 'bg-slate-100 hover:bg-slate-200' : 'hover:bg-slate-50' }}" id="{{ $rowId }}" data-row-key="{{ $row->date_str }}-{{ $row->shift }}">
+                        <tr class="ring-row {{ $isCierre ? 'bg-slate-100 hover:bg-slate-200' : 'hover:bg-slate-50' }}" id="{{ $rowId }}" data-row-key="{{ $row->date_str }}-{{ $row->shift }}" @if($row->display_initial !== null) data-effective-initial="{{ (int) $row->display_initial }}" @endif>
                             <td class="px-3 py-2 whitespace-nowrap">{{ $row->date->format('d/m/Y') }}</td>
                             <td class="px-3 py-2 whitespace-nowrap">{{ $row->shift_label }}</td>
                             <td class="px-3 py-2 text-right">
@@ -133,7 +133,7 @@
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                                         </button>
                                         @if($r)
-                                            <form id="{{ $formId }}" method="POST" action="{{ route('ring-inventories.update', $r) }}" class="inline">
+                                            <form id="{{ $formId }}" method="POST" action="{{ route('ring-inventories.update', $r) }}" class="inline ring-row-form">
                                                 @csrf
                                                 @method('PUT')
                                                 <input type="hidden" name="store_id" value="{{ $store->id }}">
@@ -144,7 +144,7 @@
                                                 </button>
                                             </form>
                                         @else
-                                            <form id="{{ $formId }}" method="POST" action="{{ route('ring-inventories.store') }}" class="inline">
+                                            <form id="{{ $formId }}" method="POST" action="{{ route('ring-inventories.store') }}" class="inline ring-row-form">
                                                 @csrf
                                                 <input type="hidden" name="store_id" value="{{ $store->id }}">
                                                 <input type="hidden" name="date" value="{{ $row->date_str }}">
@@ -182,6 +182,14 @@
         return isNaN(n) ? 0 : n;
     }
 
+    function readInitial(tr) {
+        const effective = tr.dataset.effectiveInitial;
+        if (effective !== undefined && effective !== '') {
+            return parseNum(effective);
+        }
+        return parseNum(tr.querySelector('input[name="initial_quantity"]')?.value);
+    }
+
     function updateDiscrepancy(tr) {
         const finalVal = tr.querySelector('input[name="final_quantity"]')?.value;
         const cell = tr.querySelector('.discrepancy-calc');
@@ -191,7 +199,7 @@
             cell.classList.remove('text-rose-600');
             return;
         }
-        const initial = parseNum(tr.querySelector('input[name="initial_quantity"]')?.value);
+        const initial = readInitial(tr);
         const replenishment = parseNum(tr.querySelector('input[name="replenishment_quantity"]')?.value);
         const tara = parseNum(tr.querySelector('input[name="tara_quantity"]')?.value);
         const sold = parseNum(tr.querySelector('input[name="sold_quantity"]')?.value);
@@ -199,6 +207,34 @@
         const disc = initial + replenishment + tara + sold - final;
         cell.textContent = disc.toLocaleString('es-ES');
         cell.classList.toggle('text-rose-600', disc !== 0);
+    }
+
+    function syncRowFormFields(form) {
+        const formId = form.id;
+        if (!formId) return;
+        ['initial_quantity', 'replenishment_quantity', 'tara_quantity', 'sold_quantity', 'final_quantity'].forEach(function(name) {
+            const external = document.querySelector('[form="' + formId + '"][name="' + name + '"]');
+            if (!external) return;
+            let internal = form.querySelector('input[name="' + name + '"]');
+            if (!internal) {
+                internal = document.createElement('input');
+                internal.type = 'hidden';
+                internal.name = name;
+                form.appendChild(internal);
+            }
+            internal.value = external.value;
+        });
+        const externalComment = document.querySelector('[form="' + formId + '"][name="comment"]');
+        if (externalComment) {
+            let internalComment = form.querySelector('[name="comment"]');
+            if (!internalComment) {
+                internalComment = document.createElement('input');
+                internalComment.type = 'hidden';
+                internalComment.name = 'comment';
+                form.appendChild(internalComment);
+            }
+            internalComment.value = externalComment.value;
+        }
     }
 
     function setRowEditing(rowId, editing) {
@@ -282,6 +318,12 @@
         var ta = popover && popover.querySelector('.comment-popover-textarea');
         if (ta) ta.value = '';
     });
+
+    table.addEventListener('submit', function(e) {
+        const form = e.target.closest('form.ring-row-form');
+        if (!form) return;
+        syncRowFormFields(form);
+    }, true);
 
     table.addEventListener('input', function(e) {
         if (!e.target.matches('.edit-inp')) return;

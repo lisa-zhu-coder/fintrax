@@ -117,12 +117,20 @@ class RingInventoryController extends Controller
                 }
                 $displayDiscrepancy = null;
                 if ($record !== null && $record->final_quantity !== null) {
-                    $init = $displayInitial ?? 0;
-                    $rep = $record->replenishment_quantity ?? 0;
-                    $tara = $record->tara_quantity ?? 0;
-                    $sold = $record->sold_quantity ?? 0;
-                    $final = $record->final_quantity;
-                    $displayDiscrepancy = $init + $rep + $tara + $sold - $final;
+                    if ($shift['value'] === 'cierre') {
+                        $displayDiscrepancy = $this->effectiveDiscrepancyForCierre(
+                            $record,
+                            $cambioTurnoRecord,
+                            $cierrePrevDay
+                        );
+                    } else {
+                        $init = $displayInitial ?? 0;
+                        $rep = $record->replenishment_quantity ?? 0;
+                        $tara = $record->tara_quantity ?? 0;
+                        $sold = $record->sold_quantity ?? 0;
+                        $final = $record->final_quantity;
+                        $displayDiscrepancy = $init + $rep + $tara + $sold - $final;
+                    }
                 }
                 $rows[] = (object) [
                     'date' => $date,
@@ -311,10 +319,13 @@ class RingInventoryController extends Controller
         }
         $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->hasPermission('inventory.rings.edit_initial');
         if (($validated['shift'] ?? '') === 'cierre' && ! $canEditInitial) {
-            $validated['initial_quantity'] = $this->computedInitialForCierre(
+            $computedInitial = $this->computedInitialForCierre(
                 (int) $validated['store_id'],
                 $validated['date']
             );
+            if ($computedInitial !== null) {
+                $validated['initial_quantity'] = $computedInitial;
+            }
         }
         if (($validated['shift'] ?? '') === 'cambio_turno' && ! $canEditInitial) {
             $validated['initial_quantity'] = $this->initialForCambioTurno(
@@ -358,10 +369,13 @@ class RingInventoryController extends Controller
         $validated['store_id'] = $this->enforcedStoreIdForCreate((int) ($validated['store_id'] ?? 0) ?: null) ?? (int) $validated['store_id'];
         $canEditInitial = auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->hasPermission('inventory.rings.edit_initial');
         if (($validated['shift'] ?? '') === 'cierre' && ! $canEditInitial) {
-            $validated['initial_quantity'] = $this->computedInitialForCierre(
+            $computedInitial = $this->computedInitialForCierre(
                 (int) $validated['store_id'],
                 $validated['date']
             );
+            if ($computedInitial !== null) {
+                $validated['initial_quantity'] = $computedInitial;
+            }
         }
         if (($validated['shift'] ?? '') === 'cambio_turno' && ! $canEditInitial) {
             $validated['initial_quantity'] = $this->initialForCambioTurno(
@@ -395,6 +409,7 @@ class RingInventoryController extends Controller
 
     /**
      * Inicial del turno cierre = Inicial + Reposición del cambio de turno del mismo día.
+     * Usa la misma lógica que la columna «Inicial» en la vista mensual (incluye fallback al cierre anterior).
      */
     private function computedInitialForCierre(int $storeId, string $date): ?int
     {
@@ -405,10 +420,17 @@ class RingInventoryController extends Controller
         if ($ct === null) {
             return null;
         }
-        $initial = $ct->initial_quantity ?? 0;
-        $replenishment = $ct->replenishment_quantity ?? 0;
+        $prevCierre = RingInventory::where('store_id', $storeId)
+            ->where('shift', 'cierre')
+            ->where('date', '<', $date)
+            ->orderByDesc('date')
+            ->first();
 
-        return $initial + $replenishment;
+        return $this->effectiveInitialForCierreRow(
+            new RingInventory(['initial_quantity' => null]),
+            $ct,
+            $prevCierre
+        );
     }
 
     /**

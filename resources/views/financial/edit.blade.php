@@ -324,11 +324,11 @@
                     </div>
                     <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <div class="rounded-xl bg-white p-3 ring-1 ring-slate-100">
-                            <div class="text-xs font-semibold text-slate-700">Discrepancia (efectivo vs Shopify)</div>
+                            <div class="text-xs font-semibold text-slate-700">Discrepancia (efectivo vs {{ $posLabel }})</div>
                             <div id="cashDiscrepancy" class="mt-1 text-sm font-semibold">@if($isDailyClose && $entry->shopify_cash !== null){{ number_format(($initComputedCash ?? 0) - (float)$entry->shopify_cash, 2, ',', '.') }} €@else—@endif</div>
                         </div>
                         <div class="rounded-xl bg-white p-3 ring-1 ring-slate-100">
-                            <div class="text-xs font-semibold text-slate-700">Discrepancia (tarjeta vs Shopify)</div>
+                            <div class="text-xs font-semibold text-slate-700">Discrepancia (tarjeta vs {{ $posLabel }})</div>
                             <div id="tpvDiscrepancy" class="mt-1 text-sm font-semibold">@if($isDailyClose && $entry->shopify_tpv !== null){{ number_format(($initTpv ?? 0) - (float)$entry->shopify_tpv, 2, ',', '.') }} €@else—@endif</div>
                         </div>
                         <div class="rounded-xl bg-white p-3 ring-1 ring-slate-100">

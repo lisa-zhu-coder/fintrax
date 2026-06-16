@@ -230,6 +230,9 @@ Route::middleware(['auth', 'active.user', 'company'])->group(function () {
     Route::get('/declared-sales/export', [DeclaredSalesController::class, 'export'])->name('declared-sales.export');
     Route::post('/declared-sales/generate-from-daily-closes', [DeclaredSalesController::class, 'generateFromDailyCloses'])->name('declared-sales.generate-from-daily-closes');
 
+    // Ajustes - hubs de módulos (dashboard, facturas, pedidos, clientes…)
+    Route::get('/settings/hub/{group}', [\App\Http\Controllers\SettingsHubController::class, 'show'])->name('settings-hub.show');
+
     // Configuración - Reducción de Efectivo por Tienda
     Route::get('/settings/cash-reductions', [StoreCashReductionController::class, 'index'])->name('store-cash-reductions.index');
     Route::put('/settings/cash-reductions', [StoreCashReductionController::class, 'update'])->name('store-cash-reductions.update');

@@ -5,6 +5,7 @@
 @section('content')
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+        @include('partials.settings-section-tabs', ['group' => 'finance'])
         <div>
             <h1 class="text-lg font-semibold">Cierre de caja</h1>
             <p class="text-sm text-slate-500">Configura los nombres del apartado POS y activa o desactiva la sección de vales en los cierres diarios (empresa {{ $company->name }}).</p>

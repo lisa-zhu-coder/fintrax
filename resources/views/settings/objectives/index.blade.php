@@ -11,6 +11,7 @@
     @endif
 
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+        @include('partials.settings-section-tabs', ['group' => 'finance'])
         <div>
             <h1 class="text-lg font-semibold">Objetivos de ventas</h1>
             <p class="text-sm text-slate-500">Gestiona los objetivos (Objetivo 1, Objetivo 2, etc.) y asigna porcentajes por mes. Los cambios se reflejan en el módulo Objetivos mensuales.</p>

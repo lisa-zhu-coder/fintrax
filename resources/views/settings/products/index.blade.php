@@ -11,6 +11,7 @@
     @endif
 
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+        @include('partials.settings-section-tabs', ['group' => 'inventory'])
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
                 <h1 class="text-lg font-semibold">Productos</h1>

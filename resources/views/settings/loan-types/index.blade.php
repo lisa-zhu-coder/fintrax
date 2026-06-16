@@ -5,6 +5,7 @@
 @section('content')
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+        @include('partials.settings-section-tabs', ['group' => 'finance'])
         <div>
             <nav class="text-xs text-slate-500 mb-1">
                 <span class="text-slate-700">Ajustes</span>

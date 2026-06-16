@@ -5,6 +5,7 @@
 @section('content')
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
+        @include('partials.settings-section-tabs', ['group' => 'inventory'])
         <a href="{{ route('product-settings.index') }}" class="text-sm text-slate-500 hover:text-slate-700 mb-1 inline-block">← Productos</a>
         <h1 class="text-lg font-semibold">Editar producto: {{ $product->name }}</h1>
     </header>

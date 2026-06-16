@@ -6,6 +6,11 @@
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         <div>
+            <nav class="text-xs text-slate-500 mb-1">
+                <span>Ajustes</span>
+                <span class="mx-1">/</span>
+                <span class="text-slate-700">Módulos</span>
+            </nav>
             <h1 class="text-lg font-semibold">Módulos</h1>
             <p class="text-sm text-slate-500">Activa o desactiva módulos para la empresa {{ $company->name }}.</p>
         </div>

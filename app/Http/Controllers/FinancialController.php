@@ -3013,17 +3013,9 @@ class FinancialController extends Controller
         ]);
 
         $wallet = CashWallet::findOrFail($validated['cash_wallet_id']);
-        $balance = $this->calculateWalletBalance($wallet);
         $redirect = $request->get('redirect_to') === 'dashboard'
             ? route('dashboard')
             : url()->previous();
-        if ($balance < $validated['amount']) {
-            if ($request->wantsJson()) {
-                return response()->json(['success' => false, 'message' => 'La cartera no tiene saldo suficiente.'], 422);
-            }
-
-            return redirect($redirect)->with('error', 'La cartera no tiene saldo suficiente. Saldo disponible: '.number_format($balance, 2, ',', '.').' €');
-        }
 
         try {
             $cashWalletTransfer = CashWalletTransfer::create([

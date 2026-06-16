@@ -471,17 +471,6 @@ class Transfer extends Model
                     ];
                 }
             }
-        } elseif ($this->origin_type === 'wallet') {
-            // Calcular saldo de la cartera
-            $walletBalance = $this->calculateWalletBalance($this->origin_id);
-            if ($walletBalance < $this->amount) {
-                $wallet = CashWallet::find($this->origin_id);
-                $walletName = $wallet ? $wallet->name : 'Cartera #' . $this->origin_id;
-                return [
-                    'valid' => false,
-                    'message' => "Saldo insuficiente en el origen. La cartera '{$walletName}' tiene un saldo de " . number_format($walletBalance, 2, ',', '.') . " €, pero se requiere " . number_format($this->amount, 2, ',', '.') . " €."
-                ];
-            }
         }
 
         return ['valid' => true, 'message' => null];

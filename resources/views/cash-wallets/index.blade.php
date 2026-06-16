@@ -46,7 +46,7 @@
                                     </a>
                                 </td>
                                 <td class="px-3 py-3 text-right">
-                                    <span class="font-semibold text-slate-900">
+                                    <span class="font-semibold {{ $item['balance'] >= 0 ? 'text-slate-900' : 'text-rose-700' }}">
                                         {{ number_format($item['balance'], 2, ',', '.') }} €
                                     </span>
                                 </td>

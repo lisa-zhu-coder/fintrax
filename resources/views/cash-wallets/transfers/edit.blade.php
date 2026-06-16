@@ -55,7 +55,7 @@
                     @error('amount')
                         <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
                     @enderror
-                    <p class="mt-1 text-xs text-slate-500">El sistema verificará que la cartera tenga saldo suficiente después del cambio.</p>
+                    <p class="mt-1 text-xs text-slate-500">La cartera puede quedar en saldo negativo tras el cambio.</p>
                 </label>
             </div>
 

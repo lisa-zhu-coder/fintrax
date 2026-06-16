@@ -477,15 +477,6 @@ class CashWalletController extends Controller
         ]);
 
         try {
-            // Calcular saldo actual usando el método centralizado
-            $currentBalance = $this->calculateBalance($cashWallet);
-
-            // Verificar que la cartera tiene saldo suficiente
-            if ($currentBalance < $validated['amount']) {
-                return redirect()->route('cash-wallets.show', $cashWallet)
-                    ->with('error', 'La cartera no tiene saldo suficiente. Saldo disponible: '.number_format($currentBalance, 2, ',', '.').' €');
-            }
-
             // Verificar que la tienda de destino tiene una cuenta bancaria configurada
             $bankAccount = BankAccount::where('store_id', $validated['store_id'])->first();
             if (! $bankAccount) {
@@ -809,20 +800,6 @@ class CashWalletController extends Controller
         ]);
 
         try {
-            // Verificar saldo suficiente con el nuevo importe
-            $currentBalance = $this->calculateBalance($cashWallet);
-            $oldAmount = (float) $transfer->amount;
-            $newAmount = (float) $validated['amount'];
-
-            // Calcular el saldo después de revertir el importe anterior y aplicar el nuevo
-            $balanceAfterChange = $currentBalance + $oldAmount - $newAmount;
-
-            if ($balanceAfterChange < 0) {
-                return back()->withInput()->with('error',
-                    'La cartera no tendría saldo suficiente con este importe. Saldo disponible después del cambio: '.
-                    number_format($balanceAfterChange, 2, ',', '.').' €');
-            }
-
             $transfer->update([
                 'date' => $validated['date'],
                 'store_id' => $validated['store_id'],

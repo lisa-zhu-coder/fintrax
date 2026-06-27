@@ -21,7 +21,10 @@
     </label>
 @else
     @php
-        $allValue = ($inputName === 'store_id') ? '' : 'all';
+        $usesNumericAllValue = $inputName === 'store_id'
+            || $inputName === 'origin_store_id'
+            || str_ends_with($inputName, '_store_id');
+        $allValue = $usesNumericAllValue ? '' : 'all';
         $isAllSelected = in_array($selected ?? '', ['all', ''], true) || ($selected ?? null) === null;
     @endphp
     <label class="block">

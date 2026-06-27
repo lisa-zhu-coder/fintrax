@@ -101,8 +101,7 @@ class OrderController extends Controller
 
         $allowedFilters = \App\Support\OrderTableSettings::supplierOrdersFilterKeys();
 
-        if (in_array('store_id', $allowedFilters, true) && $request->filled('store_id')) {
-            $storeId = (int) $request->store_id;
+        if (in_array('store_id', $allowedFilters, true) && ($storeId = $this->resolveStoreFilterId($request->input('store_id'))) !== null) {
             $this->authorizeStoreAccess($storeId);
             $query->where('store_id', $storeId);
         } else {
@@ -172,8 +171,7 @@ class OrderController extends Controller
             })->values();
         }
 
-        if (in_array('origin_store_id', $allowedFilters, true) && $request->filled('origin_store_id')) {
-            $originStoreId = (int) $request->origin_store_id;
+        if (in_array('origin_store_id', $allowedFilters, true) && ($originStoreId = $this->resolveStoreFilterId($request->input('origin_store_id'))) !== null) {
             $this->authorizeStoreAccess($originStoreId);
             $orders = $orders->filter(fn (Order $order) => $order->originStoreId() === $originStoreId)->values();
         }
@@ -208,7 +206,7 @@ class OrderController extends Controller
         $stores = $this->storesForCurrentUser();
 
         $filters = [
-            'store_id' => in_array('store_id', $allowedFilters, true) ? $request->get('store_id') : null,
+            'store_id' => in_array('store_id', $allowedFilters, true) ? $this->resolveStoreFilterId($request->input('store_id')) : null,
             'date_from' => in_array('period', $allowedFilters, true) ? $request->get('date_from') : null,
             'date_to' => in_array('period', $allowedFilters, true) ? $request->get('date_to') : null,
             'payment_method' => in_array('payment_method', $allowedFilters, true) ? $request->get('payment_method') : null,
@@ -218,7 +216,7 @@ class OrderController extends Controller
             'search' => in_array('search', $allowedFilters, true) ? $request->get('search') : null,
             'status' => in_array('status', $allowedFilters, true) ? $request->get('status') : null,
             'split_type' => in_array('split_type', $allowedFilters, true) ? $request->get('split_type') : null,
-            'origin_store_id' => in_array('origin_store_id', $allowedFilters, true) ? $request->get('origin_store_id') : null,
+            'origin_store_id' => in_array('origin_store_id', $allowedFilters, true) ? $this->resolveStoreFilterId($request->input('origin_store_id')) : null,
             'concept' => in_array('concept', $allowedFilters, true) ? $request->get('concept') : null,
         ];
 
@@ -946,6 +944,17 @@ class OrderController extends Controller
             }
             // store sin cash_store_id se rellena con la tienda del pedido en paymentDataForOrder
         }
+    }
+
+    private function resolveStoreFilterId(mixed $value): ?int
+    {
+        if ($value === null || $value === '' || $value === 'all') {
+            return null;
+        }
+
+        $id = (int) $value;
+
+        return $id > 0 ? $id : null;
     }
 
     private function paymentDataForOrder(array $payment, float $amount, int $orderStoreId): array

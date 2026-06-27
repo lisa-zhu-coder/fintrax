@@ -1004,7 +1004,7 @@ class OrderController extends Controller
             'cash' => 'cash',
             'bank' => 'bank',
             'transfer' => 'bank',
-            'card' => 'card',
+            'card' => 'bank',
         ];
 
         return $mapping[$orderMethod] ?? 'bank';

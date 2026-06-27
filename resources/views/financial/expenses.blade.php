@@ -291,14 +291,15 @@
                             <td class="px-3 py-2">
                                 @php
                                     $paymentMethod = $entry->expense_payment_method ?? null;
+                                    $isBankMethod = in_array($paymentMethod, ['bank', 'card', 'datafono', 'tarjeta'], true);
                                     $paymentLabel = '—';
                                     if ($paymentMethod === 'cash') {
                                         $paymentLabel = 'Efectivo';
-                                    } elseif ($paymentMethod === 'bank') {
+                                    } elseif ($isBankMethod) {
                                         $paymentLabel = 'Banco';
                                     }
                                 @endphp
-                                <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium {{ $paymentMethod === 'cash' ? 'bg-emerald-100 text-emerald-700' : ($paymentMethod === 'bank' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500') }}">
+                                <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium {{ $paymentMethod === 'cash' ? 'bg-emerald-100 text-emerald-700' : ($isBankMethod ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500') }}">
                                     {{ $paymentLabel }}
                                 </span>
                             </td>

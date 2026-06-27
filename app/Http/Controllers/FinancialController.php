@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\EnforcesStoreScope;
+use App\Http\Controllers\Concerns\RedirectsToBankConciliation;
 use App\Http\Controllers\Concerns\SyncsStoresFromBusinesses;
 use App\Models\BankAccount;
 use App\Models\BankMovement;
@@ -31,6 +32,7 @@ use Illuminate\Validation\ValidationException;
 class FinancialController extends Controller
 {
     use EnforcesStoreScope;
+    use RedirectsToBankConciliation;
     use SyncsStoresFromBusinesses;
 
     private function expenseOrderSync(): ExpenseOrderSyncService
@@ -3289,7 +3291,7 @@ class FinancialController extends Controller
                 return response()->json(['success' => true]);
             }
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Movimiento bancario enlazado correctamente.');
         } catch (\Exception $e) {
             Log::error('Error enlazando movimiento bancario: '.$e->getMessage());
@@ -3329,7 +3331,7 @@ class FinancialController extends Controller
                 return response()->json(['success' => true]);
             }
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Movimiento bancario enlazado correctamente.');
         } catch (\Exception $e) {
             Log::error('Error enlazando movimiento bancario a ingreso: '.$e->getMessage());
@@ -3495,7 +3497,7 @@ class FinancialController extends Controller
                 return response()->json(['success' => true]);
             }
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Gasto creado y movimiento conciliado correctamente.');
         } catch (\Exception $e) {
             Log::error('Error creando gasto desde movimiento bancario: '.$e->getMessage());
@@ -3591,7 +3593,7 @@ class FinancialController extends Controller
                     'status' => 'conciliado',
                 ]);
 
-                return redirect()->route('financial.bank-conciliation')
+                return $this->redirectToBankConciliation()
                     ->with('success', 'Movimiento bancario enlazado a traspaso existente correctamente.');
             }
 
@@ -3651,7 +3653,7 @@ class FinancialController extends Controller
                 $bankMovement->update(['is_conciliated' => true, 'status' => 'conciliado']);
             }
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Movimiento bancario conciliado como traspaso correctamente.');
 
         } catch (\Exception $e) {
@@ -3739,7 +3741,7 @@ class FinancialController extends Controller
             $this->deleteBankMovementAndRelated($bankMovement);
             DB::commit();
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Movimiento bancario y todos sus registros relacionados eliminados correctamente.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -3782,7 +3784,7 @@ class FinancialController extends Controller
                 ? 'Movimiento bancario eliminado correctamente.'
                 : $deleted.' movimientos bancarios eliminados correctamente.';
 
-            return redirect()->route('financial.bank-conciliation')->with('success', $message);
+            return $this->redirectToBankConciliation()->with('success', $message);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error eliminando movimientos bancarios en lote: '.$e->getMessage(), [
@@ -3849,7 +3851,7 @@ class FinancialController extends Controller
 
             $bankMovement->update($updateData);
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Movimiento bancario marcado como ignorado.');
 
         } catch (\Exception $e) {
@@ -3916,7 +3918,7 @@ class FinancialController extends Controller
                     'financial_entry_id' => $financialEntry->id,
                 ]);
 
-                return redirect()->route('financial.bank-conciliation')
+                return $this->redirectToBankConciliation()
                     ->with('success', 'Movimiento bancario conciliado correctamente.');
             }
 
@@ -3983,7 +3985,7 @@ class FinancialController extends Controller
                     $this->syncAutoOrderForExpense($financialEntry);
                 }
 
-                return redirect()->route('financial.bank-conciliation')
+                return $this->redirectToBankConciliation()
                     ->with('success', 'Registro financiero creado y movimiento conciliado correctamente.');
             }
 
@@ -4068,7 +4070,7 @@ class FinancialController extends Controller
                 'financial_entry_id' => $financialEntry->id,
             ]);
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Movimiento bancario enlazado correctamente.');
 
         } catch (\Exception $e) {
@@ -4100,7 +4102,7 @@ class FinancialController extends Controller
                 'financial_entry_id' => $financialEntry->id,
             ]);
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Movimiento bancario enlazado correctamente.');
 
         } catch (\Exception $e) {
@@ -4164,7 +4166,7 @@ class FinancialController extends Controller
                 $this->syncAutoOrderForExpense($financialEntry);
             }
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Gasto creado y movimiento conciliado correctamente.');
 
         } catch (\Exception $e) {
@@ -4191,7 +4193,7 @@ class FinancialController extends Controller
                 'financial_entry_id' => null,
             ]);
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Movimiento bancario marcado como ignorado.');
 
         } catch (\Exception $e) {
@@ -5292,7 +5294,7 @@ class FinancialController extends Controller
                 'status' => $status,
             ]);
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Movimiento bancario actualizado correctamente.');
         } catch (\Exception $e) {
             return back()->withInput()->with('error', 'Error al actualizar el movimiento: '.$e->getMessage());
@@ -5318,7 +5320,7 @@ class FinancialController extends Controller
                 'status' => 'confirmado',
             ]);
 
-            return redirect()->route('financial.bank-conciliation')
+            return $this->redirectToBankConciliation()
                 ->with('success', 'Traspaso confirmado correctamente. El saldo se ha ajustado en ambas tiendas.');
         } catch (\Exception $e) {
             return back()->withInput()->with('error', 'Error al confirmar el traspaso: '.$e->getMessage());

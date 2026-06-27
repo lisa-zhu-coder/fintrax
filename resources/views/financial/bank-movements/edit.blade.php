@@ -3,6 +3,12 @@
 @section('title', 'Editar Movimiento Bancario')
 
 @section('content')
+@php
+    $bcReturn = request('redirect_to');
+    $bcBackUrl = (is_string($bcReturn) && str_starts_with($bcReturn, route('financial.bank-conciliation')))
+        ? $bcReturn
+        : route('financial.bank-conciliation');
+@endphp
 <div class="space-y-6">
     <header class="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
         @include('partials.treasury-section-tabs', ['group' => 'bank'])
@@ -11,7 +17,7 @@
                 <h1 class="text-lg font-semibold">Editar Movimiento Bancario</h1>
                 <p class="text-sm text-slate-500">{{ $bankMovement->bankAccount->bank_name ?? '—' }}</p>
             </div>
-            <a href="{{ route('financial.bank-conciliation') }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+            <a href="{{ $bcBackUrl }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -24,6 +30,7 @@
         <form method="POST" action="{{ route('financial.bank-movements.update', $bankMovement) }}" class="space-y-6">
             @csrf
             @method('PUT')
+            <input type="hidden" name="redirect_to" value="{{ $bcReturn }}">
             
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label class="block">
@@ -118,6 +125,7 @@
                     </p>
                     <form method="POST" action="{{ route('financial.bank-movements.confirm-transfer', $bankMovement) }}" class="inline">
                         @csrf
+                        <input type="hidden" name="redirect_to" value="{{ $bcReturn }}">
                         <button type="submit" class="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">
                             Confirmar traspaso
                         </button>
@@ -126,7 +134,7 @@
             @endif
 
             <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
-                <a href="{{ route('financial.bank-conciliation') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <a href="{{ $bcBackUrl }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Cancelar
                 </a>
                 <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RedirectsToBankConciliation;
 use App\Models\BankMovement;
 use App\Models\Loan;
 use App\Models\LoanPayment;
@@ -9,6 +10,8 @@ use Illuminate\Http\Request;
 
 class LoanPaymentController extends Controller
 {
+    use RedirectsToBankConciliation;
+
     public function __construct()
     {
         $this->middleware('permission:loans.payments.create')->only(['store', 'conciliateFromBank']);
@@ -48,7 +51,7 @@ class LoanPaymentController extends Controller
         if ($request->wantsJson()) {
             return response()->json(['success' => true]);
         }
-        return redirect()->route('financial.bank-conciliation')
+        return $this->redirectToBankConciliation()
             ->with('success', 'Movimiento conciliado como pago del préstamo "' . $loan->name . '".');
     }
 

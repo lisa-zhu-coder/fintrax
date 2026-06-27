@@ -110,6 +110,7 @@
             <div id="bulkActionsBar" class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <form id="formBulkDelete" method="POST" action="{{ route('financial.bank-conciliation.bulk-destroy') }}" class="inline">
                     @csrf
+                    <input type="hidden" name="redirect_to" value="{{ request()->fullUrl() }}">
                     @if(auth()->user()->hasPermission('treasury.bank_conciliation.delete'))
                     <button type="button" id="btnBulkDelete" class="inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Selecciona al menos un movimiento">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -260,7 +261,7 @@
                                 </td>
                                 <td class="px-3 py-3">
                                     <div class="flex items-center justify-end gap-2">
-                                        <a href="{{ route('financial.bank-movements.edit', $movement) }}" 
+                                        <a href="{{ route('financial.bank-movements.edit', [$movement, 'redirect_to' => request()->fullUrl()]) }}" 
                                             class="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -352,6 +353,7 @@
                                             @endif
                                             <form method="POST" action="{{ route('financial.bank-conciliation.ignore', $movement) }}" class="inline" onsubmit="return confirm('¿Estás seguro de que deseas ignorar este movimiento?')">
                                                 @csrf
+                                                <input type="hidden" name="redirect_to" value="{{ request()->fullUrl() }}">
                                                 <button type="submit" class="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                         <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -375,6 +377,7 @@
                                         <form method="POST" action="{{ route('financial.bank-conciliation.destroy', $movement) }}" class="inline">
                                             @csrf
                                             @method('DELETE')
+                                            <input type="hidden" name="redirect_to" value="{{ request()->fullUrl() }}">
                                             <button type="submit" class="inline-flex items-center justify-center gap-1 rounded-xl border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                     <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -411,6 +414,7 @@
             
             <form id="linkForm" method="POST" action="">
                 @csrf
+                <input type="hidden" name="redirect_to" value="{{ request()->fullUrl() }}">
                 
                 <label class="block mb-4">
                     <span class="text-xs font-semibold text-slate-700">Seleccionar gasto</span>
@@ -450,6 +454,7 @@
             
             <form id="linkIncomeForm" method="POST" action="">
                 @csrf
+                <input type="hidden" name="redirect_to" value="{{ request()->fullUrl() }}">
                 
                 <label class="block mb-4">
                     <span class="text-xs font-semibold text-slate-700">Mes de los ingresos</span>
@@ -503,6 +508,7 @@
             
             <form id="transferForm" method="POST" action="">
                 @csrf
+                <input type="hidden" name="redirect_to" value="{{ request()->fullUrl() }}">
                 
                 <!-- Si amount < 0: la tienda del movimiento ES el origen. Mostrar origen fijo, pedir SOLO tienda destino. -->
                 <div id="transferSectionNegative" class="space-y-4 hidden">
@@ -591,6 +597,7 @@
             
             <form id="createForm" method="POST" action="">
                 @csrf
+                <input type="hidden" name="redirect_to" value="{{ request()->fullUrl() }}">
                 
                 <div class="space-y-4">
                     <label class="block">
@@ -684,6 +691,7 @@
             </div>
             <form id="loanPaymentForm" method="POST" action="">
                 @csrf
+                <input type="hidden" name="redirect_to" value="{{ request()->fullUrl() }}">
                 <label class="block mb-4">
                     <span class="text-xs font-semibold text-slate-700">Préstamo *</span>
                     <select name="loan_id" id="loanPaymentLoanId" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-brand-200 focus:ring-4">

@@ -282,6 +282,12 @@
                                 @if(auth()->user()->canViewPayrollPdf($employee))
                                 <a href="{{ route('payrolls.view', $payroll) }}" target="_blank" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">Ver</a>
                                 @endif
+                                @if(auth()->user()->hasPermission('hr.payroll.upload') || auth()->user()->hasPermission('hr.employees.configure'))
+                                <button type="button"
+                                    class="btn-rename-payroll rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                    data-rename-url="{{ route('payroll.rename', $payroll) }}"
+                                    data-file-name="{{ $payroll->file_name }}">Editar nombre</button>
+                                @endif
                                 @if(auth()->user()->hasPermission('hr.payroll.delete'))
                                 <form method="POST" action="{{ route('payroll.destroy', $payroll) }}" class="inline" onsubmit="return confirm('¿Eliminar esta nómina?');">
                                     @csrf
@@ -302,6 +308,49 @@
         </div>
     </div>
 </div>
+
+@if(auth()->user()->hasPermission('hr.payroll.upload') || auth()->user()->hasPermission('hr.employees.configure'))
+<div id="modalRenamePayroll" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-slate-900/50" onclick="document.getElementById('modalRenamePayroll').classList.add('hidden')"></div>
+        <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
+            <h3 class="mb-4 text-lg font-semibold text-slate-900">Editar nombre de la nómina</h3>
+            <form id="formRenamePayroll" method="POST" action="">
+                @csrf
+                @method('PATCH')
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Nombre del archivo</span>
+                    <input type="text" name="file_name" id="renamePayrollFileName" required maxlength="255" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Ej. Nómina Junio 2026.pdf">
+                    <span class="mt-1 block text-xs text-slate-500">Si no incluyes la extensión, se añadirá «.pdf» automáticamente.</span>
+                </label>
+                <div class="flex justify-end gap-2 pt-4">
+                    <button type="button" onclick="document.getElementById('modalRenamePayroll').classList.add('hidden')" class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
+                    <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var modal = document.getElementById('modalRenamePayroll');
+    var form = document.getElementById('formRenamePayroll');
+    var input = document.getElementById('renamePayrollFileName');
+    if (!modal || !form || !input) return;
+    document.querySelectorAll('.btn-rename-payroll').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            form.setAttribute('action', this.dataset.renameUrl);
+            input.value = this.dataset.fileName || '';
+            modal.classList.remove('hidden');
+            input.focus();
+            input.select();
+        });
+    });
+});
+</script>
+@endpush
+@endif
 
 @if(auth()->user()->hasPermission('hr.documents.upload'))
 <div id="modalDocument" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true">

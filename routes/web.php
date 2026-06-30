@@ -81,6 +81,7 @@ Route::middleware(['auth', 'active.user', 'company'])->group(function () {
     Route::post('payroll/pending-assign-employee', [\App\Http\Controllers\PayrollController::class, 'pendingAssignEmployee'])->name('payroll.pending-assign');
     Route::post('payroll/pending-remove', [\App\Http\Controllers\PayrollController::class, 'pendingRemove'])->name('payroll.pending-remove');
     Route::patch('payroll/{payroll}/assign', [\App\Http\Controllers\PayrollController::class, 'assignEmployee'])->name('payroll.assign');
+    Route::patch('payroll/{payroll}/rename', [\App\Http\Controllers\PayrollController::class, 'rename'])->name('payroll.rename');
     Route::delete('payroll/{payroll}', [\App\Http\Controllers\PayrollController::class, 'destroy'])->name('payroll.destroy');
 
     // Pedidos (vista principal = listado de proveedores; segundo nivel = pedidos del proveedor)

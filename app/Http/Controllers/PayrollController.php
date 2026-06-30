@@ -26,7 +26,7 @@ class PayrollController extends Controller
             abort(403, 'No tienes permisos para acceder a esta página.');
         })->only(['pendingSend', 'processStatus']);
         $this->middleware('permission:hr.payroll.send')->only(['sendBulk']);
-        $this->middleware('permission:hr.payroll.upload')->only(['assignEmployee', 'pendingAssignEmployee']);
+        $this->middleware('permission:hr.payroll.upload')->only(['assignEmployee', 'pendingAssignEmployee', 'rename']);
         $this->middleware('permission:hr.payroll.delete')->only(['destroy', 'cancelPending', 'pendingRemove']);
     }
 
@@ -460,6 +460,43 @@ class PayrollController extends Controller
             $payroll->update(['file_name' => $newFileName]);
         }
         return response()->json(['success' => true, 'email' => $newEmployee->email, 'file_name' => $newFileName]);
+    }
+
+    public function rename(Request $request, Payroll $payroll)
+    {
+        $companyId = session('company_id') ?? Auth::user()?->company_id;
+        if (!$payroll->employee || $payroll->employee->company_id != $companyId) {
+            abort(404);
+        }
+
+        $request->validate([
+            'file_name' => 'required|string|max:255',
+        ]);
+
+        $newFileName = $this->sanitizePayrollStorageFileName((string) $request->input('file_name'));
+
+        if ($payroll->file_path && Storage::disk('local')->exists($payroll->file_path)) {
+            $dir = 'payrolls/' . $payroll->employee_id;
+            $newPath = $dir . '/' . $newFileName;
+            if ($newPath !== $payroll->file_path) {
+                Storage::disk('local')->makeDirectory($dir);
+                if (Storage::disk('local')->exists($newPath)) {
+                    Storage::disk('local')->delete($newPath);
+                }
+                Storage::disk('local')->move($payroll->file_path, $newPath);
+                $payroll->update(['file_path' => $newPath, 'file_name' => $newFileName]);
+            } else {
+                $payroll->update(['file_name' => $newFileName]);
+            }
+        } else {
+            $payroll->update(['file_name' => $newFileName]);
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'file_name' => $newFileName]);
+        }
+
+        return redirect()->back()->with('success', 'Nombre de la nómina actualizado.');
     }
 
     public function destroy(Request $request, Payroll $payroll)

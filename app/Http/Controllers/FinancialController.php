@@ -3426,6 +3426,52 @@ class FinancialController extends Controller
     }
 
     /**
+     * Interpreta la división del gasto entre tiendas a partir del formulario.
+     * Devuelve [store_id => importe_absoluto] o null si no se ha solicitado dividir.
+     * Lanza ValidationException si la suma no coincide con el importe total.
+     *
+     * @return array<int, float>|null
+     */
+    private function parseExpenseSplitFromRequest(Request $request, float $absTotal): ?array
+    {
+        $stores = $request->input('expense_split_stores');
+        $amounts = $request->input('expense_split_amounts');
+
+        if (! is_array($stores) || count($stores) < 1 || ! is_array($amounts)) {
+            return null;
+        }
+
+        $result = [];
+        $sum = 0.0;
+        foreach ($stores as $storeId) {
+            $storeId = (int) $storeId;
+            if ($storeId <= 0) {
+                continue;
+            }
+            $share = isset($amounts[$storeId]) ? round((float) $amounts[$storeId], 2) : 0.0;
+            if ($share <= 0) {
+                continue;
+            }
+            $result[$storeId] = $share;
+            $sum += $share;
+        }
+
+        if (count($result) < 1) {
+            return null;
+        }
+
+        if (abs(round($sum, 2) - round($absTotal, 2)) > 0.01) {
+            throw ValidationException::withMessages([
+                'expense_split_amounts' => [
+                    'La suma de la división ('.number_format($sum, 2, ',', '.').' €) debe ser igual al importe total ('.number_format($absTotal, 2, ',', '.').' €).',
+                ],
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
      * Crear gasto desde movimiento bancario
      */
     public function createExpenseFromBankMovement(Request $request, BankMovement $bankMovement)
@@ -3438,6 +3484,9 @@ class FinancialController extends Controller
             'expense_category' => 'nullable|string|max:255',
             'expense_concept' => 'required|string|max:255',
             'amount' => 'required|numeric',
+            'expense_split_stores' => 'nullable|array',
+            'expense_split_stores.*' => 'integer|exists:stores,id',
+            'expense_split_amounts' => 'nullable|array',
         ]);
 
         try {
@@ -3458,47 +3507,105 @@ class FinancialController extends Controller
                 }
             }
 
-            // Crear FinancialEntry (expense)
-            $financialEntry = FinancialEntry::create([
-                'date' => $validated['date'],
-                'reporting_month' => $validated['reporting_month'],
-                'store_id' => $validated['store_id'],
-                'supplier_id' => $validated['supplier_id'] ?? null,
-                'type' => 'expense',
-                'expense_payment_method' => 'bank',
-                'expense_amount' => $amount,
-                'amount' => $amount,
-                'total_amount' => $amount,
-                'status' => 'pagado',
-                'paid_amount' => $amount,
-                'expense_category' => $expenseCategory,
-                'expense_source' => 'conciliacion_bancaria',
-                'expense_concept' => $validated['expense_concept'],
-                'concept' => $validated['expense_concept'],
-                'notes' => json_encode([
-                    'source' => 'bank_movement',
-                    'bank_movement_id' => $bankMovement->id,
-                ]),
-                'created_by' => Auth::id(),
-            ]);
+            // ¿El usuario ha decidido dividir el gasto entre varias tiendas?
+            $split = $this->parseExpenseSplitFromRequest($request, abs((float) $validated['amount']));
 
-            // Marcar bankMovement como conciliado y guardar financial_entry_id
+            if ($split !== null) {
+                $financialEntry = DB::transaction(function () use ($split, $bankMovement, $validated, $expenseCategory, $amount) {
+                    $signFactor = $bankMovement->type === 'credit' ? -1 : 1;
+                    $splitGroup = (string) \Illuminate\Support\Str::uuid();
+                    $storeSplitSummary = [
+                        'stores' => array_keys($split),
+                        'amounts' => $split,
+                        'origin_store_id' => (int) $validated['store_id'],
+                    ];
+
+                    $primaryEntry = null;
+                    foreach ($split as $splitStoreId => $shareAbs) {
+                        $this->authorizeStoreAccess($splitStoreId);
+                        $shareSigned = round($signFactor * $shareAbs, 2);
+
+                        $entry = FinancialEntry::create([
+                            'date' => $validated['date'],
+                            'reporting_month' => $validated['reporting_month'],
+                            'store_id' => $splitStoreId,
+                            'supplier_id' => $validated['supplier_id'] ?? null,
+                            'type' => 'expense',
+                            'expense_payment_method' => 'bank',
+                            'expense_amount' => $shareSigned,
+                            'amount' => $shareSigned,
+                            'total_amount' => $shareSigned,
+                            'status' => 'pagado',
+                            'paid_amount' => $shareSigned,
+                            'expense_category' => $expenseCategory,
+                            'expense_source' => 'conciliacion_bancaria',
+                            'expense_concept' => $validated['expense_concept'],
+                            'concept' => $validated['expense_concept'],
+                            'store_split' => $storeSplitSummary,
+                            'notes' => json_encode([
+                                'source' => 'bank_movement',
+                                'bank_movement_id' => $bankMovement->id,
+                                'split_group' => $splitGroup,
+                            ]),
+                            'created_by' => Auth::id(),
+                        ]);
+
+                        if ($primaryEntry === null) {
+                            $primaryEntry = $entry;
+                        }
+
+                        if (! empty($entry->supplier_id)) {
+                            $this->syncAutoOrderForExpense($entry);
+                        }
+                    }
+
+                    return $primaryEntry;
+                });
+            } else {
+                // Crear FinancialEntry (expense)
+                $financialEntry = FinancialEntry::create([
+                    'date' => $validated['date'],
+                    'reporting_month' => $validated['reporting_month'],
+                    'store_id' => $validated['store_id'],
+                    'supplier_id' => $validated['supplier_id'] ?? null,
+                    'type' => 'expense',
+                    'expense_payment_method' => 'bank',
+                    'expense_amount' => $amount,
+                    'amount' => $amount,
+                    'total_amount' => $amount,
+                    'status' => 'pagado',
+                    'paid_amount' => $amount,
+                    'expense_category' => $expenseCategory,
+                    'expense_source' => 'conciliacion_bancaria',
+                    'expense_concept' => $validated['expense_concept'],
+                    'concept' => $validated['expense_concept'],
+                    'notes' => json_encode([
+                        'source' => 'bank_movement',
+                        'bank_movement_id' => $bankMovement->id,
+                    ]),
+                    'created_by' => Auth::id(),
+                ]);
+
+                if (! empty($financialEntry->supplier_id)) {
+                    $this->syncAutoOrderForExpense($financialEntry);
+                }
+            }
+
+            // Marcar bankMovement como conciliado y guardar financial_entry_id (entrada principal)
             $bankMovement->update([
                 'is_conciliated' => true,
                 'status' => 'conciliado',
                 'financial_entry_id' => $financialEntry->id,
             ]);
 
-            if (! empty($financialEntry->supplier_id)) {
-                $this->syncAutoOrderForExpense($financialEntry);
-            }
-
             if ($request->wantsJson()) {
                 return response()->json(['success' => true]);
             }
 
             return $this->redirectToBankConciliation()
-                ->with('success', 'Gasto creado y movimiento conciliado correctamente.');
+                ->with('success', $split !== null
+                    ? 'Gasto dividido entre tiendas y movimiento conciliado correctamente.'
+                    : 'Gasto creado y movimiento conciliado correctamente.');
         } catch (\Exception $e) {
             Log::error('Error creando gasto desde movimiento bancario: '.$e->getMessage());
             if ($request->wantsJson()) {
@@ -3824,6 +3931,19 @@ class FinancialController extends Controller
         if ($bankMovement->financial_entry_id) {
             $financialEntry = FinancialEntry::find($bankMovement->financial_entry_id);
             if ($financialEntry) {
+                // Si el gasto se dividió entre tiendas, eliminar también las entradas hermanas del mismo grupo.
+                $notes = json_decode((string) ($financialEntry->notes ?? ''), true);
+                $splitGroup = is_array($notes) ? ($notes['split_group'] ?? null) : null;
+                if ($splitGroup) {
+                    $siblings = FinancialEntry::where('id', '!=', $financialEntry->id)
+                        ->where('notes', 'like', '%"split_group":"'.$splitGroup.'"%')
+                        ->get();
+                    foreach ($siblings as $sibling) {
+                        ExpensePayment::where('financial_entry_id', $sibling->id)->delete();
+                        $sibling->delete();
+                    }
+                }
+
                 ExpensePayment::where('financial_entry_id', $financialEntry->id)->delete();
                 $financialEntry->delete();
             }

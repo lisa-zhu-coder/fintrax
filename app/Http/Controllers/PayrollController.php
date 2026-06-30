@@ -76,6 +76,12 @@ class PayrollController extends Controller
 
     public function cancelPending(Request $request)
     {
+        $payrollToken = $request->input('payroll_token');
+        if (is_string($payrollToken) && $payrollToken !== '') {
+            Cache::forget('payroll_result_' . $payrollToken);
+            Cache::forget('payroll_error_' . $payrollToken);
+        }
+
         $uploadId = $request->session()->get('pending_payroll_upload_id');
         if ($uploadId) {
             Storage::disk('local')->deleteDirectory('temp_payrolls/' . $uploadId);

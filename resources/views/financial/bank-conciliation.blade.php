@@ -656,6 +656,35 @@
                         <input type="number" name="amount" id="createAmount" step="0.01" readonly class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 cursor-not-allowed"/>
                         <p id="createAmountCreditHint" class="mt-1 hidden text-xs text-slate-500">Movimiento de ingreso en banco: el gasto se registra en negativo y reduce el total de gastos del mes.</p>
                     </label>
+
+                    <!-- División entre tiendas -->
+                    <div id="createSplitBlock" class="rounded-xl border border-slate-200 bg-white p-4">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="createSplitToggle" class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500"/>
+                            <span class="text-sm font-semibold text-slate-700">Dividir este gasto entre tiendas</span>
+                        </label>
+                        <div id="createSplitContainer" class="hidden mt-3 space-y-3">
+                            <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                <div class="text-xs font-semibold text-slate-700 mb-2">Selecciona las tiendas que participan:</div>
+                                <div id="createSplitStoreCheckboxes" class="space-y-2 max-h-40 overflow-y-auto">
+                                    @foreach($stores as $store)
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" name="expense_split_stores[]" value="{{ $store->id }}" class="create-split-store-checkbox h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500"/>
+                                        <span class="text-sm text-slate-700">{{ $store->name }}</span>
+                                    </label>
+                                    @endforeach
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="font-semibold text-slate-700">Distribución por tienda:</span>
+                                <span class="text-slate-600">Total: <span id="createSplitTotal" class="font-semibold text-brand-700">0,00 €</span></span>
+                            </div>
+                            <div id="createSplitStoresList" class="space-y-2"></div>
+                            <div id="createSplitError" class="hidden rounded-lg bg-rose-50 p-2 text-xs text-rose-700 ring-1 ring-rose-200">
+                                La suma de las cantidades debe ser igual al importe total del gasto.
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="mt-6 flex items-center justify-end gap-3">
@@ -1122,6 +1151,10 @@ function openCreateModal(movementId, description, amount, date, storeId, movemen
     if (hint) {
         hint.classList.toggle('hidden', movementType !== 'credit');
     }
+
+    if (typeof window._bcSetupCreateSplitForOpen === 'function') {
+        window._bcSetupCreateSplitForOpen();
+    }
     
     document.getElementById('createModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -1158,6 +1191,9 @@ function closeCreateModal() {
     document.getElementById('createModal').classList.add('hidden');
     document.body.style.overflow = '';
     document.getElementById('createForm').reset();
+    if (typeof window._bcResetCreateSplit === 'function') {
+        window._bcResetCreateSplit();
+    }
 }
 
 function openTransferModal(movementId, storeId, amount, date, sign, storeName) {
@@ -1310,6 +1346,112 @@ function closeTpvDifferenceModal() {
     var modal = document.getElementById('tpvDifferenceModal');
     if (modal) modal.classList.add('hidden');
 }
+
+// División del gasto entre tiendas (modal Crear gasto)
+(function() {
+    var splitBlock = document.getElementById('createSplitBlock');
+    var toggle = document.getElementById('createSplitToggle');
+    var container = document.getElementById('createSplitContainer');
+    var storesList = document.getElementById('createSplitStoresList');
+    var totalEl = document.getElementById('createSplitTotal');
+    var errorEl = document.getElementById('createSplitError');
+    var amountEl = document.getElementById('createAmount');
+    if (!splitBlock || !toggle || !container) return;
+
+    function storeCheckboxes() {
+        return Array.prototype.slice.call(document.querySelectorAll('.create-split-store-checkbox'));
+    }
+
+    function totalAmount() {
+        return Math.abs(parseFloat(amountEl ? amountEl.value : '0') || 0);
+    }
+
+    function clearGeneratedAmounts() {
+        if (storesList) storesList.innerHTML = '';
+    }
+
+    function buildList() {
+        if (!toggle.checked) { clearGeneratedAmounts(); return; }
+        var selected = storeCheckboxes().filter(function(cb) { return cb.checked; })
+            .map(function(cb) { return { id: cb.value, name: cb.parentElement.querySelector('span').textContent }; });
+
+        if (selected.length === 0) {
+            storesList.innerHTML = '<p class="text-xs text-slate-500">Selecciona al menos una tienda</p>';
+            if (totalEl) totalEl.textContent = '0,00 €';
+            return;
+        }
+
+        var total = totalAmount();
+        var per = (total / selected.length);
+        storesList.innerHTML = selected.map(function(store) {
+            var amount = per.toFixed(2);
+            return '<div class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">'
+                + '<div class="flex-1"><div class="text-xs font-semibold text-slate-700">' + store.name + '</div></div>'
+                + '<div class="w-32"><input type="number" name="expense_split_amounts[' + store.id + ']" step="0.01" min="0" value="' + amount + '" class="create-split-amount w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm outline-none ring-brand-200 focus:ring-2"></div>'
+                + '</div>';
+        }).join('');
+
+        document.querySelectorAll('.create-split-amount').forEach(function(inp) {
+            inp.addEventListener('input', validateSum);
+        });
+        validateSum();
+    }
+
+    function validateSum() {
+        var total = totalAmount();
+        var sum = Array.prototype.slice.call(document.querySelectorAll('.create-split-amount'))
+            .map(function(i) { return parseFloat(i.value) || 0; })
+            .reduce(function(a, b) { return a + b; }, 0);
+        if (totalEl) totalEl.textContent = sum.toFixed(2).replace('.', ',') + ' €';
+        if (errorEl) errorEl.classList.toggle('hidden', Math.abs(sum - total) <= 0.01);
+    }
+
+    toggle.addEventListener('change', function() {
+        container.classList.toggle('hidden', !toggle.checked);
+        buildList();
+    });
+    storeCheckboxes().forEach(function(cb) {
+        cb.addEventListener('change', buildList);
+    });
+
+    window._bcResetCreateSplit = function() {
+        toggle.checked = false;
+        container.classList.add('hidden');
+        storeCheckboxes().forEach(function(cb) { cb.checked = false; });
+        clearGeneratedAmounts();
+        if (errorEl) errorEl.classList.add('hidden');
+        if (totalEl) totalEl.textContent = '0,00 €';
+    };
+
+    window._bcSetupCreateSplitForOpen = function() {
+        window._bcResetCreateSplit();
+        // La división solo está disponible al crear un gasto individual, no en lote.
+        var isBulk = !!window.bulkCreateQueue;
+        splitBlock.classList.toggle('hidden', isBulk);
+    };
+
+    // Recalcular si cambia el importe (por si acaso)
+    if (amountEl) amountEl.addEventListener('input', function() { if (toggle.checked) buildList(); });
+
+    // Bloquear envío si la división no cuadra
+    var createForm = document.getElementById('createForm');
+    if (createForm) createForm.addEventListener('submit', function(e) {
+        if (!toggle.checked) return;
+        var total = totalAmount();
+        var amounts = Array.prototype.slice.call(document.querySelectorAll('.create-split-amount'));
+        if (amounts.length === 0) {
+            e.preventDefault();
+            alert('Selecciona al menos una tienda para dividir el gasto.');
+            return;
+        }
+        var sum = amounts.map(function(i) { return parseFloat(i.value) || 0; }).reduce(function(a, b) { return a + b; }, 0);
+        if (Math.abs(sum - total) > 0.01) {
+            e.preventDefault();
+            if (errorEl) errorEl.classList.remove('hidden');
+            alert('La suma de la división debe ser igual al importe total del gasto.');
+        }
+    });
+})();
 
 // Cerrar modales con Escape
 document.addEventListener('keydown', function(e) {

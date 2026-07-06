@@ -5205,91 +5205,155 @@ class FinancialController extends Controller
     }
 
     /**
-     * Crear o actualizar ingresos automáticos para un cierre diario.
-     * Primero se eliminan todos los ingresos asociados a este cierre (evita duplicados al crear/editar).
+     * Crear o actualizar ingresos automáticos para un cierre diario (sin enviar copias a la papelera).
      */
-    private function syncDailyCloseIncomes(FinancialEntry $dailyClose)
+    private function syncDailyCloseIncomes(FinancialEntry $dailyClose): void
     {
         if ($dailyClose->type !== 'daily_close') {
             return;
         }
 
-        // Eliminar cualquier ingreso previo asociado a este cierre (mismo formato u otro) para no duplicar
-        $this->deleteDailyCloseIncomes($dailyClose);
-
-        // Calcular efectivo del cierre
         $cashCounted = $dailyClose->calculateCashTotal();
         $cashInitial = (float) ($dailyClose->cash_initial ?? 0);
         $cashExpenses = (float) ($dailyClose->cash_expenses ?? 0);
         $cashSales = round($cashCounted - $cashInitial + $cashExpenses, 2);
-
-        // Datáfono
         $tpv = (float) ($dailyClose->tpv ?? 0);
 
         $userId = $dailyClose->created_by ?? Auth::id();
         $notes = 'daily_close_id:'.$dailyClose->id;
-
         $reportingMonth = $dailyClose->getReportingMonth();
+        $existingIncomes = $this->getDailyCloseLinkedIncomes($dailyClose);
 
-        // Crear solo el ingreso de efectivo si aplica
-        if ($cashSales > 0) {
-            FinancialEntry::create([
-                'type' => 'income',
-                'store_id' => $dailyClose->store_id,
-                'date' => $dailyClose->date,
-                'reporting_month' => $reportingMonth,
-                'amount' => $cashSales,
-                'income_amount' => $cashSales,
-                'income_category' => 'cierre_diario',
-                'income_concept' => 'Ingreso efectivo cierre diario',
-                'expense_payment_method' => 'cash',
-                'notes' => $notes,
-                'created_by' => $userId,
-            ]);
-        }
+        $this->syncDailyCloseIncomeSlot(
+            $existingIncomes,
+            'cash',
+            'Ingreso efectivo cierre diario',
+            'cash',
+            $cashSales,
+            $dailyClose,
+            $reportingMonth,
+            $notes,
+            $userId
+        );
 
-        // Crear solo el ingreso de datáfono si aplica
-        if ($tpv > 0) {
-            FinancialEntry::create([
-                'type' => 'income',
-                'store_id' => $dailyClose->store_id,
-                'date' => $dailyClose->date,
-                'reporting_month' => $reportingMonth,
-                'amount' => $tpv,
-                'income_amount' => $tpv,
-                'income_category' => 'cierre_diario',
-                'income_concept' => 'Ingreso datáfono cierre diario',
-                'expense_payment_method' => 'bank',
-                'notes' => $notes,
-                'created_by' => $userId,
-            ]);
-        }
+        $this->syncDailyCloseIncomeSlot(
+            $existingIncomes,
+            'tpv',
+            'Ingreso datáfono cierre diario',
+            'bank',
+            $tpv,
+            $dailyClose,
+            $reportingMonth,
+            $notes,
+            $userId
+        );
+
+        // Eliminar ingresos vinculados que no encajan en ningún slot (duplicados antiguos u otros formatos)
+        $existingIncomes
+            ->reject(fn (FinancialEntry $income) => $this->resolveDailyCloseIncomeSlot($income) !== null)
+            ->each
+            ->forceDelete();
     }
 
     /**
-     * Eliminar ingresos automáticos asociados a un cierre diario (cualquier formato de notes).
+     * Actualiza o crea un ingreso automático de cierre (efectivo o datáfono).
      */
-    private function deleteDailyCloseIncomes(FinancialEntry $dailyClose)
+    private function syncDailyCloseIncomeSlot(
+        $existingIncomes,
+        string $slot,
+        string $concept,
+        string $paymentMethod,
+        float $amount,
+        FinancialEntry $dailyClose,
+        string $reportingMonth,
+        string $notes,
+        ?int $userId
+    ): void {
+        $slotIncomes = $existingIncomes
+            ->filter(fn (FinancialEntry $income) => $this->resolveDailyCloseIncomeSlot($income) === $slot)
+            ->values();
+
+        if ($amount <= 0) {
+            $slotIncomes->each->forceDelete();
+
+            return;
+        }
+
+        $data = [
+            'type' => 'income',
+            'store_id' => $dailyClose->store_id,
+            'date' => $dailyClose->date,
+            'reporting_month' => $reportingMonth,
+            'amount' => $amount,
+            'income_amount' => $amount,
+            'income_category' => 'cierre_diario',
+            'income_concept' => $concept,
+            'expense_payment_method' => $paymentMethod,
+            'notes' => $notes,
+        ];
+
+        if ($slotIncomes->isNotEmpty()) {
+            $slotIncomes->first()->update($data);
+            $slotIncomes->slice(1)->each->forceDelete();
+
+            return;
+        }
+
+        FinancialEntry::create(array_merge($data, ['created_by' => $userId]));
+    }
+
+    /**
+     * Identifica el slot (efectivo o datáfono) de un ingreso generado desde cierre diario.
+     */
+    private function resolveDailyCloseIncomeSlot(FinancialEntry $income): ?string
+    {
+        if ($income->expense_payment_method === 'cash') {
+            return 'cash';
+        }
+        if ($income->expense_payment_method === 'bank') {
+            return 'tpv';
+        }
+
+        $concept = strtolower((string) ($income->income_concept ?? ''));
+        if (str_contains($concept, 'datáfono') || str_contains($concept, 'datafono') || str_contains($concept, 'tpv')) {
+            return 'tpv';
+        }
+        if (str_contains($concept, 'efectivo')) {
+            return 'cash';
+        }
+
+        return null;
+    }
+
+    /**
+     * Ingresos vinculados a un cierre diario (cualquier formato de notes).
+     */
+    private function getDailyCloseLinkedIncomes(FinancialEntry $dailyClose)
+    {
+        $id = (int) $dailyClose->id;
+
+        return FinancialEntry::where('type', 'income')
+            ->where(function ($q) use ($id) {
+                $q->where('notes', 'LIKE', '%daily_close_id:'.$id.'%')
+                    ->orWhere('notes', 'LIKE', '%Generado automáticamente desde cierre diario #'.$id.'%');
+            })
+            ->get();
+    }
+
+    /**
+     * Eliminar ingresos automáticos asociados a un cierre diario (borrado manual → papelera).
+     */
+    private function deleteDailyCloseIncomes(FinancialEntry $dailyClose): void
     {
         if ($dailyClose->type !== 'daily_close') {
             return;
         }
 
-        $id = (int) $dailyClose->id;
-        // Incluir ambos formatos: "daily_close_id:X" (controller) y "Generado automáticamente desde cierre diario #X" (command)
-        FinancialEntry::where('type', 'income')
-            ->where('store_id', $dailyClose->store_id)
-            ->where('date', $dailyClose->date)
-            ->where(function ($q) use ($id) {
-                $q->where('notes', 'LIKE', '%daily_close_id:'.$id.'%')
-                    ->orWhere('notes', 'LIKE', '%Generado automáticamente desde cierre diario #'.$id.'%');
-            })
-            ->delete();
+        $this->getDailyCloseLinkedIncomes($dailyClose)->each->delete();
     }
 
     /**
-     * Sincronizar gastos del cierre diario: crear un FinancialEntry tipo expense por cada expense_item
-     * para que aparezcan en el apartado de gastos.
+     * Sincronizar gastos del cierre diario: actualizar o crear un expense por cada expense_item.
      */
     private function syncDailyCloseExpenses(FinancialEntry $dailyClose): void
     {
@@ -5297,33 +5361,45 @@ class FinancialController extends Controller
             return;
         }
 
-        $id = (int) $dailyClose->id;
-        // Eliminar gastos que estaban vinculados a este cierre (para volver a crearlos según expense_items actual)
-        FinancialEntry::where('type', 'expense')
-            ->where('expense_source', 'cierre_diario')
-            ->where(function ($q) use ($id) {
-                $q->where('notes', 'like', '%"daily_close_id":'.$id.',%')
-                    ->orWhere('notes', 'like', '%"daily_close_id":'.$id.'}%');
-            })
-            ->delete();
-
         $expenseItems = $dailyClose->expense_items ?? [];
         if (! is_array($expenseItems)) {
-            return;
+            $expenseItems = [];
         }
 
         $userId = $dailyClose->created_by ?? Auth::id();
+        $reportingMonth = $dailyClose->getReportingMonth();
+        $existingByIndex = [];
+        foreach ($this->getDailyCloseLinkedExpenses($dailyClose) as $expense) {
+            $index = $this->extractDailyCloseExpenseItemIndex($expense);
+            if ($index === null) {
+                $expense->forceDelete();
+
+                continue;
+            }
+            if (isset($existingByIndex[$index])) {
+                $expense->forceDelete();
+
+                continue;
+            }
+            $existingByIndex[$index] = $expense;
+        }
+
         foreach ($expenseItems as $index => $item) {
             $amount = (float) ($item['amount'] ?? 0);
             if ($amount == 0) {
+                if (isset($existingByIndex[$index])) {
+                    $existingByIndex[$index]->forceDelete();
+                    unset($existingByIndex[$index]);
+                }
+
                 continue;
             }
+
             $concept = $item['concept'] ?? $item['expense_concept'] ?? 'Gasto cierre diario';
             $category = $item['expense_category'] ?? 'otros';
-
-            FinancialEntry::create([
+            $data = [
                 'date' => $dailyClose->date,
-                'reporting_month' => $dailyClose->getReportingMonth(),
+                'reporting_month' => $reportingMonth,
                 'store_id' => $dailyClose->store_id,
                 'supplier_id' => null,
                 'type' => 'expense',
@@ -5342,13 +5418,49 @@ class FinancialController extends Controller
                     'daily_close_id' => $dailyClose->id,
                     'item_index' => $index,
                 ]),
-                'created_by' => $userId,
-            ]);
+            ];
+
+            if (isset($existingByIndex[$index])) {
+                $existingByIndex[$index]->update($data);
+                unset($existingByIndex[$index]);
+            } else {
+                FinancialEntry::create(array_merge($data, ['created_by' => $userId]));
+            }
+        }
+
+        foreach ($existingByIndex as $expense) {
+            $expense->forceDelete();
         }
     }
 
     /**
-     * Eliminar gastos asociados a un cierre diario (los creados desde expense_items)
+     * Gastos vinculados a un cierre diario (expense_items).
+     */
+    private function getDailyCloseLinkedExpenses(FinancialEntry $dailyClose)
+    {
+        $id = (int) $dailyClose->id;
+
+        return FinancialEntry::where('type', 'expense')
+            ->where('expense_source', 'cierre_diario')
+            ->where(function ($q) use ($id) {
+                $q->where('notes', 'like', '%"daily_close_id":'.$id.',%')
+                    ->orWhere('notes', 'like', '%"daily_close_id":'.$id.'}%');
+            })
+            ->get();
+    }
+
+    private function extractDailyCloseExpenseItemIndex(FinancialEntry $expense): ?int
+    {
+        $notes = is_string($expense->notes) ? json_decode($expense->notes, true) : $expense->notes;
+        if (! is_array($notes) || ! isset($notes['item_index']) || ! is_numeric($notes['item_index'])) {
+            return null;
+        }
+
+        return (int) $notes['item_index'];
+    }
+
+    /**
+     * Eliminar gastos asociados a un cierre diario (borrado manual → papelera).
      */
     private function deleteDailyCloseExpenses(FinancialEntry $dailyClose): void
     {
@@ -5356,14 +5468,7 @@ class FinancialController extends Controller
             return;
         }
 
-        $id = (int) $dailyClose->id;
-        FinancialEntry::where('type', 'expense')
-            ->where('expense_source', 'cierre_diario')
-            ->where(function ($q) use ($id) {
-                $q->where('notes', 'like', '%"daily_close_id":'.$id.',%')
-                    ->orWhere('notes', 'like', '%"daily_close_id":'.$id.'}%');
-            })
-            ->delete();
+        $this->getDailyCloseLinkedExpenses($dailyClose)->each->delete();
     }
 
     /**

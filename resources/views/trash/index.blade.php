@@ -72,6 +72,7 @@
                         <th class="whitespace-nowrap px-3 py-2">Concepto</th>
                         <th class="whitespace-nowrap px-3 py-2">Importe</th>
                         <th class="whitespace-nowrap px-3 py-2">Eliminado el</th>
+                        <th class="whitespace-nowrap px-3 py-2">Eliminado por</th>
                         <th class="whitespace-nowrap px-3 py-2">Días restantes</th>
                         <th class="whitespace-nowrap px-3 py-2"></th>
                     </tr>
@@ -98,6 +99,7 @@
                             <td class="whitespace-nowrap px-3 py-2">{{ $entry->concept ?? $entry->expense_concept ?? '—' }}</td>
                             <td class="whitespace-nowrap px-3 py-2 font-medium">{{ number_format($entry->amount ?? 0, 2, ',', '.') }} €</td>
                             <td class="whitespace-nowrap px-3 py-2">{{ $entry->deleted_at->format('d/m/Y H:i') }}</td>
+                            <td class="whitespace-nowrap px-3 py-2">{{ $entry->deleter->name ?? '—' }}</td>
                             <td class="whitespace-nowrap px-3 py-2">
                                 @php
                                     $daysRemaining = (int) max(0, 30 - $entry->deleted_at->diffInDays(now()));
@@ -130,7 +132,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-3 py-6 text-center text-slate-500">La papelera está vacía</td>
+                            <td colspan="9" class="px-3 py-6 text-center text-slate-500">La papelera está vacía</td>
                         </tr>
                     @endforelse
                 </tbody>

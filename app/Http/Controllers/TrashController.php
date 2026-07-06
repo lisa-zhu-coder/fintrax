@@ -28,7 +28,7 @@ class TrashController extends Controller
     {
         $this->syncStoresFromBusinesses();
 
-        $query = FinancialEntry::onlyTrashed()->with(['store', 'creator']);
+        $query = FinancialEntry::onlyTrashed()->with(['store', 'creator', 'deleter']);
 
         $this->scopeStoreForCurrentUser($query);
         // Solo aplicar filtro por tienda del request si el usuario puede elegir (varias tiendas o admin)

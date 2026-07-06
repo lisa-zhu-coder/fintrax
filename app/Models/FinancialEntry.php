@@ -52,6 +52,7 @@ class FinancialEntry extends Model
         'history',
         'store_split',
         'created_by',
+        'deleted_by',
         'cash_real',
         'total_amount',
         'paid_amount',
@@ -130,6 +131,27 @@ class FinancialEntry extends Model
 
             $entry->history = $history;
         });
+
+        static::deleting(function (self $entry) {
+            if ($entry->isForceDeleting()) {
+                return;
+            }
+
+            $userId = Auth::id();
+            if ($userId) {
+                static::withoutEvents(function () use ($entry, $userId) {
+                    static::whereKey($entry->getKey())->update(['deleted_by' => $userId]);
+                });
+                $entry->deleted_by = $userId;
+            }
+        });
+
+        static::restoring(function (self $entry) {
+            static::withoutEvents(function () use ($entry) {
+                static::whereKey($entry->getKey())->update(['deleted_by' => null]);
+            });
+            $entry->deleted_by = null;
+        });
     }
 
     public function store(): BelongsTo
@@ -145,6 +167,11 @@ class FinancialEntry extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function deleter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by');
     }
 
     public function expensePayments(): HasMany

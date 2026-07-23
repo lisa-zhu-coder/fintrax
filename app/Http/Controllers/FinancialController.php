@@ -745,6 +745,7 @@ class FinancialController extends Controller
             $rules['total_amount'] = 'nullable|numeric';
             $rules['income_amount'] = 'nullable|numeric|min:0';
             $rules['expense_payments'] = 'nullable|array';
+            $rules['expense_payments.*.id'] = 'nullable|integer';
             $rules['expense_payments.*.date'] = 'required|date';
             $rules['expense_payments.*.method'] = 'required|in:cash,bank';
             $rules['expense_payments.*.amount'] = 'required|numeric';
@@ -949,21 +950,11 @@ class FinancialController extends Controller
                 $this->syncDailyCloseExpenses($entry);
             }
 
-            // Actualizar pagos si es un gasto
+            // Actualizar pagos si es un gasto (in-place: update/create/forceDelete sobrantes)
             if ($entry->type === 'expense' && $request->has('expense_payments')) {
                 try {
                     if (Schema::hasTable('expense_payments')) {
-                        // Eliminar pagos existentes
-                        $entry->expensePayments()->delete();
-
-                        // Crear nuevos pagos
-                        foreach ($request->expense_payments as $payment) {
-                            $entry->expensePayments()->create([
-                                'date' => $payment['date'],
-                                'method' => $payment['method'],
-                                'amount' => (float) $payment['amount'],
-                            ]);
-                        }
+                        $this->syncExpensePayments($entry, $request->input('expense_payments', []));
                     }
                 } catch (\Exception $e) {
                     // La tabla aún no existe, continuar sin actualizar pagos
@@ -5585,5 +5576,42 @@ class FinancialController extends Controller
             'pos_card_label' => $company->daily_close_pos_card_label ?? 'Sistema POS · Tarjeta (€)',
             'vouchers_enabled' => (bool) ($company->daily_close_vouchers_enabled ?? true),
         ];
+    }
+
+    /**
+     * Sincroniza pagos de un gasto in-place (update/create/forceDelete sobrantes).
+     *
+     * @param  array<int, array<string, mixed>>  $paymentsInput
+     */
+    private function syncExpensePayments(FinancialEntry $entry, array $paymentsInput): void
+    {
+        $existing = $entry->expensePayments()->get()->keyBy('id');
+        $keptIds = [];
+
+        foreach ($paymentsInput as $payment) {
+            $amount = (float) ($payment['amount'] ?? 0);
+            $data = [
+                'date' => $payment['date'],
+                'method' => $payment['method'],
+                'amount' => $amount,
+            ];
+            $id = isset($payment['id']) ? (int) $payment['id'] : 0;
+
+            if ($id > 0 && $existing->has($id)) {
+                $existing->get($id)->update($data);
+                $keptIds[] = $id;
+            } else {
+                $created = $entry->expensePayments()->create($data);
+                $keptIds[] = (int) $created->id;
+            }
+        }
+
+        foreach ($existing as $id => $payment) {
+            if (! in_array((int) $id, $keptIds, true)) {
+                $payment->forceDelete();
+            }
+        }
+
+        $entry->unsetRelation('expensePayments');
     }
 }

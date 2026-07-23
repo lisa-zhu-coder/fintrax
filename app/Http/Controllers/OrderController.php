@@ -244,6 +244,7 @@ class OrderController extends Controller
             'concept' => 'required|in:pedido,royalty,rectificacion,tara',
             'amount' => 'required|numeric|min:0',
             'payments' => 'nullable|array',
+            'payments.*.id' => 'nullable|integer',
             'payments.*.date' => 'required|date',
             'payments.*.method' => 'required|in:cash,transfer,card',
             'payments.*.amount' => 'required|numeric|min:0',
@@ -294,20 +295,15 @@ class OrderController extends Controller
                     ];
                     
                     $order = Order::create($orderData);
-                    
-                    // Crear pagos proporcionales si existen
-                    if ($request->has('payments')) {
-                        foreach ($request->payments as $payment) {
-                            $paymentAmount = (float) ($payment['amount'] ?? 0);
-                            $proportionalAmount = ($paymentAmount / $totalAmount) * $storeAmount;
-                            $order->payments()->create($this->paymentDataForOrder($payment, round($proportionalAmount, 2), $payingStoreId));
-                        }
-                    }
+
+                    $this->syncOrderPayments(
+                        $order,
+                        $this->proportionalPaymentsInput($request->input('payments', []), $totalAmount, $storeAmount),
+                        $payingStoreId
+                    );
                     
                     $this->addHistoryEntry($order, 'created');
-                    
-                    // Crear gastos automáticamente para el pedido
-                    $this->createExpensesFromOrder($order);
+                    $this->syncExpensesFromOrder($order);
                     
                     $createdOrders[] = $order;
                 }
@@ -321,16 +317,10 @@ class OrderController extends Controller
 
         $order = Order::create($validated);
 
-        if ($request->has('payments')) {
-            foreach ($request->payments as $payment) {
-                $order->payments()->create($this->paymentDataForOrder($payment, (float) ($payment['amount'] ?? 0), $order->store_id));
-            }
-        }
+        $this->syncOrderPayments($order, $request->input('payments', []), (int) $order->store_id);
 
         $this->addHistoryEntry($order, 'created');
-        
-        // Crear gastos automáticamente para el pedido (cartera, efectivo, banco)
-        $this->createExpensesFromOrder($order);
+        $this->syncExpensesFromOrder($order);
 
         $redirectTo = $request->has('supplier_id') && $order->supplier_id
             ? route('orders.supplier', $order->supplier)
@@ -368,6 +358,7 @@ class OrderController extends Controller
             'concept' => 'required|in:pedido,royalty,rectificacion,tara',
             'amount' => 'required|numeric|min:0',
             'payments' => 'nullable|array',
+            'payments.*.id' => 'nullable|integer',
             'payments.*.date' => 'required|date',
             'payments.*.method' => 'required|in:cash,transfer,card',
             'payments.*.amount' => 'required|numeric|min:0',
@@ -398,106 +389,119 @@ class OrderController extends Controller
             $splitAmounts = $request->order_split_amounts ?? [];
             $totalAmount = (float) $validated['amount'];
             $payingStoreId = (int) $validated['store_id'];
-            
-            // Si no hay cantidades específicas, dividir por partes iguales
+
             if (empty($splitAmounts)) {
                 $amountPerStore = $totalAmount / count($splitStores);
                 foreach ($splitStores as $storeId) {
                     $splitAmounts[$storeId] = round($amountPerStore, 2);
                 }
             }
-            
-            // Si el pedido actual tiene división, eliminar los pedidos relacionados
-            if ($order->store_split) {
-                // Buscar otros pedidos relacionados por el mismo número de factura y pedido
-                Order::where('id', '!=', $order->id)
-                    ->where('invoice_number', $order->invoice_number)
-                    ->where('order_number', $order->order_number)
-                    ->where('store_split', '!=', null)
-                    ->delete();
-            }
-            
-            // Actualizar el pedido actual con la primera tienda
-            $firstStoreId = $splitStores[0];
-            $firstAmount = (float) ($splitAmounts[$firstStoreId] ?? 0);
-            
-            $validated['store_id'] = $firstStoreId;
-            $validated['amount'] = $firstAmount;
-            $validated['store_split'] = [
+
+            $storeSplitMeta = [
                 'stores' => $splitStores,
                 'amounts' => $splitAmounts,
                 'total' => $totalAmount,
                 'origin_store_id' => $payingStoreId,
             ];
-            
-            $order->update($validated);
-            
-            // Actualizar pagos proporcionales
-            if ($request->has('payments')) {
-                $order->payments()->delete();
-                foreach ($request->payments as $payment) {
-                    $paymentAmount = (float) ($payment['amount'] ?? 0);
-                    $proportionalAmount = ($paymentAmount / $totalAmount) * $firstAmount;
-                    $order->payments()->create($this->paymentDataForOrder($payment, round($proportionalAmount, 2), $payingStoreId));
+
+            $relatedOrders = $this->findSplitRelatedOrders($order)->keyBy('store_id');
+            // El pedido que se edita siempre se reutiliza (aunque cambie de tienda)
+            $ordersByStore = collect();
+            foreach ($relatedOrders as $related) {
+                if ((int) $related->id === (int) $order->id) {
+                    continue;
                 }
+                $ordersByStore[(int) $related->store_id] = $related;
             }
-            
-            // Crear gastos automáticamente para el pedido
-            $this->createExpensesFromOrder($order);
-            
-            // Crear pedidos para las demás tiendas
-            $createdCount = 1;
-            for ($i = 1; $i < count($splitStores); $i++) {
-                $storeId = $splitStores[$i];
+
+            $syncedCount = 0;
+            $primaryAssigned = false;
+
+            foreach ($splitStores as $storeId) {
+                $storeId = (int) $storeId;
                 $storeAmount = (float) ($splitAmounts[$storeId] ?? 0);
-                if ($storeAmount > 0) {
-                    $orderData = $validated;
-                    $orderData['store_id'] = $storeId;
-                    $orderData['amount'] = $storeAmount;
-                    
-                    $newOrder = Order::create($orderData);
-                    
-                    // Crear pagos proporcionales
-                    if ($request->has('payments')) {
-                        foreach ($request->payments as $payment) {
-                            $paymentAmount = (float) ($payment['amount'] ?? 0);
-                            $proportionalAmount = ($paymentAmount / $totalAmount) * $storeAmount;
-                            $newOrder->payments()->create($this->paymentDataForOrder($payment, round($proportionalAmount, 2), $payingStoreId));
-                        }
-                    }
-                    
-                    $this->addHistoryEntry($newOrder, 'created');
-                    
-                    // Crear gastos automáticamente para el pedido
-                    $this->createExpensesFromOrder($newOrder);
-                    
-                    $createdCount++;
+                if ($storeAmount <= 0) {
+                    continue;
                 }
+
+                $orderData = $validated;
+                $orderData['store_id'] = $storeId;
+                $orderData['amount'] = $storeAmount;
+                $orderData['store_split'] = $storeSplitMeta;
+
+                if (! $primaryAssigned) {
+                    $targetOrder = $order;
+                    $targetOrder->update($orderData);
+                    $primaryAssigned = true;
+                    $isNew = false;
+                } elseif ($ordersByStore->has($storeId)) {
+                    $targetOrder = $ordersByStore->get($storeId);
+                    $targetOrder->update($orderData);
+                    $ordersByStore->forget($storeId);
+                    $isNew = false;
+                } else {
+                    $targetOrder = Order::create($orderData);
+                    $isNew = true;
+                }
+
+                $basePayments = $request->input('payments', []);
+                if ((int) $targetOrder->id === (int) $order->id) {
+                    // Pedido editado: conservar ids del formulario y solo escalar importes
+                    $paymentsForStore = $this->proportionalPaymentsInput($basePayments, $totalAmount, $storeAmount);
+                } else {
+                    // Hermanos: no usar ids del formulario; rematchear por índice
+                    $basePayments = array_map(function ($p) {
+                        unset($p['id']);
+
+                        return $p;
+                    }, $basePayments);
+                    $existingIds = $isNew
+                        ? []
+                        : $targetOrder->payments()->orderBy('id')->pluck('id')->values()->all();
+                    $paymentsForStore = $this->proportionalPaymentsInput(
+                        $basePayments,
+                        $totalAmount,
+                        $storeAmount,
+                        $existingIds
+                    );
+                }
+
+                $this->syncOrderPayments($targetOrder, $paymentsForStore, $payingStoreId);
+                $this->syncExpensesFromOrder($targetOrder);
+
+                if ($isNew) {
+                    $this->addHistoryEntry($targetOrder, 'created');
+                }
+                $syncedCount++;
             }
-            
-            $this->addHistoryEntry($order, 'updated', $oldData);
-            
-            return redirect()->route('orders.index')->with('success', 
-                'Pedido dividido entre ' . $createdCount . ' tienda' . ($createdCount > 1 ? 's' : '') . ' actualizado correctamente.');
+
+            // Pedidos hermanos que ya no participan en el split: borrar en duro (efecto de edición)
+            foreach ($ordersByStore as $orphan) {
+                $this->forceDeleteOrderCascade($orphan);
+            }
+
+            $this->addHistoryEntry($order->fresh(), 'updated', $oldData);
+
+            return redirect()->route('orders.index')->with('success',
+                'Pedido dividido entre ' . $syncedCount . ' tienda' . ($syncedCount > 1 ? 's' : '') . ' actualizado correctamente.');
+        }
+
+        // Si deja de estar dividido, eliminar hermanos del split anterior
+        if ($order->store_split) {
+            foreach ($this->findSplitRelatedOrders($order) as $related) {
+                if ((int) $related->id === (int) $order->id) {
+                    continue;
+                }
+                $this->forceDeleteOrderCascade($related);
+            }
+            $validated['store_split'] = null;
         }
 
         $order->update($validated);
 
-        $paymentsInput = $request->input('payments', []);
-        $order->payments()->delete();
-        foreach ($paymentsInput as $payment) {
-            $amount = (float) ($payment['amount'] ?? 0);
-            if ($amount <= 0) {
-                continue;
-            }
-            $order->payments()->create($this->paymentDataForOrder($payment, $amount, $order->store_id));
-        }
-        $order->unsetRelation('payments');
-
+        $this->syncOrderPayments($order, $request->input('payments', []), (int) $order->store_id);
         $this->addHistoryEntry($order, 'updated', $oldData);
-        
-        // Crear o actualizar gastos automáticamente para el pedido (cartera, efectivo, banco)
-        $this->createExpensesFromOrder($order);
+        $this->syncExpensesFromOrder($order);
 
         $redirectTo = $order->supplier_id
             ? route('orders.supplier', $order->supplier)
@@ -807,123 +811,331 @@ class OrderController extends Controller
     }
 
     /**
-     * Crear gastos automáticamente desde un pedido
-     * Crea un gasto por cada método de pago utilizado (efectivo y banco)
+     * Sincroniza pagos del pedido in-place: update / create / forceDelete sobrantes.
+     *
+     * @param  array<int, array<string, mixed>>  $paymentsInput
      */
-    private function createExpensesFromOrder(Order $order)
+    private function syncOrderPayments(Order $order, array $paymentsInput, ?int $cashStoreFallback = null): void
     {
-        // Recargar el pedido y cargar explícitamente la relación de pagos y proveedor con categoría
+        $cashStoreFallback = $cashStoreFallback ?? (int) $order->store_id;
+        $existing = $order->payments()->get()->keyBy('id');
+        $keptIds = [];
+
+        foreach ($paymentsInput as $payment) {
+            $amount = (float) ($payment['amount'] ?? 0);
+            if ($amount <= 0) {
+                continue;
+            }
+            $data = $this->paymentDataForOrder($payment, $amount, $cashStoreFallback);
+            $id = isset($payment['id']) ? (int) $payment['id'] : 0;
+
+            if ($id > 0 && $existing->has($id)) {
+                $existing->get($id)->update($data);
+                $keptIds[] = $id;
+            } else {
+                $created = $order->payments()->create($data);
+                $keptIds[] = (int) $created->id;
+            }
+        }
+
+        foreach ($existing as $id => $payment) {
+            if (! in_array((int) $id, $keptIds, true)) {
+                $payment->forceDelete();
+            }
+        }
+
+        $order->unsetRelation('payments');
+    }
+
+    /**
+     * Escala pagos del formulario de forma proporcional al importe de un tramo del split.
+     *
+     * @param  array<int, array<string, mixed>>  $paymentsInput
+     * @param  array<int, int>  $existingPaymentIds  ids existentes (por índice) para reutilizar
+     * @return array<int, array<string, mixed>>
+     */
+    private function proportionalPaymentsInput(
+        array $paymentsInput,
+        float $totalAmount,
+        float $storeAmount,
+        array $existingPaymentIds = []
+    ): array {
+        if ($totalAmount <= 0) {
+            return [];
+        }
+
+        $result = [];
+        $i = 0;
+        foreach ($paymentsInput as $payment) {
+            $paymentAmount = (float) ($payment['amount'] ?? 0);
+            if ($paymentAmount <= 0) {
+                continue;
+            }
+            $row = $payment;
+            $row['amount'] = round(($paymentAmount / $totalAmount) * $storeAmount, 2);
+            if (! empty($existingPaymentIds[$i])) {
+                $row['id'] = $existingPaymentIds[$i];
+            }
+            $result[] = $row;
+            $i++;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Order>
+     */
+    private function findSplitRelatedOrders(Order $order)
+    {
+        if (! $order->store_split) {
+            return collect([$order]);
+        }
+
+        return Order::query()
+            ->where('order_number', $order->order_number)
+            ->where(function ($q) use ($order) {
+                if ($order->invoice_number === null || $order->invoice_number === '') {
+                    $q->whereNull('invoice_number')->orWhere('invoice_number', '');
+                } else {
+                    $q->where('invoice_number', $order->invoice_number);
+                }
+            })
+            ->whereNotNull('store_split')
+            ->get();
+    }
+
+    /**
+     * Elimina pedido, pagos y gastos derivados sin pasar por papelera (efecto de sync/edición).
+     */
+    private function forceDeleteOrderCascade(Order $order): void
+    {
+        $this->forceDeleteOrderLinkedExpenses($order->id);
+        $order->payments()->withTrashed()->get()->each->forceDelete();
+        $order->forceDelete();
+    }
+
+    private function forceDeleteOrderLinkedExpenses(int $orderId): void
+    {
+        $entries = $this->getOrderLinkedExpenses($orderId);
+        if ($entries->isEmpty()) {
+            return;
+        }
+        CashWalletExpense::whereIn('financial_entry_id', $entries->pluck('id'))->delete();
+        foreach ($entries as $entry) {
+            $entry->forceDelete();
+        }
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, FinancialEntry>
+     */
+    private function getOrderLinkedExpenses(int $orderId)
+    {
+        return FinancialEntry::query()
+            ->where('type', 'expense')
+            ->where('notes', 'like', '%"order_id":'.$orderId.'%')
+            ->get()
+            ->filter(function (FinancialEntry $entry) use ($orderId) {
+                $notes = $this->decodeEntryNotes($entry->notes);
+
+                return (int) ($notes['order_id'] ?? 0) === $orderId
+                    && ($notes['source'] ?? null) === 'order';
+            })
+            ->values();
+    }
+
+    /**
+     * @param  mixed  $notes
+     * @return array<string, mixed>
+     */
+    private function decodeEntryNotes($notes): array
+    {
+        if ($notes === null || $notes === '') {
+            return [];
+        }
+        if (is_array($notes)) {
+            return $notes;
+        }
+        $decoded = @json_decode((string) $notes, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Crear o actualizar gastos del pedido in-place (sin soft-delete en sync).
+     */
+    private function syncExpensesFromOrder(Order $order): void
+    {
         $order->refresh();
         $order->load('payments', 'supplier.expenseCategory');
 
-        // Categoría del gasto: la del proveedor (tipo = categoría de gasto) o fallback por concepto
         $expenseCategoryName = $order->supplier?->expenseCategory?->name ?? $this->mapConceptToCategory($order->concept);
-
-        // Calcular total pagado
-        $totalPaid = $order->payments->sum('amount');
-        $totalAmount = $order->amount;
-        
-        // Eliminar gastos existentes de este pedido para recrearlos.
-        // Primero eliminar CashWalletExpense asociados para que el saldo de la cartera se restaure
-        // (FinancialEntry usa SoftDeletes, por tanto la CASCADE de BD no borra cash_wallet_expenses).
-        $oldEntryIds = FinancialEntry::where('type', 'expense')
-            ->where('notes', 'like', '%"order_id":' . $order->id . '%')
-            ->pluck('id');
-        if ($oldEntryIds->isNotEmpty()) {
-            CashWalletExpense::whereIn('financial_entry_id', $oldEntryIds)->delete();
-        }
-        FinancialEntry::where('type', 'expense')
-            ->where('notes', 'like', '%"order_id":' . $order->id . '%')
-            ->delete();
-        
-        // Si no hay pagos, crear un solo gasto pendiente con el importe total
-        if ($order->payments->isEmpty()) {
-            FinancialEntry::create([
-                'date' => $order->date,
-                'store_id' => $order->store_id,
-                'supplier_id' => $order->supplier_id,
-                'type' => 'expense',
-                'total_amount' => $totalAmount,
-                'amount' => $totalAmount,
-                'expense_amount' => $totalAmount,
-                'paid_amount' => 0,
-                'status' => 'pendiente',
-                'expense_category' => $expenseCategoryName,
-                'expense_source' => 'pedido',
-                'expense_concept' => $this->generateExpenseConcept($order),
-                'expense_payment_method' => 'bank',
-                'expense_paid_cash' => false,
-                'notes' => json_encode([
-                    'order_id' => $order->id,
-                    'order_invoice_number' => $order->invoice_number,
-                    'order_number' => $order->order_number,
-                    'source' => 'order',
-                ]),
-                'created_by' => Auth::id(),
-            ]);
-            return;
-        }
-        
-        $conceptBase = $this->generateExpenseConcept($order);
-        $category = $expenseCategoryName;
+        $totalAmount = (float) $order->amount;
+        $existing = $this->getOrderLinkedExpenses((int) $order->id);
+        $usedIds = [];
 
         DB::beginTransaction();
         try {
-            foreach ($order->payments as $payment) {
-                $amount = (float) $payment->amount;
-                $expensePaymentMethod = $this->mapPaymentMethod($payment->method);
-                $isCash = ($payment->method === 'cash');
-                $storeId = $order->store_id;
-                if ($isCash && $payment->cash_source === 'store' && $payment->cash_store_id) {
-                    $storeId = (int) $payment->cash_store_id;
-                }
+            if ($order->payments->isEmpty()) {
+                $pending = $existing->first(function (FinancialEntry $entry) {
+                    $notes = $this->decodeEntryNotes($entry->notes);
 
-                $paymentLabel = $payment->method === 'card' ? 'Tarjeta' : ($payment->method === 'transfer' ? 'Transferencia' : ucfirst($payment->method));
-                $expenseConcept = $conceptBase . ' - ' . $paymentLabel;
+                    return empty($notes['order_payment_id']);
+                }) ?? $existing->first();
 
-                $financialEntry = FinancialEntry::create([
-                    'date' => $payment->date,
-                    'store_id' => $storeId,
+                $payload = [
+                    'date' => $order->date,
+                    'store_id' => $order->store_id,
                     'supplier_id' => $order->supplier_id,
                     'type' => 'expense',
-                    'total_amount' => $amount,
-                    'amount' => $amount,
-                    'expense_amount' => $amount,
-                    'paid_amount' => $amount,
-                    'status' => 'pagado',
-                    'expense_category' => $category,
+                    'total_amount' => $totalAmount,
+                    'amount' => $totalAmount,
+                    'expense_amount' => $totalAmount,
+                    'paid_amount' => 0,
+                    'status' => 'pendiente',
+                    'expense_category' => $expenseCategoryName,
                     'expense_source' => 'pedido',
-                    'expense_concept' => $expenseConcept,
-                    'expense_payment_method' => $expensePaymentMethod,
-                    'expense_paid_cash' => $isCash,
+                    'expense_concept' => $this->generateExpenseConcept($order),
+                    'expense_payment_method' => 'bank',
+                    'expense_paid_cash' => false,
                     'notes' => json_encode([
                         'order_id' => $order->id,
                         'order_invoice_number' => $order->invoice_number,
                         'order_number' => $order->order_number,
-                        'order_payment_id' => $payment->id,
-                        'payment_method' => $payment->method,
                         'source' => 'order',
                     ]),
-                    'created_by' => Auth::id(),
-                ]);
+                ];
 
-                if ($isCash && $payment->cash_source === 'wallet' && $payment->cash_wallet_id) {
-                    $wallet = CashWallet::find($payment->cash_wallet_id);
-                    if ($wallet) {
-                        // Permitir saldo negativo: se puede pagar con cartera aunque el saldo no sea suficiente
-                        CashWalletExpense::create([
-                            'cash_wallet_id' => $wallet->id,
-                            'financial_entry_id' => $financialEntry->id,
-                            'amount' => $amount,
-                        ]);
+                if ($pending) {
+                    $pending->update($payload);
+                    CashWalletExpense::where('financial_entry_id', $pending->id)->delete();
+                    $usedIds[] = (int) $pending->id;
+                } else {
+                    $payload['created_by'] = Auth::id();
+                    $created = FinancialEntry::create($payload);
+                    $usedIds[] = (int) $created->id;
+                }
+            } else {
+                $conceptBase = $this->generateExpenseConcept($order);
+
+                foreach ($order->payments as $payment) {
+                    $amount = (float) $payment->amount;
+                    $expensePaymentMethod = $this->mapPaymentMethod($payment->method);
+                    $isCash = ($payment->method === 'cash');
+                    $storeId = (int) $order->store_id;
+                    if ($isCash && $payment->cash_source === 'store' && $payment->cash_store_id) {
+                        $storeId = (int) $payment->cash_store_id;
                     }
+
+                    $paymentLabel = $payment->method === 'card'
+                        ? 'Tarjeta'
+                        : ($payment->method === 'transfer' ? 'Transferencia' : ucfirst((string) $payment->method));
+                    $expenseConcept = $conceptBase.' - '.$paymentLabel;
+
+                    $match = $existing->first(function (FinancialEntry $entry) use ($payment) {
+                        $notes = $this->decodeEntryNotes($entry->notes);
+
+                        return (int) ($notes['order_payment_id'] ?? 0) === (int) $payment->id;
+                    });
+
+                    $payload = [
+                        'date' => $payment->date,
+                        'store_id' => $storeId,
+                        'supplier_id' => $order->supplier_id,
+                        'type' => 'expense',
+                        'total_amount' => $amount,
+                        'amount' => $amount,
+                        'expense_amount' => $amount,
+                        'paid_amount' => $amount,
+                        'status' => 'pagado',
+                        'expense_category' => $expenseCategoryName,
+                        'expense_source' => 'pedido',
+                        'expense_concept' => $expenseConcept,
+                        'expense_payment_method' => $expensePaymentMethod,
+                        'expense_paid_cash' => $isCash,
+                        'notes' => json_encode([
+                            'order_id' => $order->id,
+                            'order_invoice_number' => $order->invoice_number,
+                            'order_number' => $order->order_number,
+                            'order_payment_id' => $payment->id,
+                            'payment_method' => $payment->method,
+                            'source' => 'order',
+                        ]),
+                    ];
+
+                    if ($match) {
+                        $match->update($payload);
+                        $entry = $match;
+                    } else {
+                        $payload['created_by'] = Auth::id();
+                        $entry = FinancialEntry::create($payload);
+                    }
+
+                    $usedIds[] = (int) $entry->id;
+                    $this->syncCashWalletExpenseForPayment($entry, $payment, $amount);
                 }
             }
+
+            foreach ($existing as $entry) {
+                if (! in_array((int) $entry->id, $usedIds, true)) {
+                    CashWalletExpense::where('financial_entry_id', $entry->id)->delete();
+                    $entry->forceDelete();
+                }
+            }
+
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
         }
+    }
+
+    /** @deprecated Use syncExpensesFromOrder */
+    private function createExpensesFromOrder(Order $order): void
+    {
+        $this->syncExpensesFromOrder($order);
+    }
+
+    private function syncCashWalletExpenseForPayment(FinancialEntry $entry, $payment, float $amount): void
+    {
+        $wantsWallet = ($payment->method === 'cash')
+            && ($payment->cash_source === 'wallet')
+            && ! empty($payment->cash_wallet_id);
+
+        $existingLink = CashWalletExpense::where('financial_entry_id', $entry->id)->first();
+
+        if (! $wantsWallet) {
+            if ($existingLink) {
+                $existingLink->delete();
+            }
+
+            return;
+        }
+
+        $wallet = CashWallet::find($payment->cash_wallet_id);
+        if (! $wallet) {
+            if ($existingLink) {
+                $existingLink->delete();
+            }
+
+            return;
+        }
+
+        if ($existingLink) {
+            $existingLink->update([
+                'cash_wallet_id' => $wallet->id,
+                'amount' => $amount,
+            ]);
+
+            return;
+        }
+
+        CashWalletExpense::create([
+            'cash_wallet_id' => $wallet->id,
+            'financial_entry_id' => $entry->id,
+            'amount' => $amount,
+        ]);
     }
 
     private function validateOrderPaymentsCashSource(array $payments): void
@@ -934,7 +1146,7 @@ class OrderController extends Controller
             }
             $source = $p['cash_source'] ?? null;
             // Si no eligió procedencia, se usará "tienda" por defecto en paymentDataForOrder
-            if (!$source || !in_array($source, ['wallet', 'store'], true)) {
+            if (! $source || ! in_array($source, ['wallet', 'store'], true)) {
                 continue;
             }
             if ($source === 'wallet' && empty($p['cash_wallet_id'])) {
@@ -967,12 +1179,17 @@ class OrderController extends Controller
         if (($payment['method'] ?? '') === 'cash') {
             $source = $payment['cash_source'] ?? null;
             $data['cash_source'] = in_array($source, ['wallet', 'store'], true) ? $source : 'store';
-            $data['cash_wallet_id'] = !empty($payment['cash_wallet_id']) ? (int) $payment['cash_wallet_id'] : null;
-            $data['cash_store_id'] = !empty($payment['cash_store_id']) ? (int) $payment['cash_store_id'] : null;
+            $data['cash_wallet_id'] = ! empty($payment['cash_wallet_id']) ? (int) $payment['cash_wallet_id'] : null;
+            $data['cash_store_id'] = ! empty($payment['cash_store_id']) ? (int) $payment['cash_store_id'] : null;
             if ($data['cash_source'] === 'store' && empty($data['cash_store_id'])) {
                 $data['cash_store_id'] = $orderStoreId;
             }
+        } else {
+            $data['cash_source'] = null;
+            $data['cash_wallet_id'] = null;
+            $data['cash_store_id'] = null;
         }
+
         return $data;
     }
 

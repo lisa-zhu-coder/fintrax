@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\InterestIndex;
 use App\Models\Loan;
 use App\Models\LoanInstallment;
 use Carbon\Carbon;
@@ -10,23 +9,25 @@ use Carbon\Carbon;
 class LoanCalculationService
 {
     /**
-     * Genera la tabla de amortización (cuotas) para un préstamo y las persiste en loan_installments.
+     * Genera/actualiza la tabla de amortización (cuotas) in-place por installment_number.
      * Usa sistema francés y soporta interés fijo o variable (índice + diferencial, suelo/techo).
      *
      * @param  float|null  $variableRateOverride  Tasa del índice para variable (%). Si null, se busca en interest_indexes.
      */
     public function generateInstallments(Loan $loan, ?float $variableRateOverride = null): array
     {
-        $loan->installments()->delete();
-
         $termMonths = (int) $loan->term_months;
         $startDate = $loan->start_date;
-        if (!$termMonths || !$startDate) {
+        if (! $termMonths || ! $startDate) {
+            $loan->installments()->delete();
+
             return [];
         }
 
         $principal = (float) $loan->principal_amount;
         if ($principal <= 0) {
+            $loan->installments()->delete();
+
             return [];
         }
 
@@ -67,8 +68,23 @@ class LoanCalculationService
             $dueDate->addMonth();
         }
 
+        $existing = $loan->installments()->get()->keyBy('installment_number');
+        $keptNumbers = [];
+
         foreach ($installments as $row) {
-            LoanInstallment::create($row);
+            $num = (int) $row['installment_number'];
+            $keptNumbers[] = $num;
+            if ($existing->has($num)) {
+                $existing->get($num)->update($row);
+            } else {
+                LoanInstallment::create($row);
+            }
+        }
+
+        foreach ($existing as $num => $installment) {
+            if (! in_array((int) $num, $keptNumbers, true)) {
+                $installment->delete();
+            }
         }
 
         return $installments;
@@ -96,6 +112,7 @@ class LoanCalculationService
         if ($rate !== null) {
             return $rate;
         }
+
         return 0.0;
     }
 }

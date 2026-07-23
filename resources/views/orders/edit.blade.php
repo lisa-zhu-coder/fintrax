@@ -133,6 +133,7 @@
                 <div id="paymentsContainer" class="space-y-3">
                     @foreach($order->payments as $index => $payment)
                         <div class="rounded-xl border border-slate-200 bg-white p-3 ring-1 ring-slate-100" data-payment-index="{{ $index }}">
+                            <input type="hidden" name="payments[{{ $index }}][id]" value="{{ $payment->id }}"/>
                             <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
                                 <label class="block">
                                     <span class="text-xs font-semibold text-slate-700">Fecha de pago *</span>

@@ -150,17 +150,33 @@ class ProductSettingsController extends Controller
                 'conversion_factor' => $isIngredient ? ($validated['conversion_factor'] ?? null) : null,
             ]);
 
-            $product->ingredients()->delete();
-            if ($isComposed && !empty($validated['ingredients'])) {
+            $existingIngredients = $product->ingredients()->get()->keyBy('ingredient_product_id');
+            $keptIngredientIds = [];
+
+            if ($isComposed && ! empty($validated['ingredients'])) {
                 foreach ($validated['ingredients'] as $ing) {
-                    if (!empty($ing['ingredient_product_id']) && isset($ing['quantity_per_unit']) && $ing['quantity_per_unit'] > 0) {
-                        ProductIngredient::create([
-                            'product_id' => $product->id,
-                            'ingredient_product_id' => $ing['ingredient_product_id'],
-                            'quantity_per_unit' => $ing['quantity_per_unit'],
-                            'unit' => $ing['unit'] ?? 'gr',
-                        ]);
+                    if (empty($ing['ingredient_product_id']) || ! isset($ing['quantity_per_unit']) || $ing['quantity_per_unit'] <= 0) {
+                        continue;
                     }
+                    $ingredientProductId = (int) $ing['ingredient_product_id'];
+                    $data = [
+                        'ingredient_product_id' => $ingredientProductId,
+                        'quantity_per_unit' => $ing['quantity_per_unit'],
+                        'unit' => $ing['unit'] ?? 'gr',
+                    ];
+                    if ($existingIngredients->has($ingredientProductId)) {
+                        $existingIngredients->get($ingredientProductId)->update($data);
+                        $keptIngredientIds[] = $ingredientProductId;
+                    } else {
+                        ProductIngredient::create(array_merge(['product_id' => $product->id], $data));
+                        $keptIngredientIds[] = $ingredientProductId;
+                    }
+                }
+            }
+
+            foreach ($existingIngredients as $ingredientProductId => $row) {
+                if (! in_array((int) $ingredientProductId, $keptIngredientIds, true)) {
+                    $row->delete();
                 }
             }
         });

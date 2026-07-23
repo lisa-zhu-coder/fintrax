@@ -77,7 +77,7 @@ class ExpenseOrderSyncService
         $payments = collect();
         try {
             if (Schema::hasTable('expense_payments')) {
-                $payments = $expense->expensePayments()->get();
+                $payments = $expense->expensePayments()->orderBy('id')->get();
             }
         } catch (\Exception $e) {
             $payments = collect();
@@ -97,7 +97,8 @@ class ExpenseOrderSyncService
         $orderAmount = (float) $order->amount;
         $paymentMethod = $mapMethod($expense->expense_payment_method ?? null);
         $paymentDate = $expense->payment_date ?? $expense->date;
-        $created = 0;
+
+        $desired = [];
 
         if ($payments->isNotEmpty()) {
             foreach ($payments as $p) {
@@ -105,37 +106,51 @@ class ExpenseOrderSyncService
                 if ($amt == 0.0) {
                     continue;
                 }
-                $order->payments()->create([
+                $desired[] = [
                     'date' => $p->date,
                     'method' => $mapMethod($p->method ?? null),
                     'amount' => $amt,
-                ]);
-                $created++;
-            }
-            if ($created > 0) {
-                return;
+                ];
             }
         }
 
-        $paid = $this->signedPaymentAmount((float) ($expense->paid_amount ?? 0), $orderAmount);
-        if ($paid != 0.0) {
-            $order->payments()->create([
-                'date' => $paymentDate,
-                'method' => $paymentMethod,
-                'amount' => $paid,
-            ]);
-
-            return;
+        if (empty($desired)) {
+            $paid = $this->signedPaymentAmount((float) ($expense->paid_amount ?? 0), $orderAmount);
+            if ($paid != 0.0) {
+                $desired[] = [
+                    'date' => $paymentDate,
+                    'method' => $paymentMethod,
+                    'amount' => $paid,
+                ];
+            } elseif ($this->expenseIsFullyPaid($expense, $orderAmount)) {
+                $desired[] = [
+                    'date' => $paymentDate,
+                    'method' => $paymentMethod,
+                    'amount' => $orderAmount,
+                ];
+            }
         }
 
-        // Gasto marcado como pagado (p. ej. conciliación bancaria) pero sin paid_amount en BD
-        if ($this->expenseIsFullyPaid($expense, $orderAmount)) {
-            $order->payments()->create([
-                'date' => $paymentDate,
-                'method' => $paymentMethod,
-                'amount' => $orderAmount,
-            ]);
+        $existing = $order->payments()->orderBy('id')->get()->values();
+        $keptIds = [];
+
+        foreach ($desired as $i => $row) {
+            if (isset($existing[$i])) {
+                $existing[$i]->update($row);
+                $keptIds[] = (int) $existing[$i]->id;
+            } else {
+                $created = $order->payments()->create($row);
+                $keptIds[] = (int) $created->id;
+            }
         }
+
+        foreach ($existing as $payment) {
+            if (! in_array((int) $payment->id, $keptIds, true)) {
+                $payment->forceDelete();
+            }
+        }
+
+        $order->unsetRelation('payments');
     }
 
     public function removeAutoOrderForExpense(FinancialEntry $expense): void
@@ -155,7 +170,12 @@ class ExpenseOrderSyncService
             $createdFrom = $notes['order_created_from'] ?? null;
 
             if ($orderId && $createdFrom === 'expense') {
-                Order::where('id', $orderId)->delete();
+                $order = Order::withTrashed()->find($orderId);
+                if ($order) {
+                    // Pedido auto-creado: forceDelete para no dejar basura soft fuera de papelera
+                    $order->payments()->withTrashed()->get()->each->forceDelete();
+                    $order->forceDelete();
+                }
                 unset($notes['order_id'], $notes['order_created_from']);
                 $fresh->forceFill(['notes' => empty($notes) ? null : json_encode($notes)])->save();
             }
@@ -198,7 +218,6 @@ class ExpenseOrderSyncService
                 'amount' => $orderAmount,
             ]);
 
-            $order->payments()->delete();
             $this->syncOrderPaymentsFromExpense($order, $fresh);
         });
     }

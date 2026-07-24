@@ -26,25 +26,43 @@ class MonthlyObjectiveController extends Controller
     public function index(Request $request)
     {
         $year = (int) $request->get('year', now()->year);
-        $stores = Store::orderBy('name')->get();
-        $definitions = $stores->isNotEmpty() ? MonthlyObjectiveSetting::getObjectiveDefinitionsForStore($stores->first()->id) : collect([]);
+        $stores = $this->storesForCurrentUser()->sortBy('name')->values();
+        $storeIds = $stores->pluck('id')->all();
+        $definitions = $stores->isNotEmpty()
+            ? MonthlyObjectiveSetting::getObjectiveDefinitionsForStore($stores->first()->id)
+            : collect([]);
+
+        $rowsByStore = ObjectiveDailyRow::query()
+            ->whereIn('store_id', $storeIds ?: [0])
+            ->where('month', 'like', $year.'-%')
+            ->get()
+            ->groupBy('store_id');
+
+        $pctsByStoreMonth = $this->getPercentagesByStoreMonthForYear($storeIds, $year, $definitions);
+        $closesByStoreDate = $this->getDailyClosesByStoreDateForYear($storeIds, $year);
+
         $storeData = [];
         foreach ($stores as $store) {
-            $rows = ObjectiveDailyRow::where('store_id', $store->id)
-                ->where('month', 'like', $year . '-%')
-                ->get();
+            $rows = $rowsByStore->get($store->id, collect());
             $objectives = array_fill(0, $definitions->count(), 0.0);
-            $cumplido = 0;
+            $cumplido = 0.0;
+
             foreach ($rows as $row) {
-                $monthNum = (int) substr($row->month, 5, 2);
-                $pcts = MonthlyObjectiveSetting::getPercentagesForStoreMonth($store->id, (string) $monthNum, $year);
+                $monthNum = (int) substr((string) $row->month, 5, 2);
+                $pcts = $pctsByStoreMonth[$store->id][$monthNum]
+                    ?? $pctsByStoreMonth[0][$monthNum]
+                    ?? array_fill(0, $definitions->count(), 0.0);
                 $base = (float) $row->base_2025;
                 foreach ($definitions as $i => $def) {
                     $pct = $pcts[$i] ?? 0;
                     $objectives[$i] += $base * (1 + $pct / 100);
                 }
-                $cumplido += $this->getDailyCloseAmount($store->id, $row->date_2026);
+                $dateKey = $row->date_2026 instanceof Carbon
+                    ? $row->date_2026->format('Y-m-d')
+                    : Carbon::parse($row->date_2026)->format('Y-m-d');
+                $cumplido += (float) ($closesByStoreDate[$store->id][$dateKey] ?? 0);
             }
+
             $diffs = array_map(fn ($obj) => $cumplido - $obj, $objectives);
             $storeData[$store->id] = [
                 'objectives' => $objectives,
@@ -52,7 +70,9 @@ class MonthlyObjectiveController extends Controller
                 'diffs' => $diffs,
             ];
         }
+
         $availableYears = $this->availableYears();
+
         return view('objectives.index', compact('stores', 'storeData', 'year', 'availableYears', 'definitions'));
     }
 
@@ -63,24 +83,38 @@ class MonthlyObjectiveController extends Controller
     {
         $this->authorizeStoreAccess($store->id);
         $definitions = MonthlyObjectiveSetting::getObjectiveDefinitionsForStore($store->id);
+        $pctsByMonth = $this->getPercentagesByStoreMonthForYear([$store->id], $year, $definitions);
+        $closesByDate = $this->getDailyClosesByDateForYear($store->id, $year);
+
+        $rowsByMonth = ObjectiveDailyRow::query()
+            ->where('store_id', $store->id)
+            ->where('month', 'like', $year.'-%')
+            ->get()
+            ->groupBy('month');
+
         $monthsData = [];
         for ($month = 1; $month <= 12; $month++) {
             $monthStr = sprintf('%04d-%02d', $year, $month);
-            $rows = ObjectiveDailyRow::where('store_id', $store->id)->where('month', $monthStr)->get();
+            $rows = $rowsByMonth->get($monthStr, collect());
 
             $objectives = array_fill(0, $definitions->count(), 0.0);
-            $cumplido = 0;
-            if (! $rows->isEmpty()) {
-                $pcts = MonthlyObjectiveSetting::getPercentagesForStoreMonth($store->id, (string) $month, $year);
-                foreach ($rows as $row) {
-                    $base = (float) $row->base_2025;
-                    foreach ($definitions as $i => $def) {
-                        $pct = $pcts[$i] ?? 0;
-                        $objectives[$i] += $base * (1 + $pct / 100);
-                    }
-                    $cumplido += $this->getDailyCloseAmount($store->id, $row->date_2026);
+            $cumplido = 0.0;
+            $pcts = $pctsByMonth[$store->id][$month]
+                ?? $pctsByMonth[0][$month]
+                ?? array_fill(0, $definitions->count(), 0.0);
+
+            foreach ($rows as $row) {
+                $base = (float) $row->base_2025;
+                foreach ($definitions as $i => $def) {
+                    $pct = $pcts[$i] ?? 0;
+                    $objectives[$i] += $base * (1 + $pct / 100);
                 }
+                $dateKey = $row->date_2026 instanceof Carbon
+                    ? $row->date_2026->format('Y-m-d')
+                    : Carbon::parse($row->date_2026)->format('Y-m-d');
+                $cumplido += (float) ($closesByDate[$dateKey] ?? 0);
             }
+
             $diffs = array_map(fn ($obj) => $cumplido - $obj, $objectives);
 
             $monthsData[] = (object) [
@@ -92,6 +126,7 @@ class MonthlyObjectiveController extends Controller
                 'diffs' => $diffs,
             ];
         }
+
         return view('objectives.store-months', compact('store', 'year', 'monthsData', 'definitions'));
     }
 
@@ -430,6 +465,110 @@ class MonthlyObjectiveController extends Controller
     }
 
     /**
+     * Cierres diarios del año indexados por store_id y fecha Y-m-d.
+     *
+     * @param  array<int, int>  $storeIds
+     * @return array<int, array<string, float>>
+     */
+    private function getDailyClosesByStoreDateForYear(array $storeIds, int $year): array
+    {
+        if ($storeIds === []) {
+            return [];
+        }
+
+        $entries = FinancialEntry::query()
+            ->where('type', 'daily_close')
+            ->whereIn('store_id', $storeIds)
+            ->whereRaw('DATE(date) >= ? AND DATE(date) <= ?', [$year.'-01-01', $year.'-12-31'])
+            ->get(['id', 'store_id', 'date', 'total_amount', 'amount']);
+
+        $byStoreDate = [];
+        foreach ($entries as $entry) {
+            $raw = $entry->getRawOriginal('date');
+            $key = \is_string($raw) ? \substr($raw, 0, 10) : Carbon::parse($raw)->format('Y-m-d');
+            $amount = (float) ($entry->total_amount ?? $entry->amount ?? 0);
+            $storeId = (int) $entry->store_id;
+            $byStoreDate[$storeId][$key] = ($byStoreDate[$storeId][$key] ?? 0) + $amount;
+        }
+
+        return $byStoreDate;
+    }
+
+    /**
+     * Cierres diarios de una tienda para todo el año, indexados por fecha.
+     *
+     * @return array<string, float>
+     */
+    private function getDailyClosesByDateForYear(int $storeId, int $year): array
+    {
+        return $this->getDailyClosesByStoreDateForYear([$storeId], $year)[$storeId] ?? [];
+    }
+
+    /**
+     * Porcentajes del año indexados por store_id (0 = genérico) y mes (1-12).
+     *
+     * @param  array<int, int>  $storeIds
+     * @param  \Illuminate\Support\Collection<int, \App\Models\ObjectiveDefinition>  $definitions
+     * @return array<int, array<int, array<int, float>>>
+     */
+    private function getPercentagesByStoreMonthForYear(array $storeIds, int $year, $definitions): array
+    {
+        $defCount = $definitions->count();
+        $makeZeros = static fn () => array_fill(0, $defCount, 0.0);
+        $result = [0 => []];
+        for ($m = 1; $m <= 12; $m++) {
+            $result[0][$m] = $makeZeros();
+        }
+        foreach ($storeIds as $storeId) {
+            $result[(int) $storeId] = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $result[(int) $storeId][$m] = $makeZeros();
+            }
+        }
+
+        if ($defCount === 0) {
+            return $result;
+        }
+
+        $settings = MonthlyObjectiveSetting::with('settingValues')
+            ->where('year', $year)
+            ->where(function ($q) use ($storeIds) {
+                $q->whereNull('store_id');
+                if ($storeIds !== []) {
+                    $q->orWhereIn('store_id', $storeIds);
+                }
+            })
+            ->get();
+
+        $hasSpecific = [];
+        foreach ($settings as $setting) {
+            $storeKey = $setting->store_id === null ? 0 : (int) $setting->store_id;
+            $monthNum = (int) $setting->month;
+            if ($monthNum < 1 || $monthNum > 12) {
+                continue;
+            }
+            $byObjId = $setting->settingValues->keyBy('objective_definition_id');
+            $pcts = $definitions->map(fn ($def) => (float) ($byObjId->get($def->id)?->percentage ?? 0))->all();
+            $result[$storeKey][$monthNum] = $pcts;
+            if ($storeKey !== 0) {
+                $hasSpecific[$storeKey][$monthNum] = true;
+            }
+        }
+
+        // Tiendas sin setting específico heredan el genérico (store_id null)
+        foreach ($storeIds as $storeId) {
+            $storeId = (int) $storeId;
+            for ($m = 1; $m <= 12; $m++) {
+                if (empty($hasSpecific[$storeId][$m])) {
+                    $result[$storeId][$m] = $result[0][$m];
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Cierres diarios del mes indexados por fecha Y-m-d.
      * Usa la fecha tal como está en BD (DATE(date)) para que el cierre del 15 no se clasifique como 16.
      *
@@ -441,7 +580,7 @@ class MonthlyObjectiveController extends Controller
         $lastDay = Carbon::createFromDate($year, $month, 1)->endOfMonth()->format('Y-m-d');
         $entries = FinancialEntry::where('type', 'daily_close')
             ->where('store_id', $storeId)
-            ->whereRaw('DATE(date) >= ? AND DATE(date) <= ?', [$monthStr . '-01', $lastDay])
+            ->whereRaw('DATE(date) >= ? AND DATE(date) <= ?', [$monthStr.'-01', $lastDay])
             ->get();
         $byDate = [];
         foreach ($entries as $entry) {
@@ -450,12 +589,13 @@ class MonthlyObjectiveController extends Controller
             $amount = (float) ($entry->total_amount ?? $entry->amount ?? 0);
             $byDate[$key] = ($byDate[$key] ?? 0) + $amount;
         }
+
         return $byDate;
     }
 
     /**
      * Objetivo cumplido = suma del IMPORTE TOTAL (total_amount) del cierre diario de esa fecha.
-     * Usado en index/storeMonths donde no tenemos el mapa del mes; en monthDetail se usa getDailyClosesByDateForMonth.
+     * Usado puntualmente; las vistas de listado usan mapas precargados.
      */
     private function getDailyCloseAmount(int $storeId, $date): float
     {
@@ -469,6 +609,7 @@ class MonthlyObjectiveController extends Controller
             ->whereBetween('date', [$start, $end])
             ->get()
             ->sum(fn ($entry) => (float) ($entry->total_amount ?? $entry->amount ?? 0));
+
         return $total;
     }
 
@@ -498,10 +639,18 @@ class MonthlyObjectiveController extends Controller
 
     private function availableYears(): \Illuminate\Support\Collection
     {
-        $years = ObjectiveDailyRow::get()->pluck('month')->map(fn ($m) => (int) substr($m, 0, 4))->unique()->sortDesc()->values();
+        $years = ObjectiveDailyRow::query()
+            ->selectRaw('DISTINCT CAST(SUBSTRING(month, 1, 4) AS UNSIGNED) as y')
+            ->orderByDesc('y')
+            ->pluck('y')
+            ->map(fn ($y) => (int) $y)
+            ->filter(fn ($y) => $y > 0)
+            ->values();
+
         if ($years->isEmpty() || ! $years->contains(now()->year)) {
             $years = $years->prepend(now()->year)->unique()->sortDesc()->values();
         }
+
         return $years;
     }
 }

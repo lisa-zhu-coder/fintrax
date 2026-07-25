@@ -511,6 +511,9 @@ class OrderController extends Controller
 
     public function destroy(Order $order)
     {
+        $supplierId = $order->supplier_id;
+        $supplier = $order->supplier;
+
         // Eliminar CashWalletExpense asociados primero (FinancialEntry usa SoftDeletes, la CASCADE de BD no borra cash_wallet_expenses)
         $entryIds = FinancialEntry::where('type', 'expense')
             ->where('notes', 'like', '%"order_id":' . $order->id . '%')
@@ -546,7 +549,11 @@ class OrderController extends Controller
         $this->addHistoryEntry($order, 'deleted');
         $order->delete();
 
-        return redirect()->route('orders.index')->with('success', 'Pedido eliminado correctamente.');
+        $redirectTo = $supplierId && $supplier
+            ? route('orders.supplier', $supplier)
+            : route('orders.index');
+
+        return redirect($redirectTo)->with('success', 'Pedido eliminado correctamente.');
     }
 
     private function applyPeriodFilter($query, $period, $request = null)

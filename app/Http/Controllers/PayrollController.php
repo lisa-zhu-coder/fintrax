@@ -253,7 +253,8 @@ class PayrollController extends Controller
                     'month' => $item['month'],
                     'year' => $item['year'],
                     'file_path' => $finalPath,
-                    'base64_content' => base64_encode($pdfBinary),
+                    // El PDF ya está en disco; no duplicar en BD (evita error 1406 por TEXT/LONGTEXT).
+                    'base64_content' => null,
                     'matched_by' => 'manual',
                 ]);
                 $payrollsByIndex[$index] = $payroll;

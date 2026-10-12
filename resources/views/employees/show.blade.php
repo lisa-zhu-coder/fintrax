@@ -201,7 +201,7 @@
             </div>
             @endif
 
-            @if(auth()->user()->hasPermission('hr.documents.download') || auth()->user()->hasPermission('hr.documents.upload') || auth()->user()->hasPermission('hr.documents.delete'))
+            @if(auth()->user()->hasPermission('hr.documents.view') || auth()->user()->hasPermission('hr.documents.upload') || auth()->user()->hasPermission('hr.documents.edit') || auth()->user()->hasPermission('hr.documents.delete'))
             <!-- Documentos -->
             <div class="rounded-xl border-2 border-slate-200 bg-slate-50/50 p-4 ring-1 ring-slate-200">
                 <div class="mb-4 flex items-center justify-between">
@@ -226,8 +226,19 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
-                            @if(auth()->user()->hasPermission('hr.documents.download'))
+                            @if(auth()->user()->hasPermission('hr.documents.view'))
                             <a href="{{ route('employees.documents.download', [$employee, $doc]) }}" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">Descargar</a>
+                            @endif
+                            @if(auth()->user()->hasPermission('hr.documents.edit'))
+                            <button type="button"
+                                class="btn-edit-document rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                data-id="{{ $doc->id }}"
+                                data-type="{{ $doc->type }}"
+                                data-title="{{ $doc->title }}"
+                                data-date="{{ $doc->document_date->format('Y-m-d') }}"
+                                data-action="{{ route('employees.documents.update', [$employee, $doc]) }}">
+                                Editar
+                            </button>
                             @endif
                             @if(auth()->user()->hasPermission('hr.documents.delete'))
                             <form method="POST" action="{{ route('employees.documents.destroy', [$employee, $doc]) }}" class="inline" onsubmit="return confirm('¿Eliminar este documento?');">
@@ -388,5 +399,62 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 </div>
+@endif
+
+@if(auth()->user()->hasPermission('hr.documents.edit'))
+<div id="modalEditDocument" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-slate-900/50" onclick="document.getElementById('modalEditDocument').classList.add('hidden')"></div>
+        <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
+            <h3 class="mb-4 text-lg font-semibold text-slate-900">Editar documento</h3>
+            <form id="formEditDocument" method="POST" action="" enctype="multipart/form-data" class="space-y-4">
+                @csrf
+                @method('PUT')
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Tipo de documento</span>
+                    <select name="type" id="editDocumentType" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                        @foreach(\App\Models\EmployeeDocument::TYPES as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Nombre o título</span>
+                    <input type="text" name="title" id="editDocumentTitle" required maxlength="255" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Fecha</span>
+                    <input type="date" name="document_date" id="editDocumentDate" required class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold text-slate-700">Reemplazar archivo (PDF, opcional)</span>
+                    <input type="file" name="file" accept=".pdf" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                </label>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="document.getElementById('modalEditDocument').classList.add('hidden')" class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
+                    <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var modal = document.getElementById('modalEditDocument');
+    var form = document.getElementById('formEditDocument');
+    if (!modal || !form) return;
+    document.querySelectorAll('.btn-edit-document').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            form.setAttribute('action', this.dataset.action || '');
+            document.getElementById('editDocumentType').value = this.dataset.type || '';
+            document.getElementById('editDocumentTitle').value = this.dataset.title || '';
+            document.getElementById('editDocumentDate').value = this.dataset.date || '';
+            modal.classList.remove('hidden');
+        });
+    });
+});
+</script>
+@endpush
 @endif
 @endsection

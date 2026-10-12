@@ -67,6 +67,7 @@ Route::middleware(['auth', 'active.user', 'company'])->group(function () {
     Route::delete('employees/{id}/force', [EmployeeController::class, 'forceDestroy'])->whereNumber('id')->name('employees.force-destroy');
     Route::resource('employees', EmployeeController::class);
     Route::post('employees/{employee}/documents', [EmployeeController::class, 'storeDocument'])->name('employees.documents.store');
+    Route::put('employees/{employee}/documents/{document}', [EmployeeController::class, 'updateDocument'])->name('employees.documents.update');
     Route::get('employees/{employee}/documents/{document}/download', [EmployeeController::class, 'downloadDocument'])->name('employees.documents.download');
     Route::delete('employees/{employee}/documents/{document}', [EmployeeController::class, 'destroyDocument'])->name('employees.documents.destroy');
     Route::post('employees/{employee}/payrolls', [EmployeeController::class, 'uploadPayroll'])->name('employees.payrolls');

@@ -52,16 +52,24 @@ class Order extends Model
      */
     public function invoice()
     {
+        if (array_key_exists('invoice', $this->relations)) {
+            return $this->getRelation('invoice');
+        }
+
         if (empty($this->invoice_number)) {
             return null;
         }
-        
+
         return Invoice::where('invoice_number', $this->invoice_number)->first();
     }
 
     public function getTotalPaidAttribute(): float
     {
-        return $this->payments()->sum('amount');
+        if ($this->relationLoaded('payments')) {
+            return round((float) $this->payments->sum('amount'), 2);
+        }
+
+        return round((float) $this->payments()->sum('amount'), 2);
     }
 
     public function getPendingAmountAttribute(): float

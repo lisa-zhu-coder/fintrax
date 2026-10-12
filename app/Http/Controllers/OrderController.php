@@ -34,29 +34,28 @@ class OrderController extends Controller
     {
         $this->syncStoresFromBusinesses();
 
-        $ordersQuery = Order::with(['store', 'supplier', 'payments']);
-        $this->scopeStoreForCurrentUser($ordersQuery);
+        $statsQuery = Order::query()->whereNotNull('orders.supplier_id');
+        $this->scopeStoreForCurrentUser($statsQuery);
         if ($request->has('period')) {
-            $this->applyPeriodFilter($ordersQuery, $request->period, $request);
+            $this->applyPeriodFilter($statsQuery, $request->period, $request);
         }
-        $orders = $ordersQuery->get();
 
-        $summaryBySupplier = $this->calculateSummaryBySupplier($orders);
+        $statRows = $this->orderStatsGroupedBy($statsQuery, 'supplier_id');
+        $suppliers = Supplier::whereIn('id', $statRows->pluck('group_id')->filter())->get()->keyBy('id');
 
-        // Solo proveedores con ID que tienen al menos un pedido
-        $suppliersWithStats = collect($summaryBySupplier)
-            ->filter(fn ($s) => !empty($s['supplier_id']) && ($s['total_orders'] ?? 0) > 0)
-            ->map(function ($s) {
-                $supplier = Supplier::find($s['supplier_id']);
-                if (!$supplier) {
+        $suppliersWithStats = $statRows
+            ->map(function ($row) use ($suppliers) {
+                $supplier = $suppliers->get($row->group_id);
+                if (! $supplier) {
                     return null;
                 }
+
                 return [
                     'supplier' => $supplier,
-                    'total_orders' => $s['total_orders'],
-                    'total_amount' => $s['total_amount'],
-                    'total_paid' => $s['total_paid'],
-                    'total_pending' => $s['total_pending'],
+                    'total_orders' => (int) $row->total_orders,
+                    'total_amount' => (float) $row->total_amount,
+                    'total_paid' => (float) $row->total_paid,
+                    'total_pending' => (float) $row->total_pending,
                 ];
             })
             ->filter()
@@ -87,16 +86,44 @@ class OrderController extends Controller
 
         $supplier->load('expenseCategory');
 
-        // Resumen por tienda: sin filtros, solo restricción de tiendas del usuario (fijo)
-        $querySummary = Order::with(['store', 'supplier', 'payments'])
-            ->where('supplier_id', $supplier->id);
+        // Resumen por tienda: agregado en SQL (sin cargar todos los pedidos)
+        $querySummary = Order::query()->where('supplier_id', $supplier->id);
         $this->scopeStoreForCurrentUser($querySummary);
-        $ordersForSummary = $querySummary->get();
-        $summary = $this->calculateSummary($ordersForSummary);
-        $summaryByStore = $this->calculateSummaryByStore($ordersForSummary);
+        $summaryRows = $this->orderStatsGroupedBy($querySummary, 'store_id');
+        $storesById = Store::whereIn('id', $summaryRows->pluck('group_id')->filter())->get()->keyBy('id');
+        $summary = [
+            'total_orders' => (int) $summaryRows->sum('total_orders'),
+            'total_amount' => (float) $summaryRows->sum('total_amount'),
+            'total_paid' => (float) $summaryRows->sum('total_paid'),
+            'total_pending' => (float) $summaryRows->sum('total_pending'),
+        ];
+        $summaryByStore = $summaryRows->map(function ($row) use ($storesById) {
+            $store = $storesById->get($row->group_id);
+
+            return [
+                'store_id' => $row->group_id,
+                'store_name' => $store ? $store->name : 'Sin tienda',
+                'total_orders' => (int) $row->total_orders,
+                'total_amount' => (float) $row->total_amount,
+                'total_paid' => (float) $row->total_paid,
+                'total_pending' => (float) $row->total_pending,
+            ];
+        })->all();
 
         // Listado de pedidos: con todos los filtros
-        $query = Order::with(['store', 'supplier', 'payments'])
+        $query = Order::query()
+            ->select([
+                'orders.id',
+                'orders.date',
+                'orders.store_id',
+                'orders.supplier_id',
+                'orders.invoice_number',
+                'orders.order_number',
+                'orders.concept',
+                'orders.amount',
+                'orders.store_split',
+            ])
+            ->with(['store', 'payments'])
             ->where('supplier_id', $supplier->id);
 
         $allowedFilters = \App\Support\OrderTableSettings::supplierOrdersFilterKeys();
@@ -160,6 +187,7 @@ class OrderController extends Controller
         }
 
         $orders = $query->get();
+        $this->eagerLoadInvoicesForOrders($orders);
 
         if (in_array('split_type', $allowedFilters, true) && $request->filled('split_type') && in_array($request->split_type, ['conjunto', 'individual'], true)) {
             $orders = $orders->filter(function (Order $order) use ($request) {
@@ -554,6 +582,56 @@ class OrderController extends Controller
             : route('orders.index');
 
         return redirect($redirectTo)->with('success', 'Pedido eliminado correctamente.');
+    }
+
+    /**
+     * Agrega pedidos (importe, pagado, pendiente) agrupados por una columna.
+     * Evita cargar todos los pedidos y disparar un SUM por cada uno.
+     *
+     * @return \Illuminate\Support\Collection<int, object{group_id: mixed, total_orders: mixed, total_amount: mixed, total_paid: mixed, total_pending: mixed}>
+     */
+    private function orderStatsGroupedBy($query, string $groupColumn)
+    {
+        $paidJoin = '(SELECT order_id, COALESCE(SUM(amount), 0) as paid FROM order_payments WHERE deleted_at IS NULL GROUP BY order_id) as order_paid';
+
+        return $query
+            ->leftJoin(DB::raw($paidJoin), 'order_paid.order_id', '=', 'orders.id')
+            ->selectRaw("orders.{$groupColumn} as group_id")
+            ->selectRaw('COUNT(orders.id) as total_orders')
+            ->selectRaw('COALESCE(SUM(orders.amount), 0) as total_amount')
+            ->selectRaw('COALESCE(SUM(COALESCE(order_paid.paid, 0)), 0) as total_paid')
+            ->selectRaw('COALESCE(SUM(CASE
+                WHEN ABS(orders.amount) < 0.005 THEN 0
+                WHEN orders.amount >= 0 AND (orders.amount - COALESCE(order_paid.paid, 0)) > 0.009 THEN (orders.amount - COALESCE(order_paid.paid, 0))
+                WHEN orders.amount < 0 AND (orders.amount - COALESCE(order_paid.paid, 0)) < -0.009 THEN (orders.amount - COALESCE(order_paid.paid, 0))
+                ELSE 0
+            END), 0) as total_pending')
+            ->groupBy("orders.{$groupColumn}")
+            ->get();
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Order>|\Illuminate\Database\Eloquent\Collection<int, Order>  $orders
+     */
+    private function eagerLoadInvoicesForOrders($orders): void
+    {
+        $numbers = $orders->pluck('invoice_number')->filter()->unique()->values();
+        if ($numbers->isEmpty()) {
+            foreach ($orders as $order) {
+                $order->setRelation('invoice', null);
+            }
+
+            return;
+        }
+
+        $invoices = \App\Models\Invoice::query()
+            ->whereIn('invoice_number', $numbers)
+            ->get()
+            ->keyBy('invoice_number');
+
+        foreach ($orders as $order) {
+            $order->setRelation('invoice', $invoices->get($order->invoice_number));
+        }
     }
 
     private function applyPeriodFilter($query, $period, $request = null)

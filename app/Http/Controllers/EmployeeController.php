@@ -31,8 +31,9 @@ class EmployeeController extends Controller
         $this->middleware('permission:hr.employees.archived_restore')->only(['restore']);
         $this->middleware('permission:hr.employees.archived_permanent_delete')->only(['forceDestroy']);
         $this->middleware('permission:hr.documents.upload')->only(['storeDocument']);
+        $this->middleware('permission:hr.documents.edit')->only(['updateDocument']);
         $this->middleware('permission:hr.documents.delete')->only(['destroyDocument']);
-        $this->middleware('permission:hr.documents.download')->only(['downloadDocument']);
+        $this->middleware('permission:hr.documents.view')->only(['downloadDocument']);
     }
 
     public function index(Request $request)
@@ -684,6 +685,48 @@ class EmployeeController extends Controller
         return redirect()->route('employees.show', $employee)->with('success', 'Documento subido correctamente.');
     }
 
+    public function updateDocument(Request $request, Employee $employee, EmployeeDocument $document)
+    {
+        if ($document->employee_id !== $employee->id) {
+            abort(404);
+        }
+        $user = Auth::user();
+        if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
+            $enforcedStoreId = $user->getEnforcedStoreId();
+            if ($enforcedStoreId !== null && ! $employee->stores->contains('id', $enforcedStoreId)) {
+                abort(403, 'No tienes acceso a este empleado.');
+            }
+        }
+
+        $validated = $request->validate([
+            'type' => 'required|in:contrato,anexo,DNI,certificado,otros',
+            'title' => 'required|string|max:255',
+            'document_date' => 'required|date',
+            'file' => 'nullable|file|mimes:pdf|max:20480',
+        ]);
+
+        $data = [
+            'type' => $validated['type'],
+            'title' => $validated['title'],
+            'document_date' => $validated['document_date'],
+        ];
+
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $dir = 'employee_documents/'.$employee->id;
+            $filename = time().'_'.preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
+            $path = $file->storeAs($dir, $filename, 'local');
+            if ($document->file_path && Storage::disk('local')->exists($document->file_path)) {
+                Storage::disk('local')->delete($document->file_path);
+            }
+            $data['file_path'] = $path;
+        }
+
+        $document->update($data);
+
+        return redirect()->route('employees.show', $employee)->with('success', 'Documento actualizado correctamente.');
+    }
+
     public function destroyDocument(Employee $employee, EmployeeDocument $document)
     {
         if ($document->employee_id !== $employee->id) {
@@ -708,7 +751,7 @@ class EmployeeController extends Controller
             abort(404);
         }
         $user = Auth::user();
-        if (! $user->hasPermission('hr.documents.download')) {
+        if (! $user->hasPermission('hr.documents.view') && ! $user->hasPermission('hr.documents.download')) {
             abort(403);
         }
         if (! $user->isSuperAdmin() && ! $user->isAdmin()) {

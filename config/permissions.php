@@ -132,7 +132,7 @@ return [
                     'create', 'edit', 'delete', 'configure',
                     'archived_restore', 'archived_permanent_delete',
                 ]],
-                ['key' => 'documents', 'label' => 'Documentos en ficha del empleado', 'actions' => ['download', 'upload', 'delete']],
+                ['key' => 'documents', 'label' => 'Cuadro de documentos', 'actions' => ['view', 'upload', 'edit', 'delete']],
                 ['key' => 'payroll', 'label' => 'Nóminas', 'actions' => ['view', 'upload', 'delete', 'send']],
                 ['key' => 'overtime', 'label' => 'Horas extras', 'actions' => ['view_own', 'view_store', 'create', 'edit', 'delete']],
                 ['key' => 'vacations', 'label' => 'Vacaciones', 'actions' => ['view', 'edit']],

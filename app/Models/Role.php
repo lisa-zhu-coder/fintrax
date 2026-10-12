@@ -60,9 +60,10 @@ class Role extends Model
             return true;
         }
 
-        // Documentos RRHH: claves antiguas y alias
-        if ($permission === 'hr.documents.download') {
-            if (! empty($permissions['hr.documents.download']) || ! empty($permissions['hr.documents.view'])
+        // Documentos RRHH: claves actuales + alias antiguos
+        if ($permission === 'hr.documents.view' || $permission === 'hr.documents.download') {
+            if (! empty($permissions['hr.documents.view'])
+                || ! empty($permissions['hr.documents.download'])
                 || ! empty($permissions['rrhh.documents.view'])) {
                 return true;
             }
@@ -72,8 +73,15 @@ class Role extends Model
                 return true;
             }
         }
-        if ($permission === 'hr.documents.delete' && ! empty($permissions['rrhh.documents.delete'])) {
-            return true;
+        if ($permission === 'hr.documents.edit') {
+            if (! empty($permissions['hr.documents.edit']) || ! empty($permissions['rrhh.documents.edit'])) {
+                return true;
+            }
+        }
+        if ($permission === 'hr.documents.delete') {
+            if (! empty($permissions['hr.documents.delete']) || ! empty($permissions['rrhh.documents.delete'])) {
+                return true;
+            }
         }
 
         // Nóminas: hr.payroll.* y claves antiguas payroll.* / hr.payroll.payroll.*

@@ -88,6 +88,7 @@ Route::middleware(['auth', 'active.user', 'company'])->group(function () {
     // Pedidos (vista principal = listado de proveedores; segundo nivel = pedidos del proveedor)
     Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/supplier/{supplier}', [OrderController::class, 'supplierOrders'])->name('orders.supplier');
+    Route::get('/orders/supplier/{supplier}/export', [OrderController::class, 'exportSupplierOrders'])->name('orders.supplier.export');
     Route::get('/orders/create', [OrderController::class, 'create'])->name('orders.create');
     Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
     Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');

@@ -10,9 +10,11 @@ use App\Models\FinancialEntry;
 use App\Models\Order;
 use App\Models\Store;
 use App\Models\Supplier;
+use App\Support\OrderTableSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
@@ -21,7 +23,7 @@ class OrderController extends Controller
     
     public function __construct()
     {
-        $this->middleware('permission:orders.main.view')->only(['index', 'show', 'supplierOrders']);
+        $this->middleware('permission:orders.main.view')->only(['index', 'show', 'supplierOrders', 'exportSupplierOrders']);
         $this->middleware('permission:orders.main.create')->only(['create', 'store']);
         $this->middleware('permission:orders.main.edit')->only(['edit', 'update']);
         $this->middleware('permission:orders.main.delete')->only('destroy');
@@ -110,116 +112,7 @@ class OrderController extends Controller
             ];
         })->all();
 
-        // Listado de pedidos: con todos los filtros
-        $query = Order::query()
-            ->select([
-                'orders.id',
-                'orders.date',
-                'orders.store_id',
-                'orders.supplier_id',
-                'orders.invoice_number',
-                'orders.order_number',
-                'orders.concept',
-                'orders.amount',
-                'orders.store_split',
-            ])
-            ->with(['store', 'payments'])
-            ->where('supplier_id', $supplier->id);
-
-        $allowedFilters = \App\Support\OrderTableSettings::supplierOrdersFilterKeys();
-
-        if (in_array('store_id', $allowedFilters, true) && ($storeId = $this->resolveStoreFilterId($request->input('store_id'))) !== null) {
-            $this->authorizeStoreAccess($storeId);
-            $query->where('store_id', $storeId);
-        } else {
-            $this->scopeStoreForCurrentUser($query);
-        }
-
-        if (in_array('payment_method', $allowedFilters, true) && $request->filled('payment_method') && in_array($request->payment_method, ['cash', 'transfer', 'card'], true)) {
-            $query->whereHas('payments', fn ($q) => $q->where('method', $request->payment_method));
-        }
-
-        if (in_array('status', $allowedFilters, true) && $request->filled('status') && in_array($request->status, ['pendiente', 'pagado'], true)) {
-            $subSelect = 'SELECT COALESCE(SUM(amount), 0) FROM order_payments WHERE order_payments.order_id = orders.id AND order_payments.deleted_at IS NULL';
-            if ($request->status === 'pendiente') {
-                $query->where(function ($q) use ($subSelect) {
-                    $q->where(function ($q2) use ($subSelect) {
-                        $q2->where('orders.amount', '>', 0)
-                            ->whereRaw("orders.amount > ({$subSelect}) + 0.009");
-                    })->orWhere(function ($q2) use ($subSelect) {
-                        $q2->where('orders.amount', '<', 0)
-                            ->whereRaw("orders.amount < ({$subSelect}) - 0.009");
-                    });
-                });
-            } else {
-                $query->where(function ($q) use ($subSelect) {
-                    $q->whereRaw('ABS(orders.amount) < 0.009')
-                        ->orWhere(function ($q2) use ($subSelect) {
-                            $q2->where('orders.amount', '>=', 0)
-                                ->whereRaw("({$subSelect}) >= orders.amount - 0.009");
-                        })
-                        ->orWhere(function ($q2) use ($subSelect) {
-                            $q2->where('orders.amount', '<', 0)
-                                ->whereRaw("({$subSelect}) <= orders.amount + 0.009");
-                        });
-                });
-            }
-        }
-
-        if (in_array('concept', $allowedFilters, true) && $request->filled('concept') && in_array($request->concept, ['pedido', 'royalty', 'rectificacion', 'tara'], true)) {
-            $query->where('concept', $request->concept);
-        }
-
-        if (in_array('search', $allowedFilters, true) && $request->filled('search')) {
-            $term = '%' . trim($request->search) . '%';
-            $query->where(function ($q) use ($term) {
-                $q->where('invoice_number', 'like', $term)
-                    ->orWhere('order_number', 'like', $term);
-            });
-        }
-
-        if (in_array('period', $allowedFilters, true)) {
-            $period = $request->get('period', 'this_year');
-            if ($request->filled('date_from') && $request->filled('date_to')) {
-                $period = 'custom';
-            }
-            $this->applyPeriodFilter($query, $period, $request);
-        }
-
-        $orders = $query->get();
-        $this->eagerLoadInvoicesForOrders($orders);
-
-        if (in_array('split_type', $allowedFilters, true) && $request->filled('split_type') && in_array($request->split_type, ['conjunto', 'individual'], true)) {
-            $orders = $orders->filter(function (Order $order) use ($request) {
-                $label = $order->splitTypeLabel();
-
-                return $request->split_type === 'conjunto'
-                    ? $label === 'Conjunto'
-                    : $label === 'Individual';
-            })->values();
-        }
-
-        if (in_array('origin_store_id', $allowedFilters, true) && ($originStoreId = $this->resolveStoreFilterId($request->input('origin_store_id'))) !== null) {
-            $this->authorizeStoreAccess($originStoreId);
-            $orders = $orders->filter(fn (Order $order) => $order->originStoreId() === $originStoreId)->values();
-        }
-
-        [$sortBy, $sortDir] = $this->resolveSortParams($request, [
-            'status' => 'asc',
-            'date' => 'desc',
-            'store' => 'asc',
-            'invoice_number' => 'asc',
-            'order_number' => 'asc',
-            'concept' => 'asc',
-            'amount' => 'desc',
-            'total_paid' => 'desc',
-            'pending' => 'desc',
-        ], 'date', 'desc');
-
-        $orders = $this->sortOrderCollection($orders, $sortBy, $sortDir);
-
-        $originStoreIds = $orders->map(fn (Order $order) => $order->originStoreId())->unique()->filter()->values();
-        $originStoresById = Store::whereIn('id', $originStoreIds)->pluck('name', 'id');
+        ['orders' => $orders, 'originStoresById' => $originStoresById, 'allowedFilters' => $allowedFilters] = $this->filteredSupplierOrderList($request, $supplier);
 
         [$storeSortBy, $storeSortDir] = $this->resolveSortParams($request, [
             'store_name' => 'asc',
@@ -249,6 +142,37 @@ class OrderController extends Controller
         ];
 
         return view('orders.supplier', compact('supplier', 'orders', 'summary', 'summaryByStore', 'stores', 'filters', 'originStoresById', 'allowedFilters'));
+    }
+
+    public function exportSupplierOrders(Request $request, Supplier $supplier)
+    {
+        $this->syncStoresFromBusinesses();
+
+        ['orders' => $orders, 'originStoresById' => $originStoresById] = $this->filteredSupplierOrderList($request, $supplier, false);
+
+        $columns = collect(OrderTableSettings::visibleColumns('supplier_orders'))
+            ->reject(fn (array $column) => ($column['key'] ?? '') === 'actions')
+            ->values();
+
+        $filename = 'pedidos-'.Str::slug($supplier->name).'-'.now()->format('Y-m-d').'.csv';
+
+        return response()->streamDownload(function () use ($orders, $originStoresById, $columns) {
+            $out = fopen('php://output', 'w');
+            fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+            fputcsv($out, $columns->pluck('label')->all(), ';', '"', '\\');
+
+            foreach ($orders as $order) {
+                $row = [];
+                foreach ($columns as $column) {
+                    $row[] = $this->supplierOrderExportCell($order, $column['key'], $originStoresById);
+                }
+                fputcsv($out, $row, ';', '"', '\\');
+            }
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     public function create()
@@ -608,6 +532,157 @@ class OrderController extends Controller
             END), 0) as total_pending')
             ->groupBy("orders.{$groupColumn}")
             ->get();
+    }
+
+    /**
+     * @return array{orders: \Illuminate\Support\Collection<int, Order>, originStoresById: \Illuminate\Support\Collection<int, string>, allowedFilters: list<string>}
+     */
+    private function filteredSupplierOrderList(Request $request, Supplier $supplier, bool $withInvoices = true): array
+    {
+        $query = Order::query()
+            ->select([
+                'orders.id',
+                'orders.date',
+                'orders.store_id',
+                'orders.supplier_id',
+                'orders.invoice_number',
+                'orders.order_number',
+                'orders.concept',
+                'orders.amount',
+                'orders.store_split',
+            ])
+            ->with(['store', 'payments'])
+            ->where('supplier_id', $supplier->id);
+
+        $allowedFilters = OrderTableSettings::supplierOrdersFilterKeys();
+
+        if (in_array('store_id', $allowedFilters, true) && ($storeId = $this->resolveStoreFilterId($request->input('store_id'))) !== null) {
+            $this->authorizeStoreAccess($storeId);
+            $query->where('store_id', $storeId);
+        } else {
+            $this->scopeStoreForCurrentUser($query);
+        }
+
+        if (in_array('payment_method', $allowedFilters, true) && $request->filled('payment_method') && in_array($request->payment_method, ['cash', 'transfer', 'card'], true)) {
+            $query->whereHas('payments', fn ($q) => $q->where('method', $request->payment_method));
+        }
+
+        if (in_array('status', $allowedFilters, true) && $request->filled('status') && in_array($request->status, ['pendiente', 'pagado'], true)) {
+            $subSelect = 'SELECT COALESCE(SUM(amount), 0) FROM order_payments WHERE order_payments.order_id = orders.id AND order_payments.deleted_at IS NULL';
+            if ($request->status === 'pendiente') {
+                $query->where(function ($q) use ($subSelect) {
+                    $q->where(function ($q2) use ($subSelect) {
+                        $q2->where('orders.amount', '>', 0)
+                            ->whereRaw("orders.amount > ({$subSelect}) + 0.009");
+                    })->orWhere(function ($q2) use ($subSelect) {
+                        $q2->where('orders.amount', '<', 0)
+                            ->whereRaw("orders.amount < ({$subSelect}) - 0.009");
+                    });
+                });
+            } else {
+                $query->where(function ($q) use ($subSelect) {
+                    $q->whereRaw('ABS(orders.amount) < 0.009')
+                        ->orWhere(function ($q2) use ($subSelect) {
+                            $q2->where('orders.amount', '>=', 0)
+                                ->whereRaw("({$subSelect}) >= orders.amount - 0.009");
+                        })
+                        ->orWhere(function ($q2) use ($subSelect) {
+                            $q2->where('orders.amount', '<', 0)
+                                ->whereRaw("({$subSelect}) <= orders.amount + 0.009");
+                        });
+                });
+            }
+        }
+
+        if (in_array('concept', $allowedFilters, true) && $request->filled('concept') && in_array($request->concept, ['pedido', 'royalty', 'rectificacion', 'tara'], true)) {
+            $query->where('concept', $request->concept);
+        }
+
+        if (in_array('search', $allowedFilters, true) && $request->filled('search')) {
+            $term = '%'.trim($request->search).'%';
+            $query->where(function ($q) use ($term) {
+                $q->where('invoice_number', 'like', $term)
+                    ->orWhere('order_number', 'like', $term);
+            });
+        }
+
+        if (in_array('period', $allowedFilters, true)) {
+            $period = $request->get('period', 'this_year');
+            if ($request->filled('date_from') && $request->filled('date_to')) {
+                $period = 'custom';
+            }
+            $this->applyPeriodFilter($query, $period, $request);
+        }
+
+        $orders = $query->get();
+
+        if ($withInvoices) {
+            $this->eagerLoadInvoicesForOrders($orders);
+        }
+
+        if (in_array('split_type', $allowedFilters, true) && $request->filled('split_type') && in_array($request->split_type, ['conjunto', 'individual'], true)) {
+            $orders = $orders->filter(function (Order $order) use ($request) {
+                $label = $order->splitTypeLabel();
+
+                return $request->split_type === 'conjunto'
+                    ? $label === 'Conjunto'
+                    : $label === 'Individual';
+            })->values();
+        }
+
+        if (in_array('origin_store_id', $allowedFilters, true) && ($originStoreId = $this->resolveStoreFilterId($request->input('origin_store_id'))) !== null) {
+            $this->authorizeStoreAccess($originStoreId);
+            $orders = $orders->filter(fn (Order $order) => $order->originStoreId() === $originStoreId)->values();
+        }
+
+        [$sortBy, $sortDir] = $this->resolveSortParams($request, [
+            'status' => 'asc',
+            'date' => 'desc',
+            'store' => 'asc',
+            'invoice_number' => 'asc',
+            'order_number' => 'asc',
+            'concept' => 'asc',
+            'amount' => 'desc',
+            'total_paid' => 'desc',
+            'pending' => 'desc',
+        ], 'date', 'desc');
+
+        $orders = $this->sortOrderCollection($orders, $sortBy, $sortDir);
+
+        $originStoreIds = $orders->map(fn (Order $order) => $order->originStoreId())->unique()->filter()->values();
+        $originStoresById = Store::whereIn('id', $originStoreIds)->pluck('name', 'id');
+
+        return [
+            'orders' => $orders,
+            'originStoresById' => $originStoresById,
+            'allowedFilters' => $allowedFilters,
+        ];
+    }
+
+    private function supplierOrderExportCell(Order $order, string $key, $originStoresById): string
+    {
+        return match ($key) {
+            'status' => ucfirst((string) $order->status),
+            'date' => $order->date?->format('d/m/Y') ?? '',
+            'store' => (string) ($order->store->name ?? ''),
+            'split_type' => $order->splitTypeLabel(),
+            'origin_store' => (string) ($originStoresById[$order->originStoreId()] ?? ''),
+            'invoice_number' => (string) ($order->invoice_number ?? ''),
+            'order_number' => (string) ($order->order_number ?? ''),
+            'concept' => ucfirst((string) ($order->concept ?? '')),
+            'amount' => number_format((float) $order->amount, 2, ',', '.'),
+            'total_paid' => number_format((float) $order->total_paid, 2, ',', '.'),
+            'pending' => number_format((float) $order->pending_amount, 2, ',', '.'),
+            'payment_methods' => $order->payments->pluck('method')->unique()->map(function ($method) {
+                return match ($method) {
+                    'cash' => 'Efectivo',
+                    'transfer', 'bank' => 'Transferencia',
+                    'card' => 'Tarjeta',
+                    default => ucfirst((string) ($method ?? '')),
+                };
+            })->unique()->values()->filter()->implode(', '),
+            default => '',
+        };
     }
 
     /**

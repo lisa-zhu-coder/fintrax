@@ -195,7 +195,15 @@
 
     <!-- Listado de pedidos -->
     <div class="mt-10 rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-100">
-        <h2 class="mb-4 text-base font-semibold">Pedidos</h2>
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <h2 class="text-base font-semibold">Pedidos</h2>
+            <a href="{{ route('orders.supplier.export', array_merge(['supplier' => $supplier], request()->query())) }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Exportar
+            </a>
+        </div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-left text-sm">
                 <thead class="text-xs uppercase text-slate-500">

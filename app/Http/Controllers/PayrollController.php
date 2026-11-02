@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\Mime\Part\TextPart;
 
 class PayrollController extends Controller
@@ -527,9 +529,45 @@ class PayrollController extends Controller
 
         $this->ensurePayrollFileOnDisk($payroll, $pdfContent);
 
-        return response($pdfContent)
-            ->header('Content-Type', 'application/pdf')
-            ->header('Content-Disposition', 'inline; filename="' . ($payroll->file_name ?? 'nomina.pdf') . '"');
+        $fileName = $this->dispositionFileName($payroll->file_name ?: 'nomina.pdf');
+        $headers = [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => HeaderUtils::makeDisposition(
+                HeaderUtils::DISPOSITION_INLINE,
+                $fileName,
+                $this->asciiFallbackFileName($fileName)
+            ),
+        ];
+
+        if ($payroll->file_path && Storage::disk('local')->exists($payroll->file_path)) {
+            return response()->file(Storage::disk('local')->path($payroll->file_path), $headers);
+        }
+
+        return response($pdfContent, 200, $headers + [
+            'Content-Length' => (string) strlen($pdfContent),
+        ]);
+    }
+
+    private function dispositionFileName(string $fileName): string
+    {
+        $fileName = trim(str_replace(['/', '\\'], '', $fileName));
+
+        return $fileName !== '' ? $fileName : 'nomina.pdf';
+    }
+
+    private function asciiFallbackFileName(string $fileName): string
+    {
+        $ascii = Str::ascii($this->dispositionFileName($fileName));
+        $ascii = preg_replace('/[^A-Za-z0-9._ -]+/', '_', $ascii) ?? '';
+        $ascii = trim($ascii, " ._");
+        if ($ascii === '') {
+            $ascii = 'nomina';
+        }
+        if (! str_ends_with(strtolower($ascii), '.pdf')) {
+            $ascii .= '.pdf';
+        }
+
+        return $ascii;
     }
 
     private function authorizePayrollView(Payroll $payroll): void

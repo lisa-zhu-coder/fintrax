@@ -276,22 +276,26 @@
                 </div>
                 <div class="space-y-2">
                     @forelse($employee->payrolls as $payroll)
-                        <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3 ring-1 ring-slate-100">
-                            <div class="flex items-center gap-3">
-                                <div class="grid h-10 w-10 place-items-center rounded-lg bg-indigo-100 text-indigo-700">
+                        <div class="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 ring-1 ring-slate-100 sm:flex-row sm:items-center sm:justify-between">
+                            <div class="flex min-w-0 items-center gap-3">
+                                <div class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-indigo-100 text-indigo-700">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                         <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                     </svg>
                                 </div>
-                                <div>
-                                    <div class="text-sm font-semibold text-slate-900">{{ $payroll->file_name }}</div>
+                                <div class="min-w-0">
+                                    @if(auth()->user()->canViewPayrollPdf($employee))
+                                    <button type="button" class="btn-view-payroll block max-w-full truncate text-left text-sm font-semibold text-slate-900 hover:text-brand-700" data-view-url="{{ route('payrolls.view', $payroll) }}" data-file-name="{{ $payroll->file_name }}">{{ $payroll->file_name }}</button>
+                                    @else
+                                    <div class="truncate text-sm font-semibold text-slate-900">{{ $payroll->file_name }}</div>
+                                    @endif
                                     <div class="text-xs text-slate-500">{{ $payroll->date ? $payroll->date->format('d/m/Y') : '—' }} @if($payroll->sent_at)<span class="text-emerald-600">· Enviado</span>@else<span class="text-amber-600">· Pendiente</span>@endif</div>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-2">
+                            <div class="flex shrink-0 flex-wrap items-center gap-2">
                                 @if(auth()->user()->canViewPayrollPdf($employee))
-                                <a href="{{ route('payrolls.view', $payroll) }}" target="_blank" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">Ver</a>
+                                <button type="button" class="btn-view-payroll rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100" data-view-url="{{ route('payrolls.view', $payroll) }}" data-file-name="{{ $payroll->file_name }}">Ver</button>
                                 @endif
                                 @if(auth()->user()->hasPermission('hr.payroll.upload') || auth()->user()->hasPermission('hr.employees.configure'))
                                 <button type="button"
@@ -319,6 +323,45 @@
         </div>
     </div>
 </div>
+
+@if(auth()->user()->canViewPayrollPdf($employee))
+<div id="modalViewPayroll" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-slate-900/50" onclick="document.getElementById('modalViewPayroll').classList.add('hidden'); document.getElementById('payrollPreviewFrame').src='about:blank';"></div>
+        <div class="relative flex h-[85vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-xl ring-1 ring-slate-200">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                <h3 id="payrollPreviewTitle" class="truncate text-base font-semibold text-slate-900">Nómina</h3>
+                <div class="flex shrink-0 items-center gap-2">
+                    <a id="payrollPreviewOpenTab" href="#" target="_blank" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">Abrir en pestaña</a>
+                    <button type="button" onclick="document.getElementById('modalViewPayroll').classList.add('hidden'); document.getElementById('payrollPreviewFrame').src='about:blank';" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">Cerrar</button>
+                </div>
+            </div>
+            <iframe id="payrollPreviewFrame" title="Vista previa de la nómina" class="min-h-0 w-full flex-1 rounded-b-2xl bg-slate-100" src="about:blank"></iframe>
+        </div>
+    </div>
+</div>
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var modal = document.getElementById('modalViewPayroll');
+    var frame = document.getElementById('payrollPreviewFrame');
+    var title = document.getElementById('payrollPreviewTitle');
+    var openTab = document.getElementById('payrollPreviewOpenTab');
+    if (!modal || !frame) return;
+    document.querySelectorAll('.btn-view-payroll').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var url = this.dataset.viewUrl;
+            if (!url) return;
+            frame.src = url;
+            if (title) title.textContent = this.dataset.fileName || 'Nómina';
+            if (openTab) openTab.href = url;
+            modal.classList.remove('hidden');
+        });
+    });
+});
+</script>
+@endpush
+@endif
 
 @if(auth()->user()->hasPermission('hr.payroll.upload') || auth()->user()->hasPermission('hr.employees.configure'))
 <div id="modalRenamePayroll" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true">

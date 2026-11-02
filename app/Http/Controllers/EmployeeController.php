@@ -357,7 +357,23 @@ class EmployeeController extends Controller
             abort(403, 'Solo puedes ver tu propia ficha de empleado.');
         }
 
-        $employee->load(['user.role', 'stores', 'payrolls', 'documents']);
+        $employee->load([
+            'user.role',
+            'stores',
+            'documents',
+            'payrolls' => function ($query) {
+                $query->select([
+                    'id',
+                    'employee_id',
+                    'file_name',
+                    'date',
+                    'month',
+                    'year',
+                    'sent_at',
+                    'file_path',
+                ])->orderByDesc('date')->orderByDesc('id');
+            },
+        ]);
         $totalStores = Store::count();
 
         return view('employees.show', compact('employee', 'totalStores'));

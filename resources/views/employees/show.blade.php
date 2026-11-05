@@ -286,7 +286,7 @@
                                 </div>
                                 <div class="min-w-0">
                                     @if(auth()->user()->canViewPayrollPdf($employee))
-                                    <button type="button" class="btn-view-payroll block max-w-full truncate text-left text-sm font-semibold text-slate-900 hover:text-brand-700" data-view-url="{{ route('payrolls.view', $payroll) }}" data-file-name="{{ $payroll->file_name }}">{{ $payroll->file_name }}</button>
+                                    <a href="{{ route('payrolls.view', $payroll) }}" target="_blank" rel="noopener" class="block max-w-full truncate text-left text-sm font-semibold text-slate-900 hover:text-brand-700">{{ $payroll->file_name }}</a>
                                     @else
                                     <div class="truncate text-sm font-semibold text-slate-900">{{ $payroll->file_name }}</div>
                                     @endif
@@ -295,7 +295,7 @@
                             </div>
                             <div class="flex shrink-0 flex-wrap items-center gap-2">
                                 @if(auth()->user()->canViewPayrollPdf($employee))
-                                <button type="button" class="btn-view-payroll rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100" data-view-url="{{ route('payrolls.view', $payroll) }}" data-file-name="{{ $payroll->file_name }}">Ver</button>
+                                <a href="{{ route('payrolls.view', $payroll) }}" target="_blank" rel="noopener" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ring-1 ring-transparent hover:ring-brand-100">Ver</a>
                                 @endif
                                 @if(auth()->user()->hasPermission('hr.payroll.upload') || auth()->user()->hasPermission('hr.employees.configure'))
                                 <button type="button"
@@ -323,45 +323,6 @@
         </div>
     </div>
 </div>
-
-@if(auth()->user()->canViewPayrollPdf($employee))
-<div id="modalViewPayroll" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-    <div class="flex min-h-screen items-center justify-center p-4">
-        <div class="fixed inset-0 bg-slate-900/50" onclick="document.getElementById('modalViewPayroll').classList.add('hidden'); document.getElementById('payrollPreviewFrame').src='about:blank';"></div>
-        <div class="relative flex h-[85vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-xl ring-1 ring-slate-200">
-            <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-                <h3 id="payrollPreviewTitle" class="truncate text-base font-semibold text-slate-900">Nómina</h3>
-                <div class="flex shrink-0 items-center gap-2">
-                    <a id="payrollPreviewOpenTab" href="#" target="_blank" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">Abrir en pestaña</a>
-                    <button type="button" onclick="document.getElementById('modalViewPayroll').classList.add('hidden'); document.getElementById('payrollPreviewFrame').src='about:blank';" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">Cerrar</button>
-                </div>
-            </div>
-            <iframe id="payrollPreviewFrame" title="Vista previa de la nómina" class="min-h-0 w-full flex-1 rounded-b-2xl bg-slate-100" src="about:blank"></iframe>
-        </div>
-    </div>
-</div>
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var modal = document.getElementById('modalViewPayroll');
-    var frame = document.getElementById('payrollPreviewFrame');
-    var title = document.getElementById('payrollPreviewTitle');
-    var openTab = document.getElementById('payrollPreviewOpenTab');
-    if (!modal || !frame) return;
-    document.querySelectorAll('.btn-view-payroll').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var url = this.dataset.viewUrl;
-            if (!url) return;
-            frame.src = url;
-            if (title) title.textContent = this.dataset.fileName || 'Nómina';
-            if (openTab) openTab.href = url;
-            modal.classList.remove('hidden');
-        });
-    });
-});
-</script>
-@endpush
-@endif
 
 @if(auth()->user()->hasPermission('hr.payroll.upload') || auth()->user()->hasPermission('hr.employees.configure'))
 <div id="modalRenamePayroll" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true">

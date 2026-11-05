@@ -74,7 +74,7 @@ Route::middleware(['auth', 'active.user', 'company'])->group(function () {
     Route::post('employees/payrolls/upload', [EmployeeController::class, 'uploadPayrollAuto'])->name('employees.payrolls.upload');
 
     // Nóminas
-    Route::get('payrolls/{payroll}/view', [\App\Http\Controllers\PayrollController::class, 'view'])->name('payrolls.view');
+    Route::get('payrolls/{payroll}/view', [\App\Http\Controllers\PayrollController::class, 'view'])->whereNumber('payroll')->name('payrolls.view');
     Route::get('payroll/pending-send', [\App\Http\Controllers\PayrollController::class, 'pendingSend'])->name('payroll.pending-send');
     Route::get('payroll/process-status/{token}', [\App\Http\Controllers\PayrollController::class, 'processStatus'])->name('payroll.process-status');
     Route::post('payroll/send-bulk', [\App\Http\Controllers\PayrollController::class, 'sendBulk'])->name('payroll.send-bulk');

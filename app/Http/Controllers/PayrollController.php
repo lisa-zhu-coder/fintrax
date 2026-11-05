@@ -518,16 +518,31 @@ class PayrollController extends Controller
         return redirect()->back()->with('success', 'Nómina eliminada.');
     }
 
-    public function view(Payroll $payroll)
+    public function view(int $payroll)
     {
-        $this->authorizePayrollView($payroll);
-
-        $pdfContent = $this->resolvePayrollPdfContent($payroll);
-        if ($pdfContent === '') {
-            abort(404, 'No se encontró el archivo PDF de esta nómina. Elimínala y vuelve a subirla.');
+        $payroll = Payroll::withTrashed()->find($payroll);
+        if (! $payroll) {
+            return response('No se encontró esta nómina.', 404);
         }
 
-        $this->ensurePayrollFileOnDisk($payroll, $pdfContent);
+        $this->authorizePayrollView($payroll);
+
+        $absolutePath = $this->locatePayrollPdfPath($payroll);
+        $pdfContent = $absolutePath ? '' : $this->resolvePayrollPdfContent($payroll);
+        if ($absolutePath === null && $pdfContent === '') {
+            return response('No se encontró el archivo PDF de esta nómina. Elimínala y vuelve a subirla.', 404);
+        }
+
+        if ($pdfContent !== '') {
+            $this->ensurePayrollFileOnDisk($payroll, $pdfContent);
+            if ($payroll->file_path) {
+                $rewritten = $this->absolutePathIfReadable($payroll->file_path);
+                if ($rewritten !== null) {
+                    $absolutePath = $rewritten;
+                    $pdfContent = '';
+                }
+            }
+        }
 
         $fileName = $this->dispositionFileName($payroll->file_name ?: 'nomina.pdf');
         $headers = [
@@ -537,10 +552,11 @@ class PayrollController extends Controller
                 $fileName,
                 $this->asciiFallbackFileName($fileName)
             ),
+            'X-Content-Type-Options' => 'nosniff',
         ];
 
-        if ($payroll->file_path && Storage::disk('local')->exists($payroll->file_path)) {
-            return response()->file(Storage::disk('local')->path($payroll->file_path), $headers);
+        if ($absolutePath !== null) {
+            return response()->file($absolutePath, $headers);
         }
 
         return response($pdfContent, 200, $headers + [
@@ -607,54 +623,170 @@ class PayrollController extends Controller
         abort(403, 'No tienes permiso para ver esta nómina.');
     }
 
-    private function resolvePayrollPdfContent(Payroll $payroll): string
+    private function locatePayrollPdfPath(Payroll $payroll): ?string
     {
-        $disk = Storage::disk('local');
-        $pathsToTry = [];
+        foreach ($this->payrollPathCandidates($payroll) as $candidate) {
+            $absolute = $this->absolutePathIfReadable($candidate);
+            if ($absolute !== null) {
+                $this->rememberPayrollPath($payroll, $absolute);
 
-        if ($payroll->file_path) {
-            $pathsToTry[] = $payroll->file_path;
-        }
-        if ($payroll->employee_id && $payroll->file_name) {
-            $pathsToTry[] = 'payrolls/' . $payroll->employee_id . '/' . $this->sanitizePayrollStorageFileName($payroll->file_name);
-            $pathsToTry[] = 'payrolls/' . $payroll->employee_id . '/' . basename($payroll->file_name);
+                return $absolute;
+            }
         }
 
-        foreach (array_unique(array_filter($pathsToTry)) as $path) {
-            if (! $disk->exists($path)) {
+        $targetKey = $this->payrollNameKey($payroll->file_name);
+        if ($targetKey === '') {
+            return null;
+        }
+
+        foreach ($this->payrollStorageRoots() as $root) {
+            $base = $root.DIRECTORY_SEPARATOR.'payrolls';
+            if (! is_dir($base)) {
                 continue;
             }
-            $content = $disk->get($path) ?: '';
-            if ($content !== '') {
-                if ($payroll->file_path !== $path) {
-                    $payroll->update(['file_path' => $path]);
-                }
 
-                return $content;
+            $preferred = $payroll->employee_id
+                ? $base.DIRECTORY_SEPARATOR.$payroll->employee_id
+                : null;
+            $directories = $preferred && is_dir($preferred) ? [$preferred] : [];
+            if (strlen($targetKey) >= 10) {
+                foreach (scandir($base) ?: [] as $entry) {
+                    if ($entry === '.' || $entry === '..') {
+                        continue;
+                    }
+                    $dir = $base.DIRECTORY_SEPARATOR.$entry;
+                    if (is_dir($dir) && $dir !== $preferred) {
+                        $directories[] = $dir;
+                    }
+                }
+            }
+
+            foreach ($directories as $dir) {
+                foreach (scandir($dir) ?: [] as $entry) {
+                    if (! str_ends_with(strtolower($entry), '.pdf')) {
+                        continue;
+                    }
+                    if ($this->payrollNameKey($entry) !== $targetKey) {
+                        continue;
+                    }
+                    $absolute = $dir.DIRECTORY_SEPARATOR.$entry;
+                    if (is_file($absolute) && is_readable($absolute)) {
+                        $this->rememberPayrollPath($payroll, $absolute);
+
+                        return $absolute;
+                    }
+                }
             }
         }
 
-        if ($payroll->employee_id && $payroll->file_name && $disk->exists('payrolls/' . $payroll->employee_id)) {
-            $targetNames = [
-                $this->sanitizePayrollStorageFileName($payroll->file_name),
-                basename($payroll->file_name),
-            ];
-            foreach ($disk->files('payrolls/' . $payroll->employee_id) as $file) {
-                if (! in_array(basename($file), $targetNames, true)) {
-                    continue;
-                }
-                $content = $disk->get($file) ?: '';
-                if ($content !== '') {
-                    $payroll->update(['file_path' => $file]);
+        return null;
+    }
 
-                    return $content;
-                }
+    /**
+     * @return list<string>
+     */
+    private function payrollPathCandidates(Payroll $payroll): array
+    {
+        $candidates = [];
+        $raw = urldecode(str_replace('\\', '/', (string) $payroll->file_path));
+        $raw = ltrim($raw, '/');
+        foreach (['storage/app/private/', 'storage/app/public/', 'storage/app/', 'app/private/', 'app/public/', 'app/'] as $prefix) {
+            if ($raw !== '' && str_starts_with($raw, $prefix)) {
+                $raw = substr($raw, strlen($prefix));
+            }
+        }
+        if ($payroll->file_path) {
+            $candidates[] = (string) $payroll->file_path;
+        }
+        if ($raw !== '') {
+            $candidates[] = $raw;
+        }
+        if ($payroll->employee_id && $payroll->file_name) {
+            $safe = $this->sanitizePayrollStorageFileName($payroll->file_name);
+            $base = basename(str_replace('\\', '/', $payroll->file_name));
+            $candidates[] = 'payrolls/'.$payroll->employee_id.'/'.$safe;
+            $candidates[] = 'payrolls/'.$payroll->employee_id.'/'.$base;
+        }
+
+        return array_values(array_unique(array_filter($candidates)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function payrollStorageRoots(): array
+    {
+        return array_values(array_unique(array_filter([
+            storage_path('app'),
+            storage_path('app/private'),
+            storage_path('app/public'),
+            public_path('storage'),
+        ], 'is_dir')));
+    }
+
+    private function absolutePathIfReadable(string $path): ?string
+    {
+        $path = str_replace('\\', '/', $path);
+        $attempts = [];
+        if ($path !== '' && ($path[0] === '/' || preg_match('/^[A-Za-z]:\//', $path))) {
+            $attempts[] = $path;
+        }
+        $relative = ltrim($path, '/');
+        foreach ($this->payrollStorageRoots() as $root) {
+            $attempts[] = $root.'/'.$relative;
+        }
+
+        foreach ($attempts as $attempt) {
+            if (is_file($attempt) && is_readable($attempt)) {
+                return $attempt;
             }
         }
 
-        return $this->decodePayrollBase64(
-            Payroll::withoutGlobalScopes()->whereKey($payroll->id)->value('base64_content')
-        );
+        return null;
+    }
+
+    private function rememberPayrollPath(Payroll $payroll, string $absolutePath): void
+    {
+        $normalized = str_replace('\\', '/', $absolutePath);
+        foreach ($this->payrollStorageRoots() as $root) {
+            $prefix = rtrim(str_replace('\\', '/', $root), '/').'/';
+            if (! str_starts_with($normalized, $prefix)) {
+                continue;
+            }
+            $relative = substr($normalized, strlen($prefix));
+            if ($relative !== '' && $relative !== $payroll->file_path) {
+                $payroll->update(['file_path' => $relative]);
+            }
+
+            return;
+        }
+    }
+
+    private function payrollNameKey(?string $name): string
+    {
+        $name = basename(str_replace('\\', '/', (string) $name));
+        $name = Str::ascii(mb_strtolower($name));
+        $name = preg_replace('/\.pdf$/', '', $name) ?? $name;
+        $name = preg_replace('/[^a-z0-9]+/', '', $name) ?? '';
+
+        return $name;
+    }
+
+    private function resolvePayrollPdfContent(Payroll $payroll): string
+    {
+        $absolute = $this->locatePayrollPdfPath($payroll);
+        if ($absolute !== null) {
+            $content = file_get_contents($absolute);
+
+            return is_string($content) ? $content : '';
+        }
+
+        $stored = Payroll::withTrashed()->whereKey($payroll->id)->value('base64_content');
+        if (is_string($stored) && str_starts_with($stored, '%PDF')) {
+            return $stored;
+        }
+
+        return $this->decodePayrollBase64(is_string($stored) ? $stored : null);
     }
 
     private function decodePayrollBase64(?string $base64): string
